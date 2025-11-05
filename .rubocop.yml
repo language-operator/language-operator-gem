@@ -1,0 +1,113 @@
+# RuboCop configuration for language-operator gem
+
+AllCops:
+  NewCops: enable
+  TargetRubyVersion: 3.0
+  SuggestExtensions: false
+  Exclude:
+    - 'vendor/**/*'
+    - 'tmp/**/*'
+    - 'bin/bump-version'
+    - 'lib/language_operator/cli/templates/**/*'
+
+# Metrics
+Metrics/BlockLength:
+  Max: 30
+  Exclude:
+    - 'spec/**/*'
+    - 'Rakefile'
+    - '*.gemspec'
+    - 'test_*.rb'
+
+Metrics/MethodLength:
+  Max: 35
+  Exclude:
+    - 'spec/**/*'
+    - 'lib/language_operator/dsl/**/*'
+    - 'lib/language_operator/cli/**/*'
+    - 'lib/language_operator/client/**/*'
+    - 'lib/language_operator/agent/**/*'
+
+Metrics/AbcSize:
+  Max: 35
+  Exclude:
+    - 'spec/**/*'
+    - 'lib/language_operator/dsl/**/*'
+    - 'lib/language_operator/cli/**/*'
+    - 'lib/language_operator/client/**/*'
+    - 'lib/language_operator/agent/**/*'
+
+Metrics/ClassLength:
+  Max: 175
+  Exclude:
+    - 'spec/**/*'
+    - 'lib/language_operator/cli/**/*'
+
+Metrics/ModuleLength:
+  Max: 150
+  Exclude:
+    - 'spec/**/*'
+
+Metrics/CyclomaticComplexity:
+  Max: 15
+  Exclude:
+    - 'spec/**/*'
+    - 'lib/language_operator/dsl/**/*'
+    - 'lib/language_operator/cli/**/*'
+
+Metrics/PerceivedComplexity:
+  Max: 15
+  Exclude:
+    - 'spec/**/*'
+    - 'lib/language_operator/dsl/**/*'
+    - 'lib/language_operator/cli/**/*'
+
+Metrics/ParameterLists:
+  Max: 8
+  CountKeywordArgs: false
+
+# Lint
+Lint/DuplicateMethods:
+  Exclude:
+    - 'lib/language_operator/dsl/**/*'
+
+Lint/DuplicateBranch:
+  Enabled: false
+
+Lint/UnusedMethodArgument:
+  AllowUnusedKeywordArguments: true
+
+Lint/UnusedBlockArgument:
+  AllowUnusedKeywordArguments: true
+
+# Style
+Style/Documentation:
+  Enabled: false
+
+Style/StringLiterals:
+  EnforcedStyle: single_quotes
+
+Style/FrozenStringLiteralComment:
+  Enabled: true
+  EnforcedStyle: always
+
+Style/OptionalBooleanParameter:
+  Enabled: false
+
+Style/EmptyElse:
+  Enabled: false
+
+# Gemspec
+Gemspec/DevelopmentDependencies:
+  Enabled: false
+
+# Naming
+Naming/AccessorMethodName:
+  Enabled: false
+
+# Layout
+Layout/LineLength:
+  Max: 155
+  Exclude:
+    - 'spec/**/*'
+    - '*.gemspec'
