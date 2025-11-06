@@ -22,18 +22,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Ruby 3.4
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ruby-full build-essential
-          ruby --version
-          gem --version
-
-      - name: Install Bundler
-        run: sudo gem install bundler
-
-      - name: Install dependencies
-        run: bundle install --jobs 4 --retry 3
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
 
       - name: Run tests
         run: make test
@@ -59,18 +52,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Ruby 3.4
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ruby-full build-essential
-          ruby --version
-          gem --version
-
-      - name: Install Bundler
-        run: sudo gem install bundler
-
-      - name: Install dependencies
-        run: bundle install --jobs 4 --retry 3
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
 
       - name: Build gem
         run: make build
