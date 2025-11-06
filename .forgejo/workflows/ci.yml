@@ -101,7 +101,7 @@ jobs:
           mkdir -p ~/.gem
           cat > ~/.gem/credentials << EOF
           ---
-          https://git.theryans.io/api/packages/language-operator/rubygems: Bearer ${{ secrets.GITHUB_TOKEN }}
+          https://git.theryans.io/api/packages/language-operator/rubygems: Bearer ${{ secrets.REGISTRY_TOKEN }}
           EOF
           chmod 0600 ~/.gem/credentials
           gem push --host https://git.theryans.io/api/packages/language-operator/rubygems language-operator-*.gem
