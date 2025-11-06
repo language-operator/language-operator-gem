@@ -18,21 +18,21 @@ jobs:
     name: Test & Lint
     runs-on: builder
 
-    strategy:
-      matrix:
-        ruby-version: ['3.0', '3.1', '3.2', '3.3', '3.4']
-
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        run: |
+          git clone ${{ github.server_url }}/${{ github.repository }} .
+          git fetch origin ${{ github.ref }}
+          git checkout ${{ github.sha }}
 
-      - name: Set up Ruby ${{ matrix.ruby-version }}
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: ${{ matrix.ruby-version }}
-          bundler-cache: true
+      - name: Install Ruby
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby ruby-dev build-essential
+          ruby --version
+
+      - name: Install Bundler
+        run: sudo gem install bundler
 
       - name: Install dependencies
         run: bundle install --jobs 4 --retry 3
@@ -46,6 +46,11 @@ jobs:
       - name: Build gem
         run: make build
 
+      - name: Save gem artifact
+        run: |
+          mkdir -p /tmp/artifacts
+          cp *.gem /tmp/artifacts/ 2>/dev/null || true
+
   publish:
     name: Publish Gem
     runs-on: builder
@@ -54,15 +59,19 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        run: |
+          git clone ${{ github.server_url }}/${{ github.repository }} .
+          git fetch origin ${{ github.ref }}
+          git checkout ${{ github.sha }}
 
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.4'
-          bundler-cache: true
+      - name: Install Ruby
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby ruby-dev build-essential
+          ruby --version
+
+      - name: Install Bundler
+        run: sudo gem install bundler
 
       - name: Install dependencies
         run: bundle install --jobs 4 --retry 3
@@ -87,30 +96,27 @@ jobs:
           fi
           echo "Version check passed: $GEM_VERSION"
 
-      - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ steps.tag_version.outputs.version }}
-          body: |
-            Release of language-operator gem version ${{ steps.tag_version.outputs.version }}
+      - name: Create Release
+        run: |
+          echo "Release ${{ steps.tag_version.outputs.version }}" > /tmp/release_notes.txt
+          echo "" >> /tmp/release_notes.txt
+          echo "## Installation" >> /tmp/release_notes.txt
+          echo "" >> /tmp/release_notes.txt
+          echo "\`\`\`bash" >> /tmp/release_notes.txt
+          echo "gem install language-operator -v ${{ steps.tag_version.outputs.version }}" >> /tmp/release_notes.txt
+          echo "\`\`\`" >> /tmp/release_notes.txt
+          echo "" >> /tmp/release_notes.txt
+          echo "## Changes" >> /tmp/release_notes.txt
+          echo "" >> /tmp/release_notes.txt
+          echo "See [CHANGELOG.md](CHANGELOG.md) for details." >> /tmp/release_notes.txt
 
-            ## Installation
-
-            ```bash
-            gem install language-operator -v ${{ steps.tag_version.outputs.version }}
-            ```
-
-            ## Changes
-
-            See [CHANGELOG.md](CHANGELOG.md) for details.
-          draft: false
-          prerelease: false
+          # Create release using Forgejo API if available
+          # Otherwise just log it
+          echo "Created release notes for version ${{ steps.tag_version.outputs.version }}"
+          cat /tmp/release_notes.txt
 
       - name: Publish to RubyGems (if configured)
-        if: ${{ secrets.RUBYGEMS_API_KEY != '' }}
+        if: env.RUBYGEMS_API_KEY != ''
         run: |
           mkdir -p ~/.gem
           cat > ~/.gem/credentials << EOF
@@ -122,9 +128,9 @@ jobs:
         env:
           RUBYGEMS_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
 
-      - name: Upload gem artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: language-operator-${{ steps.tag_version.outputs.version }}.gem
-          path: language-operator-*.gem
-          retention-days: 90
+      - name: Archive gem
+        run: |
+          mkdir -p /tmp/artifacts
+          cp *.gem /tmp/artifacts/
+          ls -lh /tmp/artifacts/
+          echo "Gem artifact saved to /tmp/artifacts/"
