@@ -20,8 +20,8 @@ module LanguageOperator
         desc 'list', 'List all personas in current cluster'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def list
-          cluster = ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = ClusterValidator.get_cluster_config(cluster)
+          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
+          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
           k8s = Kubernetes::Client.new(
             kubeconfig: cluster_config[:kubeconfig],
@@ -66,8 +66,8 @@ module LanguageOperator
         desc 'show NAME', 'Display full persona details'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def show(name)
-          cluster = ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = ClusterValidator.get_cluster_config(cluster)
+          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
+          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
           k8s = Kubernetes::Client.new(
             kubeconfig: cluster_config[:kubeconfig],
@@ -145,8 +145,8 @@ module LanguageOperator
         option :cluster, type: :string, desc: 'Override current cluster context'
         option :from, type: :string, desc: 'Copy from existing persona as starting point'
         def create(name)
-          cluster = ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = ClusterValidator.get_cluster_config(cluster)
+          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
+          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
           k8s = Kubernetes::Client.new(
             kubeconfig: cluster_config[:kubeconfig],
@@ -283,8 +283,8 @@ module LanguageOperator
         DESC
         option :cluster, type: :string, desc: 'Override current cluster context'
         def edit(name)
-          cluster = ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = ClusterValidator.get_cluster_config(cluster)
+          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
+          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
           k8s = Kubernetes::Client.new(
             kubeconfig: cluster_config[:kubeconfig],
@@ -352,8 +352,8 @@ module LanguageOperator
         option :cluster, type: :string, desc: 'Override current cluster context'
         option :force, type: :boolean, default: false, desc: 'Skip confirmation'
         def delete(name)
-          cluster = ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = ClusterValidator.get_cluster_config(cluster)
+          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
+          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
           k8s = Kubernetes::Client.new(
             kubeconfig: cluster_config[:kubeconfig],

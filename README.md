@@ -2,6 +2,27 @@
 
 This gem translates a high-level DSL into language operator components.
 
+## Quick Start
+
+### Deploy an Agent
+
+```bash
+# 1. Create a language cluster
+aictl cluster create my-cluster
+
+# 2. Create a language model
+aictl model create gpt4 --provider openai --model gpt-4-turbo
+
+# 3. Create a tool (if needed)
+# Tools are typically installed from registries or created via custom MCP servers
+# Example: aictl tool install filesystem
+
+# 4. Create an agent
+aictl agent create "Monitor my GitHub repos and summarize daily activity" \
+  --models gpt4 \
+  --name github-monitor
+```
+
 ## Tools
 
 ```ruby

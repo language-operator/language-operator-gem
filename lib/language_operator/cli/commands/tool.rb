@@ -20,8 +20,8 @@ module LanguageOperator
         desc 'list', 'List all tools in current cluster'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def list
-          cluster = ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = ClusterValidator.get_cluster_config(cluster)
+          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
+          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
           k8s = Kubernetes::Client.new(
             kubeconfig: cluster_config[:kubeconfig],
@@ -83,8 +83,8 @@ module LanguageOperator
         option :cluster, type: :string, desc: 'Override current cluster context'
         option :force, type: :boolean, default: false, desc: 'Skip confirmation'
         def delete(name)
-          cluster = ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = ClusterValidator.get_cluster_config(cluster)
+          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
+          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
           k8s = Kubernetes::Client.new(
             kubeconfig: cluster_config[:kubeconfig],
@@ -162,8 +162,8 @@ module LanguageOperator
             cluster = options[:cluster] || 'preview'
             cluster_config = { namespace: 'default' }
           else
-            cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-            cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
+            cluster = Helpers::Helpers::ClusterValidator.get_cluster(options[:cluster])
+            cluster_config = Helpers::Helpers::ClusterValidator.get_cluster_config(cluster)
           end
 
           # Load tool patterns registry
@@ -277,8 +277,8 @@ module LanguageOperator
         desc 'auth NAME', 'Configure authentication for a tool'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def auth(tool_name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
+          cluster = Helpers::Helpers::ClusterValidator.get_cluster(options[:cluster])
+          cluster_config = Helpers::Helpers::ClusterValidator.get_cluster_config(cluster)
 
           k8s = Kubernetes::Client.new(
             kubeconfig: cluster_config[:kubeconfig],
@@ -409,8 +409,8 @@ module LanguageOperator
         desc 'test NAME', 'Test tool connectivity and health'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def test(tool_name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
+          cluster = Helpers::Helpers::ClusterValidator.get_cluster(options[:cluster])
+          cluster_config = Helpers::Helpers::ClusterValidator.get_cluster_config(cluster)
 
           k8s = Kubernetes::Client.new(
             kubeconfig: cluster_config[:kubeconfig],
