@@ -28,13 +28,15 @@ module LanguageOperator
                            labels: {})
           spec = {
             'instructions' => instructions,
-            'mode' => schedule ? 'scheduled' : 'autonomous'
+            'mode' => schedule ? 'scheduled' : 'autonomous',
+            'image' => 'git.theryans.io/language-operator/agent:latest'
           }
 
           spec['schedule'] = schedule if schedule
           spec['persona'] = persona if persona
           spec['tools'] = tools unless tools.empty?
-          spec['models'] = models unless models.empty?
+          # Convert model names to modelRef objects
+          spec['modelRefs'] = models.map { |m| { 'name' => m } } unless models.empty?
 
           {
             'apiVersion' => 'langop.io/v1alpha1',

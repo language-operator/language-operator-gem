@@ -57,6 +57,25 @@ module LanguageOperator
           # Generate agent name from description if not provided
           agent_name = options[:name] || generate_agent_name(description)
 
+          # Get models: use specified models, or default to all available models in cluster
+          models = options[:models]
+          if models.nil? || models.empty?
+            k8s = Kubernetes::Client.new(
+              kubeconfig: cluster_config[:kubeconfig],
+              context: cluster_config[:context]
+            )
+            available_models = k8s.list_resources('LanguageModel', namespace: cluster_config[:namespace])
+            models = available_models.map { |m| m.dig('metadata', 'name') }
+
+            if models.empty?
+              Formatters::ProgressFormatter.error('No models found in cluster')
+              puts
+              puts 'Create a model first with:'
+              puts '  aictl model create <name> --provider <provider> --model <model>'
+              exit 1
+            end
+          end
+
           # Build LanguageAgent resource
           agent_resource = Kubernetes::ResourceBuilder.language_agent(
             agent_name,
@@ -64,7 +83,7 @@ module LanguageOperator
             cluster: cluster_config[:namespace],
             persona: options[:persona],
             tools: options[:tools] || [],
-            models: options[:models] || []
+            models: models
           )
 
           # Dry-run mode: preview without applying
@@ -174,10 +193,10 @@ module LanguageOperator
           end
 
           # Models
-          models = agent.dig('spec', 'models') || []
-          if models.any?
-            puts "Models (#{models.length}):"
-            models.each { |model| puts "  - #{model}" }
+          model_refs = agent.dig('spec', 'modelRefs') || []
+          if model_refs.any?
+            puts "Models (#{model_refs.length}):"
+            model_refs.each { |ref| puts "  - #{ref['name']}" }
             puts
           end
 
@@ -573,7 +592,8 @@ module LanguageOperator
           namespace = agent_resource.dig('metadata', 'namespace')
           persona = agent_resource.dig('spec', 'persona')
           tools = agent_resource.dig('spec', 'tools') || []
-          models = agent_resource.dig('spec', 'models') || []
+          model_refs = agent_resource.dig('spec', 'modelRefs') || []
+          models = model_refs.map { |ref| ref['name'] }
           mode = agent_resource.dig('spec', 'mode') || 'autonomous'
           schedule = agent_resource.dig('spec', 'schedule')
 
@@ -661,8 +681,8 @@ module LanguageOperator
           spinner = TTY::Spinner.new('[:spinner] Waiting for synthesis...', format: :dots)
           spinner.auto_spin
 
-          max_wait = 60 # Wait up to 60 seconds
-          interval = 2  # Check every 2 seconds
+          max_wait = 600 # Wait up to 10 minutes (local models can be slow)
+          interval = 2   # Check every 2 seconds
           elapsed = 0
 
           loop do

@@ -563,14 +563,6 @@ module LanguageOperator
             return
           end
 
-          # Display header
-          if pattern
-            puts "Tools matching '#{pattern}':"
-          else
-            puts 'Available Tools:'
-          end
-          puts
-
           # Display tools in a nice format
           tools.each do |name, config|
             description = config['description'] || 'No description'
@@ -579,8 +571,6 @@ module LanguageOperator
             bold_name = "\e[1m#{name}\e[0m"
             puts "#{bold_name} - #{description}"
           end
-
-          puts "Install with: aictl tool install <name>"
         rescue StandardError => e
           Formatters::ProgressFormatter.error("Failed to search tools: #{e.message}")
           raise if ENV['DEBUG']

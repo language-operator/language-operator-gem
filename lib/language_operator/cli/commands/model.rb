@@ -159,7 +159,8 @@ module LanguageOperator
           # Get agents using this model
           agents = k8s.list_resources('LanguageAgent', namespace: cluster_config[:namespace])
           agents_using = agents.select do |agent|
-            agent_models = agent.dig('spec', 'models') || []
+            agent_model_refs = agent.dig('spec', 'modelRefs') || []
+            agent_models = agent_model_refs.map { |ref| ref['name'] }
             agent_models.include?(name)
           end
 
@@ -212,7 +213,8 @@ module LanguageOperator
           # Check for agents using this model
           agents = k8s.list_resources('LanguageAgent', namespace: cluster_config[:namespace])
           agents_using = agents.select do |agent|
-            agent_models = agent.dig('spec', 'models') || []
+            agent_model_refs = agent.dig('spec', 'modelRefs') || []
+            agent_models = agent_model_refs.map { |ref| ref['name'] }
             agent_models.include?(name)
           end
 
