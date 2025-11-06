@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'thor'
+require 'yaml'
 require_relative '../formatters/progress_formatter'
 require_relative '../formatters/table_formatter'
 require_relative '../../config/cluster_config'
@@ -17,9 +18,18 @@ module LanguageOperator
         option :kubeconfig, type: :string, desc: 'Path to kubeconfig file'
         option :context, type: :string, desc: 'Kubernetes context to use'
         option :switch, type: :boolean, default: true, desc: 'Switch to new cluster context'
+        option :dry_run, type: :boolean, default: false, desc: 'Output the manifest without creating'
         def create(name)
           kubeconfig = options[:kubeconfig]
           context = options[:context]
+
+          # Handle dry-run: output manifest and exit early
+          if options[:dry_run]
+            namespace = options[:namespace] || 'default'
+            resource = Kubernetes::ResourceBuilder.language_cluster(name, namespace: namespace)
+            puts resource.to_yaml
+            return
+          end
 
           # Check if cluster already exists
           if Config::ClusterConfig.cluster_exists?(name)
