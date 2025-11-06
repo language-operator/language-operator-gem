@@ -20,11 +20,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        run: |
-          git config --global credential.helper store
-          echo "https://${{ secrets.REGISTRY_USERNAME }}:${{ secrets.REGISTRY_PASSWORD }}@forgejo.forgejo.svc.cluster.local" > ~/.git-credentials
-          git clone https://forgejo.forgejo.svc.cluster.local/${{ github.repository }} .
-          git checkout ${{ github.sha }}
+        uses: actions/checkout@v4
 
       - name: Install Ruby
         run: |
@@ -60,11 +56,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        run: |
-          git config --global credential.helper store
-          echo "https://${{ secrets.REGISTRY_USERNAME }}:${{ secrets.REGISTRY_PASSWORD }}@forgejo.forgejo.svc.cluster.local" > ~/.git-credentials
-          git clone https://forgejo.forgejo.svc.cluster.local/${{ github.repository }} .
-          git checkout ${{ github.sha }}
+        uses: actions/checkout@v4
 
       - name: Install Ruby
         run: |
@@ -112,8 +104,7 @@ jobs:
           echo "" >> /tmp/release_notes.txt
           echo "See [CHANGELOG.md](CHANGELOG.md) for details." >> /tmp/release_notes.txt
 
-          # Create release using Forgejo API if available
-          # Otherwise just log it
+          # Create release notes
           echo "Created release notes for version ${{ steps.tag_version.outputs.version }}"
           cat /tmp/release_notes.txt
 
