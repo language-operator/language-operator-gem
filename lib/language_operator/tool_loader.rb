@@ -150,11 +150,11 @@ module LanguageOperator
 
           # Return MCP response
           MCP::Tool::Response.new([
-            {
-              type: 'text',
-              text: result.to_s
-            }
-          ])
+                                    {
+                                      type: 'text',
+                                      text: result.to_s
+                                    }
+                                  ])
         end
       end
     end

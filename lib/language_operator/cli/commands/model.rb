@@ -101,7 +101,7 @@ module LanguageOperator
 
           # Check if model already exists
           begin
-            existing = k8s.get_resource('LanguageModel', name, cluster_config[:namespace])
+            k8s.get_resource('LanguageModel', name, cluster_config[:namespace])
             Formatters::ProgressFormatter.error("Model '#{name}' already exists in cluster '#{cluster}'")
             exit 1
           rescue K8s::Error::NotFound
@@ -309,7 +309,7 @@ module LanguageOperator
 
           exit 1
         ensure
-          temp_file.unlink if temp_file
+          temp_file&.unlink
         end
       end
     end
