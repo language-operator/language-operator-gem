@@ -572,17 +572,12 @@ module LanguageOperator
           puts
 
           # Display tools in a nice format
-          max_name_length = tools.keys.map(&:length).max
           tools.each do |name, config|
-            display_name = config['displayName'] || name.capitalize
             description = config['description'] || 'No description'
-            auth = config['authRequired'] ? ' [auth required]' : ''
-            mode = config['deploymentMode'] || 'service'
 
-            puts "  #{name.ljust(max_name_length + 2)}#{display_name}"
-            puts "  #{''.ljust(max_name_length + 2)}#{description}"
-            puts "  #{''.ljust(max_name_length + 2)}Mode: #{mode}#{auth}"
-            puts
+            # Bold the tool name (ANSI escape codes)
+            bold_name = "\e[1m#{name}\e[0m"
+            puts "#{bold_name} - #{description}"
           end
 
           puts "Install with: aictl tool install <name>"
