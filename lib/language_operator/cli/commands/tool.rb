@@ -518,6 +518,80 @@ module LanguageOperator
 
           exit 1
         end
+
+        desc 'search [PATTERN]', 'Search available tools in the registry'
+        long_desc <<-DESC
+          Search and list available tools from the registry.
+
+          Without a pattern, lists all available tools.
+          With a pattern, filters tools by name or description (case-insensitive).
+
+          Examples:
+            aictl tool search              # List all tools
+            aictl tool search web          # Find tools matching "web"
+            aictl tool search email        # Find tools matching "email"
+        DESC
+        def search(pattern = nil)
+          # Load tool patterns registry
+          patterns_path = File.join(__dir__, '..', '..', 'config', 'tool_patterns.yaml')
+          unless File.exist?(patterns_path)
+            Formatters::ProgressFormatter.error('Tool registry not found')
+            exit 1
+          end
+
+          patterns = YAML.load_file(patterns_path)
+
+          # Filter out aliases and match pattern
+          tools = patterns.select do |key, config|
+            next false if config['alias'] # Skip aliases
+
+            if pattern
+              # Case-insensitive match on name or description
+              key.downcase.include?(pattern.downcase) ||
+                config['description']&.downcase&.include?(pattern.downcase)
+            else
+              true
+            end
+          end
+
+          if tools.empty?
+            if pattern
+              Formatters::ProgressFormatter.info("No tools found matching '#{pattern}'")
+            else
+              Formatters::ProgressFormatter.info('No tools found in registry')
+            end
+            return
+          end
+
+          # Display header
+          if pattern
+            puts "Tools matching '#{pattern}':"
+          else
+            puts 'Available Tools:'
+          end
+          puts
+
+          # Display tools in a nice format
+          max_name_length = tools.keys.map(&:length).max
+          tools.each do |name, config|
+            display_name = config['displayName'] || name.capitalize
+            description = config['description'] || 'No description'
+            auth = config['authRequired'] ? ' [auth required]' : ''
+            mode = config['deploymentMode'] || 'service'
+
+            puts "  #{name.ljust(max_name_length + 2)}#{display_name}"
+            puts "  #{''.ljust(max_name_length + 2)}#{description}"
+            puts "  #{''.ljust(max_name_length + 2)}Mode: #{mode}#{auth}"
+            puts
+          end
+
+          puts "Install with: aictl tool install <name>"
+        rescue StandardError => e
+          Formatters::ProgressFormatter.error("Failed to search tools: #{e.message}")
+          raise if ENV['DEBUG']
+
+          exit 1
+        end
       end
     end
   end
