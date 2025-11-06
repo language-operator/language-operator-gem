@@ -69,9 +69,9 @@ module LanguageOperator
       #       # ...
       #     end
       #   end
-      def define(&block)
+      def define(&)
         context = Context.new(registry)
-        context.instance_eval(&block)
+        context.instance_eval(&)
         registry
       end
 
@@ -86,9 +86,9 @@ module LanguageOperator
       #       # ...
       #     end
       #   end
-      def define_agents(&block)
+      def define_agents(&)
         context = AgentContext.new(agent_registry)
-        context.instance_eval(&block)
+        context.instance_eval(&)
         agent_registry
       end
 

@@ -52,8 +52,8 @@ module LanguageOperator
   #
   # @yield Block containing tool definitions
   # @return [LanguageOperator::Dsl::Registry] The global tool registry
-  def self.define(&block)
-    Dsl.define(&block)
+  def self.define(&)
+    Dsl.define(&)
   end
 
   # Convenience method to load tools from a file

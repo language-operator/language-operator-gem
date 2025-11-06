@@ -74,14 +74,14 @@ module LanguageOperator
 
       # Run a command and return only stdout (like backticks)
       # Returns nil if the command fails
-      def self.capture(cmd, *args, **options)
-        result = run(cmd, *args, **options)
+      def self.capture(cmd, *, **)
+        result = run(cmd, *, **)
         result[:success] ? result[:output] : nil
       end
 
       # Run a command and return stdout, raising on failure
-      def self.capture!(cmd, *args, **options)
-        result = run(cmd, *args, **options)
+      def self.capture!(cmd, *, **)
+        result = run(cmd, *, **)
         raise "Command failed (exit #{result[:exitcode]}): #{result[:error]}" unless result[:success]
 
         result[:output]

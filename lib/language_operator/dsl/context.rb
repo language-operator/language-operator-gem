@@ -36,9 +36,9 @@ module LanguageOperator
       # @param name [String] Tool name
       # @yield Tool definition block
       # @return [void]
-      def tool(name, &block)
+      def tool(name, &)
         tool_def = ToolDefinition.new(name)
-        tool_def.instance_eval(&block) if block_given?
+        tool_def.instance_eval(&) if block_given?
         @registry.register(tool_def)
       end
     end

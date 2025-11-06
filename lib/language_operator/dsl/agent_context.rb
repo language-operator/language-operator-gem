@@ -36,9 +36,9 @@ module LanguageOperator
       # @param name [String] Agent name
       # @yield Agent definition block
       # @return [void]
-      def agent(name, &block)
+      def agent(name, &)
         agent_def = AgentDefinition.new(name)
-        agent_def.instance_eval(&block) if block_given?
+        agent_def.instance_eval(&) if block_given?
         @registry.register(agent_def)
       end
     end

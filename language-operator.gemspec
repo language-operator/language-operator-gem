@@ -12,7 +12,7 @@ Gem::Specification.new do |spec|
   spec.description   = 'language-operator Ruby SDK provides the aictl CLI and library for creating and managing autonomous AI agents on Kubernetes'
   spec.homepage      = 'https://github.com/langop/language-operator'
   spec.license       = 'MIT'
-  spec.required_ruby_version = '>= 3.0.0'
+  spec.required_ruby_version = '>= 3.2.0'
 
   spec.metadata['homepage_uri'] = spec.homepage
   spec.metadata['source_code_uri'] = 'https://github.com/langop/language-operator'

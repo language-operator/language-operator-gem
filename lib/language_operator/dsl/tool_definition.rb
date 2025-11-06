@@ -39,9 +39,9 @@ module LanguageOperator
         @description = val
       end
 
-      def parameter(name, &block)
+      def parameter(name, &)
         param = ParameterDefinition.new(name)
-        param.instance_eval(&block) if block_given?
+        param.instance_eval(&) if block_given?
         @parameters[name.to_s] = param
       end
 
