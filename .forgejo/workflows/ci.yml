@@ -96,12 +96,20 @@ jobs:
           echo "Created release notes for version ${{ steps.tag_version.outputs.version }}"
           cat /tmp/release_notes.txt
 
-      - name: Publish to RubyGems (if configured)
-        if: env.RUBYGEMS_API_KEY != ''
+      - name: Publish to Forgejo RubyGems Registry
         run: |
           mkdir -p ~/.gem
           cat > ~/.gem/credentials << EOF
           ---
+          https://git.theryans.io/api/packages/language-operator/rubygems: Bearer ${{ secrets.GITHUB_TOKEN }}
+          EOF
+          chmod 0600 ~/.gem/credentials
+          gem push --host https://git.theryans.io/api/packages/language-operator/rubygems language-operator-*.gem
+
+      - name: Publish to RubyGems.org (if configured)
+        if: env.RUBYGEMS_API_KEY != ''
+        run: |
+          cat >> ~/.gem/credentials << EOF
           :rubygems_api_key: ${{ secrets.RUBYGEMS_API_KEY }}
           EOF
           chmod 0600 ~/.gem/credentials
