@@ -63,11 +63,11 @@ RSpec.describe LanguageOperator::Dsl::ParameterDefinition do
     it 'includes enum when set' do
       param = described_class.new(:test_param)
       param.type :string
-      param.enum ['a', 'b', 'c']
+      param.enum %w[a b c]
 
       schema = param.to_schema
 
-      expect(schema['enum']).to eq(['a', 'b', 'c'])
+      expect(schema['enum']).to eq(%w[a b c])
     end
 
     it 'includes default when set' do
