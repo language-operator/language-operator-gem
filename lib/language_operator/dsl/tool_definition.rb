@@ -58,7 +58,7 @@ module LanguageOperator
           params[name] = default_value if !params.key?(name) && !default_value.nil?
 
           # Validate required parameters
-          raise ArgumentError, "Missing required parameter: #{name}" if param_def.required && !params.key?(name)
+          raise ArgumentError, "Missing required parameter: #{name}" if param_def.required? && !params.key?(name)
 
           # Validate parameter format if validator is set and value is present
           if params.key?(name)
@@ -81,7 +81,7 @@ module LanguageOperator
           'inputSchema' => {
             'type' => 'object',
             'properties' => @parameters.transform_values(&:to_schema),
-            'required' => @parameters.select { |_, p| p.required }.keys
+            'required' => @parameters.select { |_, p| p.required? }.keys
           }
         }
       end

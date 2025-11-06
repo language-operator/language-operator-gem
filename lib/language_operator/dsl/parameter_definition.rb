@@ -21,7 +21,7 @@ module LanguageOperator
     #     default "pending"
     #   end
     class ParameterDefinition
-      attr_reader :name, :type, :required, :description, :enum, :default, :validator
+      attr_reader :name, :type, :description, :enum, :default, :validator
 
       def initialize(name)
         @name = name
@@ -33,8 +33,14 @@ module LanguageOperator
         @type = val
       end
 
+      # Setter method for required flag
       def required(val = true)
         @required = val
+      end
+
+      # Getter method for required flag (explicit to avoid collision with setter)
+      def required?
+        @required
       end
 
       def description(val)

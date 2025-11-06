@@ -172,7 +172,7 @@ module LanguageOperator
             puts '    (none)'
           else
             tool.parameters.each do |name, param|
-              required = param.required ? ' (required)' : ''
+              required = param.required? ? ' (required)' : ''
               puts "    - #{name}: #{param.type}#{required} - #{param.description}"
             end
           end
