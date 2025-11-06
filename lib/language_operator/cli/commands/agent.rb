@@ -46,10 +46,10 @@ module LanguageOperator
             cluster = cluster_name
           else
             # Validate cluster selection (this will exit if none selected)
-            cluster = ClusterValidator.get_cluster(options[:cluster])
+            cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           end
 
-          cluster_config = ClusterValidator.get_cluster_config(cluster)
+          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
           Formatters::ProgressFormatter.info("Creating agent in cluster '#{cluster}'")
           puts
@@ -117,7 +117,7 @@ module LanguageOperator
           if options[:all_clusters]
             list_all_clusters
           else
-            cluster = ClusterValidator.get_cluster(options[:cluster])
+            cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
             list_cluster_agents(cluster)
           end
         rescue StandardError => e
@@ -130,8 +130,8 @@ module LanguageOperator
         desc 'inspect NAME', 'Show detailed agent information'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def inspect(name)
-          cluster = ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = ClusterValidator.get_cluster_config(cluster)
+          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
+          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
           k8s = Kubernetes::Client.new(
             kubeconfig: cluster_config[:kubeconfig],
@@ -231,8 +231,8 @@ module LanguageOperator
         option :cluster, type: :string, desc: 'Override current cluster context'
         option :force, type: :boolean, default: false, desc: 'Skip confirmation'
         def delete(name)
-          cluster = ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = ClusterValidator.get_cluster_config(cluster)
+          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
+          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
           k8s = Kubernetes::Client.new(
             kubeconfig: cluster_config[:kubeconfig],
@@ -288,8 +288,8 @@ module LanguageOperator
         option :follow, type: :boolean, aliases: '-f', default: false, desc: 'Follow logs'
         option :tail, type: :numeric, default: 100, desc: 'Number of lines to show from the end'
         def logs(name)
-          cluster = ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = ClusterValidator.get_cluster_config(cluster)
+          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
+          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
           k8s = Kubernetes::Client.new(
             kubeconfig: cluster_config[:kubeconfig],
@@ -340,8 +340,8 @@ module LanguageOperator
         desc 'code NAME', 'Display synthesized agent code'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def code(name)
-          cluster = ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = ClusterValidator.get_cluster_config(cluster)
+          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
+          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
           k8s = Kubernetes::Client.new(
             kubeconfig: cluster_config[:kubeconfig],
@@ -391,8 +391,8 @@ module LanguageOperator
         desc 'edit NAME', 'Edit agent instructions'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def edit(name)
-          cluster = ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = ClusterValidator.get_cluster_config(cluster)
+          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
+          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
           k8s = Kubernetes::Client.new(
             kubeconfig: cluster_config[:kubeconfig],
@@ -452,8 +452,8 @@ module LanguageOperator
         desc 'pause NAME', 'Pause scheduled agent execution'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def pause(name)
-          cluster = ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = ClusterValidator.get_cluster_config(cluster)
+          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
+          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
           k8s = Kubernetes::Client.new(
             kubeconfig: cluster_config[:kubeconfig],
@@ -507,8 +507,8 @@ module LanguageOperator
         desc 'resume NAME', 'Resume paused agent'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def resume(name)
-          cluster = ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = ClusterValidator.get_cluster_config(cluster)
+          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
+          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
           k8s = Kubernetes::Client.new(
             kubeconfig: cluster_config[:kubeconfig],
@@ -711,7 +711,7 @@ module LanguageOperator
         end
 
         def list_cluster_agents(cluster)
-          cluster_config = ClusterValidator.get_cluster_config(cluster)
+          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
           Formatters::ProgressFormatter.info("Agents in cluster '#{cluster}'")
 
