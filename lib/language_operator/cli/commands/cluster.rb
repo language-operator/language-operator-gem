@@ -319,7 +319,7 @@ module LanguageOperator
             puts "Models: #{models.count}"
             models.each do |model|
               provider = model.dig('spec', 'provider')
-              model_name = model.dig('spec', 'model')
+              model_name = model.dig('spec', 'modelName')
               puts "  - #{model.dig('metadata', 'name')} (#{provider}/#{model_name})"
             end
             puts

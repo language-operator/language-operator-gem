@@ -69,7 +69,7 @@ module LanguageOperator
         def language_model(name, provider:, model:, endpoint: nil, cluster: nil, labels: {})
           spec = {
             'provider' => provider,
-            'model' => model
+            'modelName' => model
           }
           spec['endpoint'] = endpoint if endpoint
 

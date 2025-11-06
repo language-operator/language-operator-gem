@@ -8,6 +8,7 @@ require_relative 'commands/agent'
 require_relative 'commands/status'
 require_relative 'commands/persona'
 require_relative 'commands/tool'
+require_relative 'commands/model'
 require_relative 'formatters/progress_formatter'
 require_relative '../config/cluster_config'
 require_relative '../kubernetes/client'
@@ -81,6 +82,9 @@ module LanguageOperator
 
       desc 'tool SUBCOMMAND ...ARGS', 'Manage MCP tools'
       subcommand 'tool', Commands::Tool
+
+      desc 'model SUBCOMMAND ...ARGS', 'Manage language models'
+      subcommand 'model', Commands::Model
 
       desc 'new TYPE NAME', 'Generate a new tool or agent project (TYPE: tool, agent)'
       long_desc <<-DESC
