@@ -1,0 +1,27 @@
+# Gem build artifacts
+*.gem
+
+# Bundler
+/.bundle/
+/vendor/bundle/
+Gemfile.lock
+
+# RSpec
+/.rspec_status
+
+# YARD
+/.yardoc/
+/doc/
+
+# Test coverage
+/coverage/
+
+# Temporary files
+/tmp/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
