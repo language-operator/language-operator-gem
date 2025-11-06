@@ -149,10 +149,12 @@ module LanguageOperator
           result = @execute_block.call(params)
 
           # Return MCP response
-          MCP::Tool::Response.new([{
-            type: 'text',
-            text: result.to_s
-          }])
+          MCP::Tool::Response.new([
+            {
+              type: 'text',
+              text: result.to_s
+            }
+          ])
         end
       end
     end
