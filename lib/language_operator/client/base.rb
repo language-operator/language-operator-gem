@@ -188,43 +188,42 @@ module LanguageOperator
       def connect_mcp_servers
         enabled_servers = @config['mcp_servers'].select { |s| s['enabled'] }
 
-        if enabled_servers.empty?
-          logger.info('No MCP servers configured, agent will run without tools')
-          return
-        end
-
-        logger.info('Connecting to MCP servers', count: enabled_servers.length)
-
         all_tools = []
 
-        enabled_servers.each do |server_config|
-          client = connect_with_retry(server_config)
-          next unless client
+        if enabled_servers.empty?
+          logger.info('No MCP servers configured, agent will run without tools')
+        else
+          logger.info('Connecting to MCP servers', count: enabled_servers.length)
 
-          @clients << client
-          tool_count = client.tools.length
-          all_tools.concat(client.tools)
+          enabled_servers.each do |server_config|
+            client = connect_with_retry(server_config)
+            next unless client
 
-          logger.info('MCP server connected',
-                      server: server_config['name'],
-                      tool_count: tool_count,
-                      tools: client.tools.map(&:name))
-        rescue StandardError => e
-          logger.error('Error connecting to MCP server',
-                       server: server_config['name'],
-                       error: e.message)
-          if @debug
-            logger.debug('Connection error backtrace',
+            @clients << client
+            tool_count = client.tools.length
+            all_tools.concat(client.tools)
+
+            logger.info('MCP server connected',
+                        server: server_config['name'],
+                        tool_count: tool_count,
+                        tools: client.tools.map(&:name))
+          rescue StandardError => e
+            logger.error('Error connecting to MCP server',
                          server: server_config['name'],
-                         backtrace: e.backtrace.join("\n"))
+                         error: e.message)
+            if @debug
+              logger.debug('Connection error backtrace',
+                           server: server_config['name'],
+                           backtrace: e.backtrace.join("\n"))
+            end
           end
+
+          logger.info('MCP connection summary',
+                      connected_servers: @clients.length,
+                      total_tools: all_tools.length)
         end
 
-        logger.info('MCP connection summary',
-                    connected_servers: @clients.length,
-                    total_tools: all_tools.length)
-
-        # Create chat with all collected tools
+        # Create chat with all collected tools (even if empty)
         llm_config = @config['llm']
         chat_params = build_chat_params(llm_config)
         @chat = RubyLLM.chat(**chat_params)
