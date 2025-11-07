@@ -97,8 +97,8 @@ module LanguageOperator
       loader.load_tools
 
       # Convert DSL tools to MCP::Tool classes
-      mcp_tools = registry.all.map do |tool_name, tool_def|
-        create_mcp_tool(tool_name, tool_def)
+      mcp_tools = registry.all.map do |tool_def|
+        create_mcp_tool(tool_def)
       end
 
       # Create and start MCP server
@@ -115,24 +115,23 @@ module LanguageOperator
 
     # Convert a DSL tool definition to an MCP::Tool class
     #
-    # @param tool_name [String] Name of the tool
-    # @param tool_def [Hash] Tool definition from DSL
+    # @param tool_def [LanguageOperator::Dsl::ToolDefinition] Tool definition from DSL
     # @return [Class] MCP::Tool subclass
-    def self.create_mcp_tool(tool_name, tool_def)
+    def self.create_mcp_tool(tool_def)
       # Create a dynamic MCP::Tool class
       Class.new(MCP::Tool) do
-        description tool_def[:description] || "Tool: #{tool_name}"
+        description tool_def.description || "Tool: #{tool_def.name}"
 
         # Build input schema from parameters
         properties = {}
         required_params = []
 
-        tool_def[:parameters]&.each do |param_name, param_def|
+        tool_def.parameters.each do |param_name, param_def|
           properties[param_name] = {
-            type: param_def[:type]&.to_s || 'string',
-            description: param_def[:description]
+            type: param_def.type&.to_s || 'string',
+            description: param_def.description
           }
-          required_params << param_name if param_def[:required]
+          required_params << param_name if param_def.required?
         end
 
         input_schema(
@@ -141,7 +140,7 @@ module LanguageOperator
         )
 
         # Store the execute block
-        @execute_block = tool_def[:execute]
+        @execute_block = tool_def.execute_block
 
         # Define the call method
         define_singleton_method(:call) do |**params|
