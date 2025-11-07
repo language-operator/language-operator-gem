@@ -21,7 +21,7 @@ module LanguageOperator
     #     default "pending"
     #   end
     class ParameterDefinition
-      attr_reader :name, :type, :description, :enum, :default, :validator
+      attr_reader :name, :validator
 
       def initialize(name)
         @name = name
@@ -29,7 +29,9 @@ module LanguageOperator
         @validator = nil
       end
 
-      def type(val)
+      def type(val = nil)
+        return @type if val.nil?
+
         @type = val
       end
 
@@ -43,15 +45,21 @@ module LanguageOperator
         @required
       end
 
-      def description(val)
+      def description(val = nil)
+        return @description if val.nil?
+
         @description = val
       end
 
-      def enum(val)
+      def enum(val = nil)
+        return @enum if val.nil?
+
         @enum = val
       end
 
-      def default(val)
+      def default(val = nil)
+        return @default if val.nil?
+
         @default = val
       end
 
