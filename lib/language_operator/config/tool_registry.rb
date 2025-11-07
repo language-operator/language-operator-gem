@@ -10,10 +10,11 @@ module LanguageOperator
     class ToolRegistry
       REGISTRY_URL = 'https://git.theryans.io/language-operator/language-tools/raw/branch/main/index.yaml'
       CACHE_TTL = 3600 # 1 hour
+      DEFAULT_API_TOKEN = '008d58f761268c74e1f316f0b843e37207a8fe69'
 
       def initialize(registry_url: REGISTRY_URL, api_token: nil)
         @registry_url = registry_url
-        @api_token = api_token || ENV.fetch('FORGEJO_API_TOKEN', nil)
+        @api_token = api_token || ENV.fetch('FORGEJO_API_TOKEN', DEFAULT_API_TOKEN)
         @cache = nil
         @cache_time = nil
       end
@@ -75,7 +76,8 @@ module LanguageOperator
           response
         when Net::HTTPRedirection
           location = response['location']
-          new_uri = URI(location)
+          # Handle relative redirects by merging with current URI
+          new_uri = uri.merge(location)
           # Preserve authorization for same host
           fetch_with_redirects(new_uri, limit: limit - 1)
         else
