@@ -8,6 +8,7 @@ require_relative '../formatters/progress_formatter'
 require_relative '../formatters/table_formatter'
 require_relative '../helpers/cluster_validator'
 require_relative '../../config/cluster_config'
+require_relative '../../config/tool_registry'
 require_relative '../../kubernetes/client'
 
 module LanguageOperator
@@ -167,13 +168,8 @@ module LanguageOperator
           end
 
           # Load tool patterns registry
-          patterns_path = File.join(__dir__, '..', '..', 'config', 'tool_patterns.yaml')
-          unless File.exist?(patterns_path)
-            Formatters::ProgressFormatter.error('Tool registry not found')
-            exit 1
-          end
-
-          patterns = YAML.load_file(patterns_path)
+          registry = Config::ToolRegistry.new
+          patterns = registry.fetch
 
           # Resolve aliases
           tool_key = tool_name
@@ -533,13 +529,8 @@ module LanguageOperator
         DESC
         def search(pattern = nil)
           # Load tool patterns registry
-          patterns_path = File.join(__dir__, '..', '..', 'config', 'tool_patterns.yaml')
-          unless File.exist?(patterns_path)
-            Formatters::ProgressFormatter.error('Tool registry not found')
-            exit 1
-          end
-
-          patterns = YAML.load_file(patterns_path)
+          registry = Config::ToolRegistry.new
+          patterns = registry.fetch
 
           # Filter out aliases and match pattern
           tools = patterns.select do |key, config|
