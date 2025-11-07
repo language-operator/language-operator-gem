@@ -85,7 +85,11 @@ module LanguageOperator
     # Start an MCP server with loaded tools
     #
     # This class method creates a registry, loads tools from /mcp directory,
-    # wraps them as MCP::Tool classes, and starts an MCP server with stdio transport.
+    # wraps them as MCP::Tool classes, and starts an MCP server.
+    #
+    # Transport mode is automatically detected:
+    # - If PORT environment variable is set: HTTP server mode (for Kubernetes)
+    # - Otherwise: stdio transport mode (for local development)
     #
     # @param tools_dir [String] Directory containing tool definition files (default: '/mcp')
     # @param server_name [String] Name of the MCP server (default: 'language-operator-tool')
@@ -101,15 +105,63 @@ module LanguageOperator
         create_mcp_tool(tool_def)
       end
 
-      # Create and start MCP server
+      # Create MCP server
       server = MCP::Server.new(
         name: server_name,
         tools: mcp_tools
       )
 
+      # Auto-detect transport mode based on PORT environment variable
+      if ENV['PORT']
+        start_http_server(server, mcp_tools.length, ENV['PORT'].to_i)
+      else
+        start_stdio_server(server, mcp_tools.length)
+      end
+    end
+
+    # Start MCP server in HTTP mode
+    #
+    # @param server [MCP::Server] The MCP server instance
+    # @param tool_count [Integer] Number of tools loaded
+    # @param port [Integer] Port to bind to
+    # @return [void]
+    def self.start_http_server(server, tool_count, port)
+      require 'rack'
+      require 'rackup'
+
+      # Create the Streamable HTTP transport
+      transport = MCP::Server::Transports::StreamableHTTPTransport.new(server)
+      server.transport = transport
+
+      # Create the Rack application
+      app = proc do |env|
+        request = Rack::Request.new(env)
+        transport.handle_request(request)
+      end
+
+      # Build the Rack application with middleware
+      rack_app = Rack::Builder.new do
+        use Rack::CommonLogger
+        use Rack::ShowExceptions
+        run app
+      end
+
+      puts "Starting MCP HTTP server on http://0.0.0.0:#{port}"
+      puts "Loaded #{tool_count} tools"
+
+      # Start the server with Puma
+      Rackup::Handler.get('puma').run(rack_app, Port: port, Host: '0.0.0.0')
+    end
+
+    # Start MCP server in stdio mode
+    #
+    # @param server [MCP::Server] The MCP server instance
+    # @param tool_count [Integer] Number of tools loaded
+    # @return [void]
+    def self.start_stdio_server(server, tool_count)
       # Use stdio transport
       transport = MCP::Server::Transports::StdioTransport.new(server)
-      puts "Starting MCP server '#{server_name}' with #{mcp_tools.length} tools"
+      puts "Starting MCP server with #{tool_count} tools (stdio mode)"
       transport.open
     end
 

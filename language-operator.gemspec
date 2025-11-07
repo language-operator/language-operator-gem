@@ -37,6 +37,11 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'ruby_llm-mcp', '~> 0.1'
   spec.add_dependency 'thor', '~> 1.3'
 
+  # HTTP server dependencies for MCP tools
+  spec.add_dependency 'puma', '~> 6.0'
+  spec.add_dependency 'rack', '~> 3.0'
+  spec.add_dependency 'rackup', '~> 2.0'
+
   # Kubernetes client
   spec.add_dependency 'k8s-ruby', '~> 0.17'
 
