@@ -49,12 +49,7 @@ module LanguageOperator
 
       def fetch_remote
         uri = URI(@registry_url)
-        request = Net::HTTP::Get.new(uri)
-        request['Authorization'] = "token #{@api_token}" if @api_token
-
-        response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') do |http|
-          http.request(request)
-        end
+        response = fetch_with_redirects(uri, limit: 5)
 
         raise "HTTP #{response.code}: #{response.message}" unless response.is_a?(Net::HTTPSuccess)
 
@@ -63,6 +58,29 @@ module LanguageOperator
 
         # Extract tools from nested structure
         data['tools'] || {}
+      end
+
+      def fetch_with_redirects(uri, limit: 5)
+        raise 'Too many HTTP redirects' if limit.zero?
+
+        request = Net::HTTP::Get.new(uri)
+        request['Authorization'] = "token #{@api_token}" if @api_token
+
+        response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') do |http|
+          http.request(request)
+        end
+
+        case response
+        when Net::HTTPSuccess
+          response
+        when Net::HTTPRedirection
+          location = response['location']
+          new_uri = URI(location)
+          # Preserve authorization for same host
+          fetch_with_redirects(new_uri, limit: limit - 1)
+        else
+          response
+        end
       end
 
       def fetch_local
