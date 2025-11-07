@@ -22,10 +22,7 @@ module LanguageOperator
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           models = k8s.list_resources('LanguageModel', namespace: cluster_config[:namespace])
 
@@ -94,10 +91,7 @@ module LanguageOperator
             return
           end
 
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           # Check if model already exists
           begin
@@ -134,10 +128,7 @@ module LanguageOperator
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           # Get model
           begin
@@ -197,10 +188,7 @@ module LanguageOperator
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           # Get model
           begin
@@ -270,10 +258,7 @@ module LanguageOperator
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           # Get current model
           begin

@@ -60,10 +60,7 @@ module LanguageOperator
           # Get models: use specified models, or default to all available models in cluster
           models = options[:models]
           if models.nil? || models.empty?
-            k8s = Kubernetes::Client.new(
-              kubeconfig: cluster_config[:kubeconfig],
-              context: cluster_config[:context]
-            )
+            k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
             available_models = k8s.list_resources('LanguageModel', namespace: cluster_config[:namespace])
             models = available_models.map { |m| m.dig('metadata', 'name') }
 
@@ -93,10 +90,7 @@ module LanguageOperator
           end
 
           # Connect to Kubernetes
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           # Apply resource to cluster
           Formatters::ProgressFormatter.with_spinner("Creating agent '#{agent_name}'") do
@@ -152,10 +146,7 @@ module LanguageOperator
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           agent = k8s.get_resource('LanguageAgent', name, cluster_config[:namespace])
 
@@ -253,10 +244,7 @@ module LanguageOperator
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           # Get agent to show details before deletion
           begin
@@ -310,10 +298,7 @@ module LanguageOperator
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           # Get agent to determine the pod name
           begin
@@ -362,10 +347,7 @@ module LanguageOperator
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           # Get the code ConfigMap for this agent
           configmap_name = "#{name}-code"
@@ -413,10 +395,7 @@ module LanguageOperator
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           # Get current agent
           begin
@@ -474,10 +453,7 @@ module LanguageOperator
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           # Get agent
           begin
@@ -529,10 +505,7 @@ module LanguageOperator
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           # Get agent
           begin
@@ -735,10 +708,7 @@ module LanguageOperator
 
           Formatters::ProgressFormatter.info("Agents in cluster '#{cluster}'")
 
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(cluster)
 
           agents = k8s.list_resources('LanguageAgent', namespace: cluster_config[:namespace])
 
@@ -775,10 +745,7 @@ module LanguageOperator
           all_agents = []
 
           clusters.each do |cluster|
-            k8s = Kubernetes::Client.new(
-              kubeconfig: cluster[:kubeconfig],
-              context: cluster[:context]
-            )
+            k8s = Helpers::ClusterValidator.kubernetes_client(cluster[:name])
 
             agents = k8s.list_resources('LanguageAgent', namespace: cluster[:namespace])
 

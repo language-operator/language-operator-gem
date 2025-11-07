@@ -96,6 +96,18 @@ module LanguageOperator
             puts "     aictl cluster create #{cluster_config[:name]}"
             exit 1
           end
+
+          # Create a Kubernetes client for the given cluster
+          def kubernetes_client(cluster_override = nil)
+            cluster = get_cluster(cluster_override)
+            cluster_config = get_cluster_config(cluster)
+
+            require_relative '../../kubernetes/client'
+            Kubernetes::Client.new(
+              kubeconfig: cluster_config[:kubeconfig],
+              context: cluster_config[:context]
+            )
+          end
         end
       end
     end

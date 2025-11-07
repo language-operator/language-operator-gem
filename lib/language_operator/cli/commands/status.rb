@@ -5,12 +5,15 @@ require_relative '../formatters/progress_formatter'
 require_relative '../formatters/table_formatter'
 require_relative '../../config/cluster_config'
 require_relative '../../kubernetes/client'
+require_relative '../helpers/cluster_validator'
 
 module LanguageOperator
   module CLI
     module Commands
       # System status and overview command
       class Status < Thor
+        include Helpers::ClusterValidator
+
         desc 'overview', 'Show system status and overview'
         def overview
           current_cluster = Config::ClusterConfig.current_cluster
@@ -32,10 +35,7 @@ module LanguageOperator
 
             # Check cluster health
             begin
-              k8s = Kubernetes::Client.new(
-                kubeconfig: cluster_config[:kubeconfig],
-                context: cluster_config[:context]
-              )
+              k8s = kubernetes_client(current_cluster)
 
               # Operator status
               if k8s.operator_installed?
@@ -130,10 +130,7 @@ module LanguageOperator
 
             cluster_summary = []
             clusters.each do |cluster|
-              k8s = Kubernetes::Client.new(
-                kubeconfig: cluster[:kubeconfig],
-                context: cluster[:context]
-              )
+              k8s = kubernetes_client(cluster[:name])
 
               agents = k8s.list_resources('LanguageAgent', namespace: cluster[:namespace])
               tools = k8s.list_resources('LanguageTool', namespace: cluster[:namespace])

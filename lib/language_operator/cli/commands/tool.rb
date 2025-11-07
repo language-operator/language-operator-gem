@@ -24,10 +24,7 @@ module LanguageOperator
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           tools = k8s.list_resources('LanguageTool', namespace: cluster_config[:namespace])
 
@@ -87,10 +84,7 @@ module LanguageOperator
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           # Get tool
           begin
@@ -229,10 +223,7 @@ module LanguageOperator
           end
 
           # Connect to cluster
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           # Check if already exists
           begin
@@ -276,10 +267,7 @@ module LanguageOperator
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           # Check if tool exists
           begin
@@ -408,10 +396,7 @@ module LanguageOperator
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           # Get tool
           begin

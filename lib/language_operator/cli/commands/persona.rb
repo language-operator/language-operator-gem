@@ -22,11 +22,7 @@ module LanguageOperator
         def list
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           personas = k8s.list_resources('LanguagePersona', namespace: cluster_config[:namespace])
 
@@ -68,11 +64,7 @@ module LanguageOperator
         def show(name)
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           begin
             persona = k8s.get_resource('LanguagePersona', name, cluster_config[:namespace])
@@ -147,11 +139,7 @@ module LanguageOperator
         def create(name)
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           # Check if persona already exists
           begin
@@ -285,11 +273,7 @@ module LanguageOperator
         def edit(name)
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           # Get current persona
           begin
@@ -354,11 +338,7 @@ module LanguageOperator
         def delete(name)
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-
-          k8s = Kubernetes::Client.new(
-            kubeconfig: cluster_config[:kubeconfig],
-            context: cluster_config[:context]
-          )
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
 
           # Get persona
           begin

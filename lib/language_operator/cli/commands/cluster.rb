@@ -4,6 +4,7 @@ require 'thor'
 require 'yaml'
 require_relative '../formatters/progress_formatter'
 require_relative '../formatters/table_formatter'
+require_relative '../helpers/cluster_validator'
 require_relative '../../config/cluster_config'
 require_relative '../../kubernetes/client'
 require_relative '../../kubernetes/resource_builder'
@@ -118,10 +119,7 @@ module LanguageOperator
 
           # Build table data
           table_data = clusters.map do |cluster|
-            k8s = Kubernetes::Client.new(
-              kubeconfig: cluster[:kubeconfig],
-              context: cluster[:context]
-            )
+            k8s = Helpers::ClusterValidator.kubernetes_client(cluster[:name])
 
             # Get cluster stats
             agents = k8s.list_resources('LanguageAgent', namespace: cluster[:namespace])
@@ -194,10 +192,7 @@ module LanguageOperator
 
           # Check cluster health
           begin
-            k8s = Kubernetes::Client.new(
-              kubeconfig: cluster[:kubeconfig],
-              context: cluster[:context]
-            )
+            k8s = Helpers::ClusterValidator.kubernetes_client(cluster_name)
 
             if k8s.operator_installed?
               version = k8s.operator_version
@@ -239,10 +234,7 @@ module LanguageOperator
 
           # Delete LanguageCluster resource
           begin
-            k8s = Kubernetes::Client.new(
-              kubeconfig: cluster[:kubeconfig],
-              context: cluster[:context]
-            )
+            k8s = Helpers::ClusterValidator.kubernetes_client(name)
 
             Formatters::ProgressFormatter.with_spinner('Deleting LanguageCluster resource') do
               k8s.delete_resource('LanguageCluster', name, cluster[:namespace])
@@ -284,10 +276,7 @@ module LanguageOperator
 
           # Get detailed cluster info
           begin
-            k8s = Kubernetes::Client.new(
-              kubeconfig: cluster[:kubeconfig],
-              context: cluster[:context]
-            )
+            k8s = Helpers::ClusterValidator.kubernetes_client(name)
 
             # Get cluster resource
             cluster_resource = k8s.get_resource('LanguageCluster', name, cluster[:namespace])
