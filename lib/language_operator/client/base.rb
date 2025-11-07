@@ -188,7 +188,10 @@ module LanguageOperator
       def connect_mcp_servers
         enabled_servers = @config['mcp_servers'].select { |s| s['enabled'] }
 
-        raise 'No MCP servers enabled in config' if enabled_servers.empty?
+        if enabled_servers.empty?
+          logger.info('No MCP servers configured, agent will run without tools')
+          return
+        end
 
         logger.info('Connecting to MCP servers', count: enabled_servers.length)
 
