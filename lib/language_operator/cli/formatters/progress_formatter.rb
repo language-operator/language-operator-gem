@@ -16,17 +16,12 @@ module LanguageOperator
             result = block.call
 
             # Determine what to show after spinner completes
-            final_message = if success_msg
-                              "#{message}... #{success_msg}"
-                            else
-                              "#{message}... done"
-                            end
+            final_status = success_msg || 'done'
 
-            spinner.success(final_message)
+            spinner.success(final_status)
             result
           rescue StandardError => e
-            error_msg = e.message
-            spinner.error("#{message}... #{error_msg}")
+            spinner.error(e.message)
             raise
           end
 
