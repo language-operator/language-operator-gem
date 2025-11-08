@@ -98,24 +98,18 @@ module LanguageOperator
           end
 
           # Watch synthesis status
-          watch_synthesis_status(k8s, agent_name, cluster_config[:namespace])
+          synthesis_result = watch_synthesis_status(k8s, agent_name, cluster_config[:namespace])
 
-          # Display success
-          Formatters::ProgressFormatter.success("Agent '#{agent_name}' created successfully!")
-          puts
-          puts 'Agent Details:'
-          puts "  Name:         #{agent_name}"
-          puts "  Cluster:      #{cluster}"
-          puts "  Namespace:    #{cluster_config[:namespace]}"
-          puts "  Instructions: #{description}"
-          puts "  Persona:      #{options[:persona] || '(auto-selected)'}" if options[:persona]
-          puts "  Tools:        #{options[:tools].join(', ')}" if options[:tools] && !options[:tools].empty?
-          puts "  Models:       #{options[:models].join(', ')}" if options[:models] && !options[:models].empty?
-          puts
-          puts 'Next Steps:'
-          puts "  aictl agent inspect #{agent_name}    # View agent details"
-          puts "  aictl agent logs #{agent_name} -f    # Follow agent logs"
-          puts "  aictl agent code #{agent_name}       # View synthesized code"
+          # Exit if synthesis failed
+          unless synthesis_result[:success]
+            exit 1
+          end
+
+          # Fetch the updated agent to get complete details
+          agent = k8s.get_resource('LanguageAgent', agent_name, cluster_config[:namespace])
+
+          # Display enhanced success output
+          display_agent_created(agent, cluster, description, synthesis_result)
         rescue StandardError => e
           Formatters::ProgressFormatter.error("Failed to create agent: #{e.message}")
           raise if ENV['DEBUG']
@@ -344,6 +338,8 @@ module LanguageOperator
         desc 'code NAME', 'Display synthesized agent code'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def code(name)
+          require_relative '../formatters/code_formatter'
+
           cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
 
@@ -372,13 +368,12 @@ module LanguageOperator
             exit 1
           end
 
-          # Display with syntax highlighting if available
-          puts "Synthesized Code for Agent: #{name}"
-          puts '=' * 80
-          puts
-          puts code_content
-          puts
-          puts '=' * 80
+          # Display with syntax highlighting
+          Formatters::CodeFormatter.display_ruby_code(
+            code_content,
+            title: "Synthesized Code for Agent: #{name}"
+          )
+
           puts
           puts 'This code was automatically synthesized from the agent instructions.'
           puts "View full agent details with: aictl agent inspect #{name}"
@@ -551,6 +546,156 @@ module LanguageOperator
 
         private
 
+        def display_agent_created(agent, cluster, description, synthesis_result)
+          require 'pastel'
+          require_relative '../formatters/code_formatter'
+
+          pastel = Pastel.new
+          agent_name = agent.dig('metadata', 'name')
+
+          puts
+          Formatters::ProgressFormatter.success("Agent '#{agent_name}' created and deployed!")
+          puts
+
+          # Get synthesized code if available
+          begin
+            cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
+            k8s = Helpers::ClusterValidator.kubernetes_client(cluster)
+            configmap_name = "#{agent_name}-code"
+            configmap = k8s.get_resource('ConfigMap', configmap_name, cluster_config[:namespace])
+            code_content = configmap.dig('data', 'agent.rb')
+
+            if code_content
+              # Display code preview (first 20 lines)
+              Formatters::CodeFormatter.display_ruby_code(
+                code_content,
+                title: 'Synthesized Code Preview:',
+                max_lines: 20
+              )
+              puts
+            end
+          rescue StandardError
+            # Code not available yet, skip preview
+          end
+
+          # Display agent configuration
+          puts pastel.cyan('Agent Configuration:')
+          puts "  Name:         #{agent_name}"
+          puts "  Cluster:      #{cluster}"
+
+          # Schedule information
+          schedule = agent.dig('spec', 'schedule')
+          mode = agent.dig('spec', 'mode') || 'autonomous'
+          if schedule
+            human_schedule = parse_schedule(schedule)
+            puts "  Schedule:     #{human_schedule} (#{schedule})"
+
+            # Calculate next run
+            next_run = agent.dig('status', 'nextRun')
+            if next_run
+              begin
+                next_run_time = Time.parse(next_run)
+                time_until = format_time_until(next_run_time)
+                puts "  Next run:     #{next_run} (#{time_until})"
+              rescue StandardError
+                puts "  Next run:     #{next_run}"
+              end
+            end
+          else
+            puts "  Mode:         #{mode}"
+          end
+
+          # Persona
+          persona = agent.dig('spec', 'persona')
+          puts "  Persona:      #{persona || '(auto-selected)'}"
+
+          # Tools
+          tools = agent.dig('spec', 'tools') || []
+          if tools.any?
+            puts "  Tools:        #{tools.join(', ')}"
+          end
+
+          # Models
+          model_refs = agent.dig('spec', 'modelRefs') || []
+          if model_refs.any?
+            model_names = model_refs.map { |ref| ref['name'] }
+            puts "  Models:       #{model_names.join(', ')}"
+          end
+
+          puts
+
+          # Synthesis stats
+          if synthesis_result[:duration]
+            puts pastel.dim("Synthesis completed in #{format_duration(synthesis_result[:duration])}")
+            puts pastel.dim("Model: #{synthesis_result[:model]}") if synthesis_result[:model]
+            puts
+          end
+
+          # Next steps
+          puts pastel.cyan('Next Steps:')
+          puts "  aictl agent logs #{agent_name} -f     # Follow agent execution logs"
+          puts "  aictl agent code #{agent_name}        # View full synthesized code"
+          puts "  aictl agent inspect #{agent_name}     # View detailed agent status"
+          puts
+        end
+
+        def parse_schedule(cron_expr)
+          # Simple cron to human-readable conversion
+          # Format: minute hour day month weekday
+          parts = cron_expr.split
+
+          return cron_expr if parts.length != 5
+
+          minute, hour, day, month, weekday = parts
+
+          # Common patterns
+          if minute == '0' && hour != '*' && day == '*' && month == '*' && weekday == '*'
+            # Daily at specific hour
+            hour_12 = hour.to_i % 12
+            hour_12 = 12 if hour_12.zero?
+            period = hour.to_i < 12 ? 'AM' : 'PM'
+            return "Daily at #{hour_12}:00 #{period}"
+          elsif minute != '*' && hour != '*' && day == '*' && month == '*' && weekday == '*'
+            # Daily at specific time
+            hour_12 = hour.to_i % 12
+            hour_12 = 12 if hour_12.zero?
+            period = hour.to_i < 12 ? 'AM' : 'PM'
+            return "Daily at #{hour_12}:#{minute.rjust(2, '0')} #{period}"
+          elsif minute.start_with?('*/') && hour == '*'
+            # Every N minutes
+            interval = minute[2..].to_i
+            return "Every #{interval} minutes"
+          elsif minute == '*' && hour.start_with?('*/')
+            # Every N hours
+            interval = hour[2..].to_i
+            return "Every #{interval} hours"
+          end
+
+          # Fallback to cron expression
+          cron_expr
+        end
+
+        def format_time_until(future_time)
+          diff = future_time - Time.now
+
+          if diff < 0
+            'overdue'
+          elsif diff < 60
+            "in #{diff.to_i}s"
+          elsif diff < 3600
+            minutes = (diff / 60).to_i
+            "in #{minutes}m"
+          elsif diff < 86_400
+            hours = (diff / 3600).to_i
+            minutes = ((diff % 3600) / 60).to_i
+            "in #{hours}h #{minutes}m"
+          else
+            days = (diff / 86_400).to_i
+            hours = ((diff % 86_400) / 3600).to_i
+            "in #{days}d #{hours}h"
+          end
+        end
+
         def display_dry_run_preview(agent_resource, cluster, description)
           require 'yaml'
 
@@ -651,27 +796,49 @@ module LanguageOperator
           require 'pastel'
 
           pastel = Pastel.new
-          spinner = TTY::Spinner.new('[:spinner] Waiting for synthesis...', format: :dots)
+
+          # Start with analyzing description
+          puts
+          puts pastel.cyan('Synthesizing agent code...')
+          puts
+
+          spinner = TTY::Spinner.new("[:spinner] #{pastel.dim('Analyzing description and generating code...')}", format: :dots)
           spinner.auto_spin
 
           max_wait = 600 # Wait up to 10 minutes (local models can be slow)
           interval = 2   # Check every 2 seconds
           elapsed = 0
+          start_time = Time.now
+          synthesis_data = {}
 
           loop do
             agent = k8s.get_resource('LanguageAgent', agent_name, namespace)
             conditions = agent.dig('status', 'conditions') || []
+            synthesis_status = agent.dig('status', 'synthesis')
+
+            # Capture synthesis metadata
+            if synthesis_status
+              synthesis_data[:model] = synthesis_status['model']
+              synthesis_data[:token_count] = synthesis_status['tokenCount']
+            end
 
             # Check for synthesis completion
             synthesized = conditions.find { |c| c['type'] == 'Synthesized' }
             if synthesized
               if synthesized['status'] == 'True'
+                duration = Time.now - start_time
                 spinner.success("(#{pastel.green('✓')})")
-                return true
+
+                # Show synthesis details
+                puts pastel.green("✓ Code synthesis completed in #{format_duration(duration)}")
+                puts "  Model: #{synthesis_data[:model]}" if synthesis_data[:model]
+                puts "  Tokens: #{synthesis_data[:token_count]}" if synthesis_data[:token_count]
+
+                return { success: true, duration: duration, **synthesis_data }
               elsif synthesized['status'] == 'False'
                 spinner.error("(#{pastel.red('✗')})")
                 Formatters::ProgressFormatter.error("Synthesis failed: #{synthesized['message']}")
-                return false
+                return { success: false }
               end
             end
 
@@ -682,7 +849,7 @@ module LanguageOperator
               puts
               puts 'Check synthesis status with:'
               puts "  aictl agent inspect #{agent_name}"
-              return true
+              return { success: true, timeout: true }
             end
 
             sleep interval
@@ -696,11 +863,23 @@ module LanguageOperator
 
           spinner.error("(#{pastel.red('✗')})")
           Formatters::ProgressFormatter.error('Agent resource not found')
-          false
+          { success: false }
         rescue StandardError => e
           spinner.error("(#{pastel.red('✗')})")
           Formatters::ProgressFormatter.warn("Could not watch synthesis: #{e.message}")
-          true # Continue anyway
+          { success: true } # Continue anyway
+        end
+
+        def format_duration(seconds)
+          if seconds < 1
+            "#{(seconds * 1000).round}ms"
+          elsif seconds < 60
+            "#{seconds.round(1)}s"
+          else
+            minutes = (seconds / 60).floor
+            secs = (seconds % 60).round
+            "#{minutes}m #{secs}s"
+          end
         end
 
         def list_cluster_agents(cluster)
