@@ -15,7 +15,7 @@ module LanguageOperator
       class Agent < Thor
         include Helpers::ClusterValidator
 
-        desc 'create DESCRIPTION', 'Create a new agent with natural language description'
+        desc 'create [DESCRIPTION]', 'Create a new agent with natural language description'
         long_desc <<-DESC
           Create a new autonomous agent by describing what you want it to do in natural language.
 
@@ -25,6 +25,7 @@ module LanguageOperator
             aictl agent create "review my spreadsheet at 4pm daily and email me any errors"
             aictl agent create "summarize Hacker News top stories every morning at 8am"
             aictl agent create "monitor my website uptime and alert me if it goes down"
+            aictl agent create --wizard    # Interactive wizard mode
         DESC
         option :cluster, type: :string, desc: 'Override current cluster context'
         option :create_cluster, type: :string, desc: 'Create cluster if it doesn\'t exist'
@@ -33,7 +34,21 @@ module LanguageOperator
         option :tools, type: :array, desc: 'Tools to make available to the agent'
         option :models, type: :array, desc: 'Models to make available to the agent'
         option :dry_run, type: :boolean, default: false, desc: 'Preview what would be created without applying'
-        def create(description)
+        option :wizard, type: :boolean, default: false, desc: 'Use interactive wizard mode'
+        def create(description = nil)
+          # Activate wizard mode if --wizard flag or no description provided
+          if options[:wizard] || description.nil?
+            require_relative '../wizards/agent_wizard'
+            wizard = Wizards::AgentWizard.new
+            description = wizard.run
+
+            # User cancelled wizard
+            unless description
+              Formatters::ProgressFormatter.info('Agent creation cancelled')
+              return
+            end
+          end
+
           # Handle --create-cluster flag
           if options[:create_cluster]
             cluster_name = options[:create_cluster]
