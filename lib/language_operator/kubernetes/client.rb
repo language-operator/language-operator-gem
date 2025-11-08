@@ -42,8 +42,9 @@ module LanguageOperator
           File.read('/var/run/secrets/kubernetes.io/serviceaccount/namespace').strip
         else
           config = K8s::Config.load_file(@kubeconfig)
-          config = config.context(@context) if @context
-          config.context&.namespace
+          context_name = @context || config.current_context
+          context_obj = config.context(context_name)
+          context_obj&.namespace
         end
       rescue Errno::ENOENT
         nil
@@ -178,7 +179,12 @@ module LanguageOperator
           K8s::Client.in_cluster_config
         else
           config = K8s::Config.load_file(@kubeconfig)
-          config = config.context(@context) if @context
+          if @context
+            # Set the current-context to the specified context
+            config_hash = config.to_h
+            config_hash['current-context'] = @context
+            config = K8s::Config.new(**config_hash)
+          end
           K8s::Client.config(config)
         end
       end
