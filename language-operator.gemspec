@@ -57,9 +57,9 @@ Gem::Specification.new do |spec|
 
   # Development dependencies
   spec.add_development_dependency 'bundler', '~> 2.0'
+  spec.add_development_dependency 'rack-test', '~> 2.1'
   spec.add_development_dependency 'rake', '~> 13.0'
   spec.add_development_dependency 'rspec', '~> 3.0'
-  spec.add_development_dependency 'rack-test', '~> 2.1'
   spec.add_development_dependency 'rubocop', '~> 1.60'
   spec.add_development_dependency 'rubocop-performance', '~> 1.20'
   spec.add_development_dependency 'webmock', '~> 3.23'

@@ -15,6 +15,7 @@ require 'language_operator'
 require 'language_operator/dsl'
 
 # Define a webhook agent using the DSL
+# rubocop:disable Metrics/BlockLength
 LanguageOperator::Dsl.define do
   agent 'example-webhook-handler' do
     description 'Example agent that handles HTTP webhooks'
@@ -45,9 +46,9 @@ LanguageOperator::Dsl.define do
     # GitHub-style webhook endpoint
     webhook '/github/pr' do
       method :post
-      on_request do |context|
+      on_request do |_context|
         puts "\n=== GitHub PR Webhook ==="
-        puts "Simulating PR review..."
+        puts 'Simulating PR review...'
         puts "============================\n"
 
         {
@@ -58,21 +59,22 @@ LanguageOperator::Dsl.define do
     end
   end
 end
+# rubocop:enable Metrics/BlockLength
 
 # Get the agent definition and run it
 agent_def = LanguageOperator::Dsl.agent_registry.get('example-webhook-handler')
 
 if agent_def
   puts "Starting webhook agent on port #{ENV.fetch('PORT', '8080')}"
-  puts "Available endpoints:"
-  puts "  GET  /health        - Health check"
-  puts "  GET  /ready         - Readiness check"
-  puts "  POST /webhook       - Generic webhook"
-  puts "  POST /github/pr     - GitHub PR webhook"
+  puts 'Available endpoints:'
+  puts '  GET  /health        - Health check'
+  puts '  GET  /ready         - Readiness check'
+  puts '  POST /webhook       - Generic webhook'
+  puts '  POST /github/pr     - GitHub PR webhook'
   puts "\nPress Ctrl+C to stop\n\n"
 
   agent_def.run!
 else
-  puts "Error: Agent definition not found"
+  puts 'Error: Agent definition not found'
   exit 1
 end

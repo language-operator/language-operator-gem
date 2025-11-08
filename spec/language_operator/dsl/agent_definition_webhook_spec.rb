@@ -16,8 +16,8 @@ RSpec.describe LanguageOperator::Dsl::AgentDefinition, 'webhook support' do
     end
 
     it 'adds webhook to webhooks array' do
-      agent_def.webhook('/path1') {}
-      agent_def.webhook('/path2') {}
+      agent_def.webhook('/path1') { method :post }
+      agent_def.webhook('/path2') { method :get }
 
       expect(agent_def.webhooks.size).to eq(2)
       expect(agent_def.webhooks[0].path).to eq('/path1')
@@ -27,14 +27,14 @@ RSpec.describe LanguageOperator::Dsl::AgentDefinition, 'webhook support' do
     it 'sets execution mode to reactive' do
       expect(agent_def.execution_mode).to eq(:autonomous)
 
-      agent_def.webhook('/test') {}
+      agent_def.webhook('/test') { method :post }
 
       expect(agent_def.execution_mode).to eq(:reactive)
     end
 
     it 'does not override explicit mode' do
       agent_def.mode(:scheduled)
-      agent_def.webhook('/test') {}
+      agent_def.webhook('/test') { method :post }
 
       expect(agent_def.execution_mode).to eq(:scheduled)
     end
