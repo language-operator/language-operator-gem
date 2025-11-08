@@ -502,21 +502,21 @@ module LanguageOperator
 
         def show_next_steps
           puts
-          puts pastel.cyan("╭─ What's Next? #{'─' * 30}╮")
-          puts '│'
-          puts '│  1. Create your own agent:'
-          puts "│     #{pastel.dim('aictl agent create "your task here"')}"
-          puts '│'
-          puts '│  2. Use the interactive wizard:'
-          puts "│     #{pastel.dim('aictl agent create --wizard')}"
-          puts '│'
-          puts '│  3. View your agents:'
-          puts "│     #{pastel.dim('aictl agent list')}"
-          puts '│'
-          puts '│  4. Check agent status:'
-          puts "│     #{pastel.dim('aictl agent inspect ruby-facts')}"
-          puts '│'
-          puts pastel.cyan("╰#{'─' * 48}╯")
+          puts pastel.cyan("╭─ What's Next? #{'─' * 26}╮")
+          puts pastel.cyan('│') + (' ' * 46) + pastel.cyan('│')
+          puts "#{pastel.cyan('│')}  1. Create your own agent:#{' ' * 18}#{pastel.cyan('│')}"
+          puts pastel.cyan('│') + "     #{pastel.dim('aictl agent create "your task here"')}" + (' ' * 2) + pastel.cyan('│')
+          puts pastel.cyan('│') + (' ' * 46) + pastel.cyan('│')
+          puts "#{pastel.cyan('│')}  2. Use the interactive wizard:#{' ' * 13}#{pastel.cyan('│')}"
+          puts pastel.cyan('│') + "     #{pastel.dim('aictl agent create --wizard')}" + (' ' * 9) + pastel.cyan('│')
+          puts pastel.cyan('│') + (' ' * 46) + pastel.cyan('│')
+          puts "#{pastel.cyan('│')}  3. View your agents:#{' ' * 24}#{pastel.cyan('│')}"
+          puts pastel.cyan('│') + "     #{pastel.dim('aictl agent list')}" + (' ' * 24) + pastel.cyan('│')
+          puts pastel.cyan('│') + (' ' * 46) + pastel.cyan('│')
+          puts "#{pastel.cyan('│')}  4. Check agent status:#{' ' * 21}#{pastel.cyan('│')}"
+          puts pastel.cyan('│') + "     #{pastel.dim('aictl agent inspect ruby-facts')}" + (' ' * 9) + pastel.cyan('│')
+          puts pastel.cyan('│') + (' ' * 46) + pastel.cyan('│')
+          puts pastel.cyan("╰#{'─' * 46}╯")
           puts
           puts pastel.green('Welcome to autonomous automation! 🚀')
           puts
