@@ -485,13 +485,13 @@ module LanguageOperator
           agent_name = 'ruby-facts'
           description = 'Tell me an interesting fun fact about the Ruby programming language'
 
+          k8s = Kubernetes::Client.new(
+            kubeconfig: cluster_info[:kubeconfig],
+            context: cluster_info[:context]
+          )
+
           # Create agent
           Formatters::ProgressFormatter.with_spinner("Creating agent '#{agent_name}'") do
-            k8s = Kubernetes::Client.new(
-              kubeconfig: cluster_info[:kubeconfig],
-              context: cluster_info[:context]
-            )
-
             resource = Kubernetes::ResourceBuilder.language_agent(
               agent_name,
               instructions: description,
@@ -504,13 +504,48 @@ module LanguageOperator
             k8s.apply_resource(resource)
           end
 
-          puts
-          puts pastel.dim('The agent has been created and will start synthesizing.')
-          puts
+          # Wait for synthesis
+          wait_for_synthesis(k8s, agent_name, cluster_info[:namespace])
 
           true
         end
         # rubocop:enable Naming/PredicateMethod
+
+        def wait_for_synthesis(k8s, agent_name, namespace)
+          max_wait = 300 # 5 minutes for quickstart
+          interval = 2
+          elapsed = 0
+
+          Formatters::ProgressFormatter.with_spinner('Synthesizing code') do
+            loop do
+              agent = k8s.get_resource('LanguageAgent', agent_name, namespace)
+              conditions = agent.dig('status', 'conditions') || []
+              synthesized = conditions.find { |c| c['type'] == 'Synthesized' }
+
+              if synthesized
+                if synthesized['status'] == 'True'
+                  break # Success
+                elsif synthesized['status'] == 'False'
+                  raise StandardError, "Synthesis failed: #{synthesized['message']}"
+                end
+              end
+
+              if elapsed >= max_wait
+                Formatters::ProgressFormatter.warn('Synthesis is taking longer than expected, continuing in background')
+                break
+              end
+
+              sleep interval
+              elapsed += interval
+            end
+          end
+
+          puts
+        rescue K8s::Error::NotFound
+          # Agent not found yet, retry
+          retry if elapsed < max_wait
+          raise
+        end
 
         def show_next_steps(agent_created: false)
           puts
