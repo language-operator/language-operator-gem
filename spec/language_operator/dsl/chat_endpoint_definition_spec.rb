@@ -47,7 +47,7 @@ RSpec.describe LanguageOperator::Dsl::ChatEndpointDefinition do
     end
 
     it 'sets system prompt' do
-      prompt = "You are a helpful assistant"
+      prompt = 'You are a helpful assistant'
       chat_endpoint.system_prompt(prompt)
       expect(chat_endpoint.system_prompt).to eq(prompt)
     end
@@ -154,7 +154,7 @@ RSpec.describe LanguageOperator::Dsl::ChatEndpointDefinition do
     end
 
     it 'sets stop sequences' do
-      sequences = ["\n", "END"]
+      sequences = %W[\n END]
       chat_endpoint.stop(sequences)
       expect(chat_endpoint.stop).to eq(sequences)
     end
@@ -168,20 +168,20 @@ RSpec.describe LanguageOperator::Dsl::ChatEndpointDefinition do
   describe 'DSL block configuration' do
     it 'supports instance_eval for DSL configuration' do
       chat_endpoint.instance_eval do
-        system_prompt "You are helpful"
+        system_prompt 'You are helpful'
         temperature 0.8
         max_tokens 3000
-        model "custom-model"
+        model 'custom-model'
         top_p 0.9
         frequency_penalty 0.2
         presence_penalty 0.3
         stop ["\n"]
       end
 
-      expect(chat_endpoint.system_prompt).to eq("You are helpful")
+      expect(chat_endpoint.system_prompt).to eq('You are helpful')
       expect(chat_endpoint.temperature).to eq(0.8)
       expect(chat_endpoint.max_tokens).to eq(3000)
-      expect(chat_endpoint.model_name).to eq("custom-model")
+      expect(chat_endpoint.model_name).to eq('custom-model')
       expect(chat_endpoint.top_p).to eq(0.9)
       expect(chat_endpoint.frequency_penalty).to eq(0.2)
       expect(chat_endpoint.presence_penalty).to eq(0.3)

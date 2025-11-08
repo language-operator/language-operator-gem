@@ -6,6 +6,23 @@ require 'language_operator/agent'
 require 'language_operator/agent/web_server'
 require 'language_operator/dsl/chat_endpoint_definition'
 
+# Helper class for streaming tests
+class StreamCollector
+  attr_reader :buffer
+
+  def initialize(buffer)
+    @buffer = buffer
+  end
+
+  def write(data)
+    @buffer.write(data)
+  end
+
+  def close
+    # No-op for testing
+  end
+end
+
 RSpec.describe LanguageOperator::Agent::WebServer, 'chat endpoint support' do
   include Rack::Test::Methods
 
@@ -31,8 +48,8 @@ RSpec.describe LanguageOperator::Agent::WebServer, 'chat endpoint support' do
   let(:chat_endpoint_def) do
     chat_def = LanguageOperator::Dsl::ChatEndpointDefinition.new('test-chat-agent')
     chat_def.instance_eval do
-      system_prompt "You are a helpful assistant"
-      model "test-model-v1"
+      system_prompt 'You are a helpful assistant'
+      model 'test-model-v1'
       temperature 0.7
       max_tokens 2000
     end
@@ -112,7 +129,7 @@ RSpec.describe LanguageOperator::Agent::WebServer, 'chat endpoint support' do
       web_server.register_chat_endpoint(chat_endpoint_def, agent)
 
       # Mock agent.execute to return a predictable response
-      allow(agent).to receive(:execute).and_return("This is a test response")
+      allow(agent).to receive(:execute).and_return('This is a test response')
     end
 
     describe 'non-streaming mode' do
@@ -161,7 +178,7 @@ RSpec.describe LanguageOperator::Agent::WebServer, 'chat endpoint support' do
 
         expect(choice['index']).to eq(0)
         expect(choice['message']['role']).to eq('assistant')
-        expect(choice['message']['content']).to eq("This is a test response")
+        expect(choice['message']['content']).to eq('This is a test response')
         expect(choice['finish_reason']).to eq('stop')
       end
 
@@ -237,21 +254,6 @@ RSpec.describe LanguageOperator::Agent::WebServer, 'chat endpoint support' do
         stream = StreamCollector.new(buffer)
         body.call(stream)
         buffer.string
-      end
-
-      # Mock stream collector for tests
-      class StreamCollector
-        def initialize(buffer)
-          @buffer = buffer
-        end
-
-        def write(data)
-          @buffer.write(data)
-        end
-
-        def close
-          # No-op for testing
-        end
       end
 
       it 'returns SSE response for stream=true' do
@@ -354,7 +356,7 @@ RSpec.describe LanguageOperator::Agent::WebServer, 'chat endpoint support' do
       end
 
       it 'handles agent execution errors gracefully' do
-        allow(agent).to receive(:execute).and_raise(StandardError, "Execution failed")
+        allow(agent).to receive(:execute).and_raise(StandardError, 'Execution failed')
 
         post '/v1/chat/completions', {
           model: 'test-model-v1',
@@ -372,7 +374,7 @@ RSpec.describe LanguageOperator::Agent::WebServer, 'chat endpoint support' do
   describe 'message format conversion' do
     before do
       web_server.register_chat_endpoint(chat_endpoint_def, agent)
-      allow(agent).to receive(:execute).and_return("Response")
+      allow(agent).to receive(:execute).and_return('Response')
     end
 
     it 'converts user messages correctly' do
@@ -423,7 +425,7 @@ RSpec.describe LanguageOperator::Agent::WebServer, 'chat endpoint support' do
   describe 'token estimation' do
     before do
       web_server.register_chat_endpoint(chat_endpoint_def, agent)
-      allow(agent).to receive(:execute).and_return("This is a test response")
+      allow(agent).to receive(:execute).and_return('This is a test response')
     end
 
     it 'estimates tokens for prompt and completion' do

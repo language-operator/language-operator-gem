@@ -33,20 +33,20 @@ RSpec.describe LanguageOperator::Dsl::AgentDefinition, 'chat endpoint support' d
 
     it 'accepts configuration block' do
       agent_def.as_chat_endpoint do
-        system_prompt "You are helpful"
+        system_prompt 'You are helpful'
         temperature 0.9
         max_tokens 3000
       end
 
-      expect(agent_def.chat_endpoint.system_prompt).to eq("You are helpful")
+      expect(agent_def.chat_endpoint.system_prompt).to eq('You are helpful')
       expect(agent_def.chat_endpoint.temperature).to eq(0.9)
       expect(agent_def.chat_endpoint.max_tokens).to eq(3000)
     end
 
     it 'allows chaining configuration' do
       agent_def.as_chat_endpoint do
-        system_prompt "GitHub expert"
-        model "github-expert-v1"
+        system_prompt 'GitHub expert'
+        model 'github-expert-v1'
         temperature 0.7
         max_tokens 2000
         top_p 0.95
@@ -56,8 +56,8 @@ RSpec.describe LanguageOperator::Dsl::AgentDefinition, 'chat endpoint support' d
       end
 
       chat_endpoint = agent_def.chat_endpoint
-      expect(chat_endpoint.system_prompt).to eq("GitHub expert")
-      expect(chat_endpoint.model_name).to eq("github-expert-v1")
+      expect(chat_endpoint.system_prompt).to eq('GitHub expert')
+      expect(chat_endpoint.model_name).to eq('github-expert-v1')
       expect(chat_endpoint.temperature).to eq(0.7)
       expect(chat_endpoint.max_tokens).to eq(2000)
       expect(chat_endpoint.top_p).to eq(0.95)
@@ -81,7 +81,7 @@ RSpec.describe LanguageOperator::Dsl::AgentDefinition, 'chat endpoint support' d
   describe 'hybrid agent configuration' do
     it 'supports chat endpoint with webhooks' do
       agent_def.as_chat_endpoint do
-        system_prompt "I respond to both chat and webhooks"
+        system_prompt 'I respond to both chat and webhooks'
         temperature 0.8
       end
 
@@ -97,8 +97,8 @@ RSpec.describe LanguageOperator::Dsl::AgentDefinition, 'chat endpoint support' d
 
     it 'supports chat endpoint with MCP server' do
       agent_def.as_chat_endpoint do
-        system_prompt "I provide chat and MCP tools"
-        model "hybrid-agent-v1"
+        system_prompt 'I provide chat and MCP tools'
+        model 'hybrid-agent-v1'
       end
 
       agent_def.as_mcp_server do
@@ -116,7 +116,7 @@ RSpec.describe LanguageOperator::Dsl::AgentDefinition, 'chat endpoint support' d
 
     it 'supports all three modes simultaneously' do
       agent_def.as_chat_endpoint do
-        system_prompt "Ultimate hybrid agent"
+        system_prompt 'Ultimate hybrid agent'
       end
 
       agent_def.webhook('/webhook') do
