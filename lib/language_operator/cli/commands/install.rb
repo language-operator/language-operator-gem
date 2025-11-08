@@ -17,70 +17,70 @@ module LanguageOperator
         RELEASE_NAME = 'language-operator'
         DEFAULT_NAMESPACE = 'language-operator-system'
 
+        # Long descriptions for commands
+        LONG_DESCRIPTIONS = {
+          install: <<-DESC,
+            Install the language-operator into your Kubernetes cluster using Helm.
+
+            This command will:
+            1. Add the language-operator Helm repository
+            2. Update Helm repositories
+            3. Install the language-operator chart
+            4. Verify the installation
+
+            Examples:
+              # Install with defaults
+              aictl install
+
+              # Install with custom values
+              aictl install --values my-values.yaml
+
+              # Install specific version
+              aictl install --version 0.1.0
+
+              # Dry run to see what would be installed
+              aictl install --dry-run
+          DESC
+          upgrade: <<-DESC,
+            Upgrade the language-operator to a newer version using Helm.
+
+            This command will:
+            1. Update Helm repositories
+            2. Upgrade the language-operator release
+            3. Wait for the rollout to complete
+            4. Verify the operator is running
+
+            Examples:
+              # Upgrade to latest version
+              aictl upgrade
+
+              # Upgrade with custom values
+              aictl upgrade --values my-values.yaml
+
+              # Upgrade to specific version
+              aictl upgrade --version 0.2.0
+          DESC
+          uninstall: <<-DESC
+            Uninstall the language-operator from your Kubernetes cluster.
+
+            WARNING: This will remove the operator but NOT the CRDs or custom resources.
+            Agents, tools, models, and personas will remain in the cluster.
+
+            Examples:
+              # Uninstall with confirmation
+              aictl uninstall
+
+              # Force uninstall without confirmation
+              aictl uninstall --force
+
+              # Uninstall from specific namespace
+              aictl uninstall --namespace my-namespace
+          DESC
+        }.freeze
+
         # Helper method to get long descriptions for commands
         def self.long_desc_for(command)
-          case command
-          when :install
-            <<-DESC
-              Install the language-operator into your Kubernetes cluster using Helm.
-
-              This command will:
-              1. Add the language-operator Helm repository
-              2. Update Helm repositories
-              3. Install the language-operator chart
-              4. Verify the installation
-
-              Examples:
-                # Install with defaults
-                aictl install
-
-                # Install with custom values
-                aictl install --values my-values.yaml
-
-                # Install specific version
-                aictl install --version 0.1.0
-
-                # Dry run to see what would be installed
-                aictl install --dry-run
-            DESC
-          when :upgrade
-            <<-DESC
-              Upgrade the language-operator to a newer version using Helm.
-
-              This command will:
-              1. Update Helm repositories
-              2. Upgrade the language-operator release
-              3. Wait for the rollout to complete
-              4. Verify the operator is running
-
-              Examples:
-                # Upgrade to latest version
-                aictl upgrade
-
-                # Upgrade with custom values
-                aictl upgrade --values my-values.yaml
-
-                # Upgrade to specific version
-                aictl upgrade --version 0.2.0
-            DESC
-          when :uninstall
-            <<-DESC
-              Uninstall the language-operator from your Kubernetes cluster.
-
-              WARNING: This will remove the operator but NOT the CRDs or custom resources.
-              Agents, tools, models, and personas will remain in the cluster.
-
-              Examples:
-                # Uninstall with confirmation
-                aictl uninstall
-
-                # Force uninstall without confirmation
-                aictl uninstall --force
-
-                # Uninstall from specific namespace
-                aictl uninstall --namespace my-namespace
-            DESC
-          end
+          LONG_DESCRIPTIONS[command]
         end
 
         desc 'install', 'Install the language-operator using Helm'
