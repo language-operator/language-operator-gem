@@ -505,8 +505,7 @@ module LanguageOperator
           end
 
           puts
-          puts pastel.dim('Note: The agent has been created and will start synthesizing.')
-          puts pastel.dim('Check its status with: aictl agent inspect ruby-facts')
+          puts pastel.dim('The agent has been created and will start synthesizing.')
           puts
 
           true
