@@ -30,10 +30,10 @@ module LanguageOperator
           return unless model_info
 
           # Step 3: Example agent
-          create_example_agent(cluster_info, model_info)
+          agent_created = create_example_agent(cluster_info, model_info)
 
           # Show next steps
-          show_next_steps
+          show_next_steps(agent_created: agent_created)
         end
 
         private
@@ -460,6 +460,7 @@ module LanguageOperator
           # rubocop:enable Metrics/BlockLength
         end
 
+        # rubocop:disable Naming/PredicateMethod
         def create_example_agent(cluster_info, model_info)
           puts
           puts '─' * 50
@@ -474,7 +475,7 @@ module LanguageOperator
             puts
             puts pastel.dim('Skipping example agent creation.')
             puts
-            return
+            return false
           end
 
           puts
@@ -507,23 +508,42 @@ module LanguageOperator
           puts pastel.dim('Note: The agent has been created and will start synthesizing.')
           puts pastel.dim('Check its status with: aictl agent inspect ruby-facts')
           puts
-        end
 
-        def show_next_steps
+          true
+        end
+        # rubocop:enable Naming/PredicateMethod
+
+        def show_next_steps(agent_created: false)
           puts
           puts pastel.cyan("What's Next?")
           puts
-          puts '1. Create your own agent:'
-          puts "   #{pastel.dim('aictl agent create "your task here"')}"
-          puts
-          puts '2. Use the interactive wizard:'
-          puts "   #{pastel.dim('aictl agent create --wizard')}"
-          puts
-          puts '3. View your agents:'
-          puts "   #{pastel.dim('aictl agent list')}"
-          puts
-          puts '4. Check agent status:'
-          puts "   #{pastel.dim('aictl agent inspect ruby-facts')}"
+
+          if agent_created
+            puts '1. Check your agent status:'
+            puts "   #{pastel.dim('aictl agent inspect ruby-facts')}"
+            puts
+            puts '2. View the agent output:'
+            puts "   #{pastel.dim('aictl agent logs ruby-facts')}"
+            puts
+            puts '3. Create another agent:'
+            puts "   #{pastel.dim('aictl agent create "your task here"')}"
+            puts
+            puts '4. View all your agents:'
+            puts "   #{pastel.dim('aictl agent list')}"
+          else
+            puts '1. Create your own agent:'
+            puts "   #{pastel.dim('aictl agent create "your task here"')}"
+            puts
+            puts '2. Use the interactive wizard:'
+            puts "   #{pastel.dim('aictl agent create --wizard')}"
+            puts
+            puts '3. View your agents:'
+            puts "   #{pastel.dim('aictl agent list')}"
+            puts
+            puts '4. Check agent status:'
+            puts "   #{pastel.dim('aictl agent inspect <agent-name>')}"
+          end
+
           puts
           puts pastel.green('Welcome to autonomous automation! 🚀')
           puts
