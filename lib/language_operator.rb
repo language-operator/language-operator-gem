@@ -3,6 +3,8 @@
 require 'language_operator/version'
 require 'language_operator/errors'
 require 'language_operator/retry'
+require 'language_operator/config'
+require 'language_operator/validators'
 require 'language_operator/dsl'
 require 'language_operator/client'
 require 'language_operator/tool_loader'
