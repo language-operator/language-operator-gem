@@ -9,13 +9,13 @@ module LanguageOperator
     module Commands
       # Quickstart wizard for first-time users
       class Quickstart < Thor
-        desc 'run', 'Interactive setup wizard for first-time users'
-        def run
+        desc 'start', 'Interactive setup wizard for first-time users'
+        def start
           wizard = Wizards::QuickstartWizard.new
           wizard.run
         end
 
-        default_task :run
+        default_task :start
       end
     end
   end

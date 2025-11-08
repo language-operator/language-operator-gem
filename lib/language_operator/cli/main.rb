@@ -89,7 +89,7 @@ module LanguageOperator
 
       desc 'quickstart', 'Interactive setup wizard for first-time users'
       def quickstart
-        Commands::Quickstart.new.invoke(:run)
+        Commands::Quickstart.new.invoke(:start)
       end
 
       desc 'new TYPE NAME', 'Generate a new tool or agent project (TYPE: tool, agent)'
