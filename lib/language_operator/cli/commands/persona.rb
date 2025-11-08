@@ -6,6 +6,8 @@ require 'pastel'
 require_relative '../formatters/progress_formatter'
 require_relative '../formatters/table_formatter'
 require_relative '../helpers/cluster_validator'
+require_relative '../helpers/cluster_context'
+require_relative '../helpers/user_prompts'
 require_relative '../../config/cluster_config'
 require_relative '../../kubernetes/client'
 require_relative '../../kubernetes/resource_builder'
@@ -20,14 +22,12 @@ module LanguageOperator
         desc 'list', 'List all personas in current cluster'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def list
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+          ctx = Helpers::ClusterContext.from_options(options)
 
-          personas = k8s.list_resources('LanguagePersona', namespace: cluster_config[:namespace])
+          personas = ctx.client.list_resources('LanguagePersona', namespace: ctx.namespace)
 
           if personas.empty?
-            Formatters::ProgressFormatter.info("No personas found in cluster '#{cluster}'")
+            Formatters::ProgressFormatter.info("No personas found in cluster '#{ctx.name}'")
             puts
             puts 'Personas define the personality and capabilities of agents.'
             puts
@@ -37,7 +37,7 @@ module LanguageOperator
           end
 
           # Get agents to count usage
-          agents = k8s.list_resources('LanguageAgent', namespace: cluster_config[:namespace])
+          agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
 
           table_data = personas.map do |persona|
             name = persona.dig('metadata', 'name')
@@ -62,14 +62,12 @@ module LanguageOperator
         desc 'show NAME', 'Display full persona details'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def show(name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+          ctx = Helpers::ClusterContext.from_options(options)
 
           begin
-            persona = k8s.get_resource('LanguagePersona', name, cluster_config[:namespace])
+            persona = ctx.client.get_resource('LanguagePersona', name, ctx.namespace)
           rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Persona '#{name}' not found in cluster '#{cluster}'")
+            Formatters::ProgressFormatter.error("Persona '#{name}' not found in cluster '#{ctx.name}'")
             exit 1
           end
 
@@ -137,14 +135,12 @@ module LanguageOperator
         option :cluster, type: :string, desc: 'Override current cluster context'
         option :from, type: :string, desc: 'Copy from existing persona as starting point'
         def create(name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+          ctx = Helpers::ClusterContext.from_options(options)
 
           # Check if persona already exists
           begin
-            k8s.get_resource('LanguagePersona', name, cluster_config[:namespace])
-            Formatters::ProgressFormatter.error("Persona '#{name}' already exists in cluster '#{cluster}'")
+            ctx.client.get_resource('LanguagePersona', name, ctx.namespace)
+            Formatters::ProgressFormatter.error("Persona '#{name}' already exists in cluster '#{ctx.name}'")
             puts
             puts 'Use a different name or delete the existing persona first:'
             puts "  aictl persona delete #{name}"
@@ -157,7 +153,7 @@ module LanguageOperator
           base_persona = nil
           if options[:from]
             begin
-              base_persona = k8s.get_resource('LanguagePersona', options[:from], cluster_config[:namespace])
+              base_persona = ctx.client.get_resource('LanguagePersona', options[:from], ctx.namespace)
               Formatters::ProgressFormatter.info("Copying from persona '#{options[:from]}'")
               puts
             rescue K8s::Error::NotFound
@@ -225,7 +221,7 @@ module LanguageOperator
           persona_resource = Kubernetes::ResourceBuilder.build_persona(
             name: name,
             spec: persona_spec,
-            namespace: cluster_config[:namespace]
+            namespace: ctx.namespace
           )
 
           # Show preview
@@ -245,7 +241,7 @@ module LanguageOperator
 
           # Create persona
           Formatters::ProgressFormatter.with_spinner("Creating persona '#{name}'") do
-            k8s.create_resource(persona_resource)
+            ctx.client.create_resource(persona_resource)
           end
 
           Formatters::ProgressFormatter.success("Persona '#{name}' created successfully")
@@ -271,15 +267,13 @@ module LanguageOperator
         DESC
         option :cluster, type: :string, desc: 'Override current cluster context'
         def edit(name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+          ctx = Helpers::ClusterContext.from_options(options)
 
           # Get current persona
           begin
-            persona = k8s.get_resource('LanguagePersona', name, cluster_config[:namespace])
+            persona = ctx.client.get_resource('LanguagePersona', name, ctx.namespace)
           rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Persona '#{name}' not found in cluster '#{cluster}'")
+            Formatters::ProgressFormatter.error("Persona '#{name}' not found in cluster '#{ctx.name}'")
             exit 1
           end
 
@@ -309,13 +303,13 @@ module LanguageOperator
 
           # Update persona
           Formatters::ProgressFormatter.with_spinner("Updating persona '#{name}'") do
-            k8s.update_resource(edited_persona)
+            ctx.client.update_resource(edited_persona)
           end
 
           Formatters::ProgressFormatter.success("Persona '#{name}' updated successfully")
 
           # Check for agents using this persona
-          agents = k8s.list_resources('LanguageAgent', namespace: cluster_config[:namespace])
+          agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
           agents_using = agents.select { |a| a.dig('spec', 'persona') == name }
 
           if agents_using.any?
@@ -336,20 +330,18 @@ module LanguageOperator
         option :cluster, type: :string, desc: 'Override current cluster context'
         option :force, type: :boolean, default: false, desc: 'Skip confirmation'
         def delete(name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+          ctx = Helpers::ClusterContext.from_options(options)
 
           # Get persona
           begin
-            persona = k8s.get_resource('LanguagePersona', name, cluster_config[:namespace])
+            persona = ctx.client.get_resource('LanguagePersona', name, ctx.namespace)
           rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Persona '#{name}' not found in cluster '#{cluster}'")
+            Formatters::ProgressFormatter.error("Persona '#{name}' not found in cluster '#{ctx.name}'")
             exit 1
           end
 
           # Check for agents using this persona
-          agents = k8s.list_resources('LanguageAgent', namespace: cluster_config[:namespace])
+          agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
           agents_using = agents.select { |a| a.dig('spec', 'persona') == name }
 
           if agents_using.any? && !options[:force]
@@ -362,31 +354,21 @@ module LanguageOperator
             puts
             puts 'Delete these agents first, or use --force to delete anyway.'
             puts
-            print 'Are you sure? (y/N): '
-            confirmation = $stdin.gets.chomp
-            unless confirmation.downcase == 'y'
-              puts 'Deletion cancelled'
-              return
-            end
+            return unless Helpers::UserPrompts.confirm('Are you sure?')
           end
 
           # Confirm deletion unless --force
           unless options[:force] || agents_using.any?
-            puts "This will delete persona '#{name}' from cluster '#{cluster}':"
+            puts "This will delete persona '#{name}' from cluster '#{ctx.name}':"
             puts "  Tone:        #{persona.dig('spec', 'tone')}"
             puts "  Description: #{persona.dig('spec', 'description')}"
             puts
-            print 'Are you sure? (y/N): '
-            confirmation = $stdin.gets.chomp
-            unless confirmation.downcase == 'y'
-              puts 'Deletion cancelled'
-              return
-            end
+            return unless Helpers::UserPrompts.confirm('Are you sure?')
           end
 
           # Delete persona
           Formatters::ProgressFormatter.with_spinner("Deleting persona '#{name}'") do
-            k8s.delete_resource('LanguagePersona', name, cluster_config[:namespace])
+            ctx.client.delete_resource('LanguagePersona', name, ctx.namespace)
           end
 
           Formatters::ProgressFormatter.success("Persona '#{name}' deleted successfully")

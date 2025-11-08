@@ -5,6 +5,7 @@ require 'yaml'
 require_relative '../formatters/progress_formatter'
 require_relative '../formatters/table_formatter'
 require_relative '../helpers/cluster_validator'
+require_relative '../helpers/user_prompts'
 require_relative '../../config/cluster_config'
 require_relative '../../kubernetes/client'
 require_relative '../../kubernetes/resource_builder'
@@ -224,12 +225,8 @@ module LanguageOperator
           unless options[:force]
             puts "This will delete cluster '#{name}' and all its resources:"
             puts "  Namespace: #{cluster[:namespace]}"
-            print "\nAre you sure? (y/N): "
-            confirmation = $stdin.gets.chomp
-            unless confirmation.downcase == 'y'
-              puts 'Deletion cancelled'
-              return
-            end
+            puts
+            return unless Helpers::UserPrompts.confirm('Are you sure?')
           end
 
           # Delete LanguageCluster resource

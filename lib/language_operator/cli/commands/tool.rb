@@ -7,6 +7,8 @@ require 'net/http'
 require_relative '../formatters/progress_formatter'
 require_relative '../formatters/table_formatter'
 require_relative '../helpers/cluster_validator'
+require_relative '../helpers/cluster_context'
+require_relative '../helpers/user_prompts'
 require_relative '../../config/cluster_config'
 require_relative '../../config/tool_registry'
 require_relative '../../kubernetes/client'
@@ -21,15 +23,12 @@ module LanguageOperator
         desc 'list', 'List all tools in current cluster'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def list
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
+          ctx = Helpers::ClusterContext.from_options(options)
 
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
-
-          tools = k8s.list_resources('LanguageTool', namespace: cluster_config[:namespace])
+          tools = ctx.client.list_resources('LanguageTool', namespace: ctx.namespace)
 
           if tools.empty?
-            Formatters::ProgressFormatter.info("No tools found in cluster '#{cluster}'")
+            Formatters::ProgressFormatter.info("No tools found in cluster '#{ctx.name}'")
             puts
             puts 'Tools provide MCP server capabilities for agents.'
             puts
@@ -39,7 +38,7 @@ module LanguageOperator
           end
 
           # Get agents to count usage
-          agents = k8s.list_resources('LanguageAgent', namespace: cluster_config[:namespace])
+          agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
 
           table_data = tools.map do |tool|
             name = tool.dig('metadata', 'name')
@@ -81,21 +80,18 @@ module LanguageOperator
         option :cluster, type: :string, desc: 'Override current cluster context'
         option :force, type: :boolean, default: false, desc: 'Skip confirmation'
         def delete(name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+          ctx = Helpers::ClusterContext.from_options(options)
 
           # Get tool
           begin
-            tool = k8s.get_resource('LanguageTool', name, cluster_config[:namespace])
+            tool = ctx.client.get_resource('LanguageTool', name, ctx.namespace)
           rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Tool '#{name}' not found in cluster '#{cluster}'")
+            Formatters::ProgressFormatter.error("Tool '#{name}' not found in cluster '#{ctx.name}'")
             exit 1
           end
 
           # Check for agents using this tool
-          agents = k8s.list_resources('LanguageAgent', namespace: cluster_config[:namespace])
+          agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
           agents_using = agents.select do |agent|
             agent_tools = agent.dig('spec', 'tools') || []
             agent_tools.include?(name)
@@ -111,31 +107,21 @@ module LanguageOperator
             puts
             puts 'Delete these agents first, or use --force to delete anyway.'
             puts
-            print 'Are you sure? (y/N): '
-            confirmation = $stdin.gets.chomp
-            unless confirmation.downcase == 'y'
-              puts 'Deletion cancelled'
-              return
-            end
+            return unless Helpers::UserPrompts.confirm('Are you sure?')
           end
 
-          # Confirm deletion unless --force
+          # Confirm deletion using UserPrompts helper
           unless options[:force] || agents_using.any?
-            puts "This will delete tool '#{name}' from cluster '#{cluster}':"
+            puts "This will delete tool '#{name}' from cluster '#{ctx.name}':"
             puts "  Type:   #{tool.dig('spec', 'type')}"
             puts "  Status: #{tool.dig('status', 'phase')}"
             puts
-            print 'Are you sure? (y/N): '
-            confirmation = $stdin.gets.chomp
-            unless confirmation.downcase == 'y'
-              puts 'Deletion cancelled'
-              return
-            end
+            return unless Helpers::UserPrompts.confirm('Are you sure?')
           end
 
           # Delete tool
           Formatters::ProgressFormatter.with_spinner("Deleting tool '#{name}'") do
-            k8s.delete_resource('LanguageTool', name, cluster_config[:namespace])
+            ctx.client.delete_resource('LanguageTool', name, ctx.namespace)
           end
 
           Formatters::ProgressFormatter.success("Tool '#{name}' deleted successfully")
@@ -154,11 +140,12 @@ module LanguageOperator
         def install(tool_name)
           # For dry-run mode, allow operation without a real cluster
           if options[:dry_run]
-            cluster = options[:cluster] || 'preview'
-            cluster_config = { namespace: 'default' }
+            cluster_name = options[:cluster] || 'preview'
+            namespace = 'default'
           else
-            cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-            cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
+            ctx = Helpers::ClusterContext.from_options(options)
+            cluster_name = ctx.name
+            namespace = ctx.namespace
           end
 
           # Load tool patterns registry
@@ -194,7 +181,7 @@ module LanguageOperator
           # Build template variables
           vars = {
             name: tool_name,
-            namespace: cluster_config[:namespace],
+            namespace: namespace,
             deployment_mode: options[:deployment_mode] || tool_config['deploymentMode'],
             replicas: options[:replicas] || 1,
             auth_secret: nil # Will be set by auth command
@@ -206,7 +193,7 @@ module LanguageOperator
 
           # Dry run mode
           if options[:dry_run]
-            puts "Would install tool '#{tool_name}' to cluster '#{cluster}':"
+            puts "Would install tool '#{tool_name}' to cluster '#{cluster_name}':"
             puts
             puts "Display Name:    #{tool_config['displayName']}"
             puts "Description:     #{tool_config['description']}"
@@ -223,19 +210,14 @@ module LanguageOperator
           end
 
           # Connect to cluster
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+          ctx = Helpers::ClusterContext.from_options(options)
 
           # Check if already exists
           begin
-            k8s.get_resource('LanguageTool', tool_name, cluster_config[:namespace])
-            Formatters::ProgressFormatter.warn("Tool '#{tool_name}' already exists in cluster '#{cluster}'")
+            ctx.client.get_resource('LanguageTool', tool_name, ctx.namespace)
+            Formatters::ProgressFormatter.warn("Tool '#{tool_name}' already exists in cluster '#{ctx.name}'")
             puts
-            print 'Do you want to update it? (y/N): '
-            confirmation = $stdin.gets.chomp
-            unless confirmation.downcase == 'y'
-              puts 'Installation cancelled'
-              return
-            end
+            return unless Helpers::UserPrompts.confirm('Do you want to update it?')
           rescue K8s::Error::NotFound
             # Tool doesn't exist, proceed with creation
           end
@@ -243,12 +225,12 @@ module LanguageOperator
           # Install tool
           Formatters::ProgressFormatter.with_spinner("Installing tool '#{tool_name}'") do
             resource = YAML.safe_load(yaml_content, permitted_classes: [Symbol])
-            k8s.apply_resource(resource)
+            ctx.client.apply_resource(resource)
           end
 
           Formatters::ProgressFormatter.success("Tool '#{tool_name}' installed successfully")
           puts
-          puts "Tool '#{tool_name}' is now available in cluster '#{cluster}'"
+          puts "Tool '#{tool_name}' is now available in cluster '#{ctx.name}'"
           if tool_config['authRequired']
             puts
             puts 'This tool requires authentication. Configure it with:'
@@ -264,16 +246,13 @@ module LanguageOperator
         desc 'auth NAME', 'Configure authentication for a tool'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def auth(tool_name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+          ctx = Helpers::ClusterContext.from_options(options)
 
           # Check if tool exists
           begin
-            tool = k8s.get_resource('LanguageTool', tool_name, cluster_config[:namespace])
+            tool = ctx.client.get_resource('LanguageTool', tool_name, ctx.namespace)
           rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Tool '#{tool_name}' not found in cluster '#{cluster}'")
+            Formatters::ProgressFormatter.error("Tool '#{tool_name}' not found in cluster '#{ctx.name}'")
             puts
             puts 'Install the tool first with:'
             puts "  aictl tool install #{tool_name}"
@@ -362,14 +341,14 @@ module LanguageOperator
             'kind' => 'Secret',
             'metadata' => {
               'name' => secret_name,
-              'namespace' => cluster_config[:namespace]
+              'namespace' => ctx.namespace
             },
             'type' => 'Opaque',
             'stringData' => secret_data
           }
 
           Formatters::ProgressFormatter.with_spinner('Creating authentication secret') do
-            k8s.apply_resource(secret_resource)
+            ctx.client.apply_resource(secret_resource)
           end
 
           # Update tool to use secret
@@ -377,7 +356,7 @@ module LanguageOperator
           tool['spec']['envFrom'] << { 'secretRef' => { 'name' => secret_name } }
 
           Formatters::ProgressFormatter.with_spinner('Updating tool configuration') do
-            k8s.apply_resource(tool)
+            ctx.client.apply_resource(tool)
           end
 
           Formatters::ProgressFormatter.success('Authentication configured successfully')
@@ -393,20 +372,17 @@ module LanguageOperator
         desc 'test NAME', 'Test tool connectivity and health'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def test(tool_name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+          ctx = Helpers::ClusterContext.from_options(options)
 
           # Get tool
           begin
-            tool = k8s.get_resource('LanguageTool', tool_name, cluster_config[:namespace])
+            tool = ctx.client.get_resource('LanguageTool', tool_name, ctx.namespace)
           rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Tool '#{tool_name}' not found in cluster '#{cluster}'")
+            Formatters::ProgressFormatter.error("Tool '#{tool_name}' not found in cluster '#{ctx.name}'")
             exit 1
           end
 
-          puts "Testing tool '#{tool_name}' in cluster '#{cluster}'"
+          puts "Testing tool '#{tool_name}' in cluster '#{ctx.name}'"
           puts
 
           # Check phase
@@ -438,7 +414,7 @@ module LanguageOperator
           puts 'Pod Status:'
 
           label_selector = "langop.io/tool=#{tool_name}"
-          pods = k8s.list_resources('Pod', namespace: cluster_config[:namespace], label_selector: label_selector)
+          pods = ctx.client.list_resources('Pod', namespace: ctx.namespace, label_selector: label_selector)
 
           if pods.empty?
             puts '  No pods found'
@@ -491,7 +467,7 @@ module LanguageOperator
             Formatters::ProgressFormatter.warn("Tool '#{tool_name}' has issues, check logs for details")
             puts
             puts 'View logs with:'
-            puts "  kubectl logs -n #{cluster_config[:namespace]} -l langop.io/tool=#{tool_name}"
+            puts "  kubectl logs -n #{ctx.namespace} -l langop.io/tool=#{tool_name}"
           end
         rescue StandardError => e
           Formatters::ProgressFormatter.error("Failed to test tool: #{e.message}")

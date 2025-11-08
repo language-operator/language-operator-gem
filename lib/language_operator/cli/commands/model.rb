@@ -5,6 +5,8 @@ require 'yaml'
 require_relative '../formatters/progress_formatter'
 require_relative '../formatters/table_formatter'
 require_relative '../helpers/cluster_validator'
+require_relative '../helpers/cluster_context'
+require_relative '../helpers/user_prompts'
 require_relative '../../config/cluster_config'
 require_relative '../../kubernetes/client'
 require_relative '../../kubernetes/resource_builder'
@@ -19,15 +21,12 @@ module LanguageOperator
         desc 'list', 'List all models in current cluster'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def list
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
+          ctx = Helpers::ClusterContext.from_options(options)
 
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
-
-          models = k8s.list_resources('LanguageModel', namespace: cluster_config[:namespace])
+          models = ctx.client.list_resources('LanguageModel', namespace: ctx.namespace)
 
           if models.empty?
-            Formatters::ProgressFormatter.info("No models found in cluster '#{cluster}'")
+            Formatters::ProgressFormatter.info("No models found in cluster '#{ctx.name}'")
             puts
             puts 'Models define LLM configurations for agents.'
             puts
@@ -73,8 +72,7 @@ module LanguageOperator
         option :cluster, type: :string, desc: 'Override current cluster context'
         option :dry_run, type: :boolean, default: false, desc: 'Output the manifest without creating'
         def create(name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
+          ctx = Helpers::ClusterContext.from_options(options)
 
           # Build LanguageModel resource
           resource = Kubernetes::ResourceBuilder.language_model(
@@ -82,7 +80,7 @@ module LanguageOperator
             provider: options[:provider],
             model: options[:model],
             endpoint: options[:endpoint],
-            cluster: cluster_config[:namespace]
+            cluster: ctx.namespace
           )
 
           # Handle dry-run: output manifest and exit
@@ -91,12 +89,10 @@ module LanguageOperator
             return
           end
 
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
-
           # Check if model already exists
           begin
-            k8s.get_resource('LanguageModel', name, cluster_config[:namespace])
-            Formatters::ProgressFormatter.error("Model '#{name}' already exists in cluster '#{cluster}'")
+            ctx.client.get_resource('LanguageModel', name, ctx.namespace)
+            Formatters::ProgressFormatter.error("Model '#{name}' already exists in cluster '#{ctx.name}'")
             exit 1
           rescue K8s::Error::NotFound
             # Model doesn't exist, proceed with creation
@@ -104,7 +100,7 @@ module LanguageOperator
 
           # Create model
           Formatters::ProgressFormatter.with_spinner("Creating model '#{name}'") do
-            k8s.apply_resource(resource)
+            ctx.client.apply_resource(resource)
           end
 
           Formatters::ProgressFormatter.success("Model '#{name}' created successfully")
@@ -114,7 +110,7 @@ module LanguageOperator
           puts "  Provider: #{options[:provider]}"
           puts "  Model:    #{options[:model]}"
           puts "  Endpoint: #{options[:endpoint]}" if options[:endpoint]
-          puts "  Cluster:  #{cluster}"
+          puts "  Cluster:  #{ctx.name}"
         rescue StandardError => e
           Formatters::ProgressFormatter.error("Failed to create model: #{e.message}")
           raise if ENV['DEBUG']
@@ -125,22 +121,19 @@ module LanguageOperator
         desc 'inspect NAME', 'Show detailed model information'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def inspect(name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+          ctx = Helpers::ClusterContext.from_options(options)
 
           # Get model
           begin
-            model = k8s.get_resource('LanguageModel', name, cluster_config[:namespace])
+            model = ctx.client.get_resource('LanguageModel', name, ctx.namespace)
           rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Model '#{name}' not found in cluster '#{cluster}'")
+            Formatters::ProgressFormatter.error("Model '#{name}' not found in cluster '#{ctx.name}'")
             exit 1
           end
 
           puts "Model: #{name}"
-          puts "  Cluster:   #{cluster}"
-          puts "  Namespace: #{cluster_config[:namespace]}"
+          puts "  Cluster:   #{ctx.name}"
+          puts "  Namespace: #{ctx.namespace}"
           puts "  Provider:  #{model.dig('spec', 'provider')}"
           puts "  Model:     #{model.dig('spec', 'modelName')}"
           puts "  Endpoint:  #{model.dig('spec', 'endpoint')}" if model.dig('spec', 'endpoint')
@@ -148,7 +141,7 @@ module LanguageOperator
           puts
 
           # Get agents using this model
-          agents = k8s.list_resources('LanguageAgent', namespace: cluster_config[:namespace])
+          agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
           agents_using = agents.select do |agent|
             agent_model_refs = agent.dig('spec', 'modelRefs') || []
             agent_models = agent_model_refs.map { |ref| ref['name'] }
@@ -185,21 +178,18 @@ module LanguageOperator
         option :cluster, type: :string, desc: 'Override current cluster context'
         option :force, type: :boolean, default: false, desc: 'Skip confirmation'
         def delete(name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+          ctx = Helpers::ClusterContext.from_options(options)
 
           # Get model
           begin
-            model = k8s.get_resource('LanguageModel', name, cluster_config[:namespace])
+            model = ctx.client.get_resource('LanguageModel', name, ctx.namespace)
           rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Model '#{name}' not found in cluster '#{cluster}'")
+            Formatters::ProgressFormatter.error("Model '#{name}' not found in cluster '#{ctx.name}'")
             exit 1
           end
 
           # Check for agents using this model
-          agents = k8s.list_resources('LanguageAgent', namespace: cluster_config[:namespace])
+          agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
           agents_using = agents.select do |agent|
             agent_model_refs = agent.dig('spec', 'modelRefs') || []
             agent_models = agent_model_refs.map { |ref| ref['name'] }
@@ -216,32 +206,22 @@ module LanguageOperator
             puts
             puts 'Delete these agents first, or use --force to delete anyway.'
             puts
-            print 'Are you sure? (y/N): '
-            confirmation = $stdin.gets.chomp
-            unless confirmation.downcase == 'y'
-              puts 'Deletion cancelled'
-              return
-            end
+            return unless Helpers::UserPrompts.confirm('Are you sure?')
           end
 
           # Confirm deletion unless --force
           unless options[:force] || agents_using.any?
-            puts "This will delete model '#{name}' from cluster '#{cluster}':"
+            puts "This will delete model '#{name}' from cluster '#{ctx.name}':"
             puts "  Provider: #{model.dig('spec', 'provider')}"
             puts "  Model:    #{model.dig('spec', 'modelName')}"
             puts "  Status:   #{model.dig('status', 'phase')}"
             puts
-            print 'Are you sure? (y/N): '
-            confirmation = $stdin.gets.chomp
-            unless confirmation.downcase == 'y'
-              puts 'Deletion cancelled'
-              return
-            end
+            return unless Helpers::UserPrompts.confirm('Are you sure?')
           end
 
           # Delete model
           Formatters::ProgressFormatter.with_spinner("Deleting model '#{name}'") do
-            k8s.delete_resource('LanguageModel', name, cluster_config[:namespace])
+            ctx.client.delete_resource('LanguageModel', name, ctx.namespace)
           end
 
           Formatters::ProgressFormatter.success("Model '#{name}' deleted successfully")
@@ -255,16 +235,13 @@ module LanguageOperator
         desc 'edit NAME', 'Edit model configuration'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def edit(name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+          ctx = Helpers::ClusterContext.from_options(options)
 
           # Get current model
           begin
-            model = k8s.get_resource('LanguageModel', name, cluster_config[:namespace])
+            model = ctx.client.get_resource('LanguageModel', name, ctx.namespace)
           rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Model '#{name}' not found in cluster '#{cluster}'")
+            Formatters::ProgressFormatter.error("Model '#{name}' not found in cluster '#{ctx.name}'")
             exit 1
           end
 
@@ -284,7 +261,7 @@ module LanguageOperator
 
           # Apply changes
           Formatters::ProgressFormatter.with_spinner("Updating model '#{name}'") do
-            k8s.apply_resource(edited_model)
+            ctx.client.apply_resource(edited_model)
           end
 
           Formatters::ProgressFormatter.success("Model '#{name}' updated successfully")
