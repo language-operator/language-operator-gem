@@ -3,6 +3,7 @@
 require_relative 'workflow_definition'
 require_relative 'webhook_definition'
 require_relative 'mcp_server_definition'
+require_relative 'chat_endpoint_definition'
 require_relative '../logger'
 require_relative '../loggable'
 
@@ -47,7 +48,7 @@ module LanguageOperator
       include LanguageOperator::Loggable
 
       attr_reader :name, :description, :persona, :schedule, :objectives, :workflow,
-                  :constraints, :output_config, :execution_mode, :webhooks, :mcp_server
+                  :constraints, :output_config, :execution_mode, :webhooks, :mcp_server, :chat_endpoint
 
       def initialize(name)
         @name = name
@@ -61,6 +62,7 @@ module LanguageOperator
         @execution_mode = :autonomous
         @webhooks = []
         @mcp_server = nil
+        @chat_endpoint = nil
 
         logger.debug('Agent definition initialized',
                      name: name,
@@ -189,6 +191,20 @@ module LanguageOperator
         @mcp_server
       end
 
+      # Define chat endpoint capabilities
+      #
+      # Allows this agent to respond to OpenAI-compatible chat completion requests.
+      # Other systems can treat this agent as a language model.
+      #
+      # @yield Chat endpoint configuration block
+      # @return [ChatEndpointDefinition] The chat endpoint definition
+      def as_chat_endpoint(&block)
+        @chat_endpoint ||= ChatEndpointDefinition.new(@name)
+        @chat_endpoint.instance_eval(&block) if block
+        @execution_mode = :reactive if @execution_mode == :autonomous
+        @chat_endpoint
+      end
+
       # Execute the agent
       #
       # @return [void]
@@ -245,7 +261,8 @@ module LanguageOperator
         logger.info('Running agent in reactive mode',
                     name: @name,
                     webhooks: @webhooks.size,
-                    mcp_tools: @mcp_server&.tools&.size || 0)
+                    mcp_tools: @mcp_server&.tools&.size || 0,
+                    chat_endpoint: !@chat_endpoint.nil?)
 
         # Create an Agent::Base instance with this definition
         require_relative '../agent/base'
@@ -268,6 +285,9 @@ module LanguageOperator
 
         # Register MCP tools
         web_server.register_mcp_tools(@mcp_server) if @mcp_server&.tools?
+
+        # Register chat endpoint
+        web_server.register_chat_endpoint(@chat_endpoint, agent) if @chat_endpoint
 
         # Start the server
         web_server.start

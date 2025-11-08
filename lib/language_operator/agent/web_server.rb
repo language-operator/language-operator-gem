@@ -98,6 +98,44 @@ module LanguageOperator
         puts "Registered #{mcp_tools.size} MCP tools"
       end
 
+      # Register chat completion endpoint
+      #
+      # Sets up OpenAI-compatible chat completion endpoint.
+      # Agents can be used as drop-in LLM replacements.
+      #
+      # @param chat_endpoint_def [LanguageOperator::Dsl::ChatEndpointDefinition] Chat endpoint definition
+      # @param agent [LanguageOperator::Agent::Base] The agent instance
+      # @return [void]
+      def register_chat_endpoint(chat_endpoint_def, agent)
+        @chat_endpoint = chat_endpoint_def
+        @chat_agent = agent
+
+        # Register OpenAI-compatible endpoint
+        register_route('/v1/chat/completions', method: :post) do |context|
+          handle_chat_completion(context)
+        end
+
+        # Also register models endpoint for compatibility
+        register_route('/v1/models', method: :get) do |_context|
+          {
+            object: 'list',
+            data: [
+              {
+                id: chat_endpoint_def.model_name,
+                object: 'model',
+                created: Time.now.to_i,
+                owned_by: 'language-operator',
+                permission: [],
+                root: chat_endpoint_def.model_name,
+                parent: nil
+              }
+            ]
+          }
+        end
+
+        puts "Registered chat completion endpoint as model: #{chat_endpoint_def.model_name}"
+      end
+
       # Handle incoming HTTP request
       #
       # @param env [Hash] Rack environment
@@ -243,11 +281,134 @@ module LanguageOperator
         @mcp_transport.handle_request(request)
       end
 
+      # Handle chat completion request
+      #
+      # @param context [Hash] Request context
+      # @return [Array, Hash] Rack response or hash for streaming
+      def handle_chat_completion(context)
+        return error_response(StandardError.new('Chat endpoint not configured')) unless @chat_endpoint
+
+        # Parse request body
+        request_data = JSON.parse(context[:body])
+
+        # Check if streaming is requested
+        if request_data['stream']
+          handle_streaming_chat(request_data, context[:request])
+        else
+          handle_non_streaming_chat(request_data)
+        end
+      rescue JSON::ParserError => e
+        error_response(StandardError.new("Invalid JSON: #{e.message}"))
+      rescue StandardError => e
+        error_response(e)
+      end
+
+      # Handle non-streaming chat completion
+      #
+      # @param request_data [Hash] Parsed request data
+      # @return [Hash] Chat completion response
+      def handle_non_streaming_chat(request_data)
+        messages = request_data['messages'] || []
+
+        # Build prompt from messages
+        prompt = build_prompt_from_messages(messages)
+
+        # Execute agent
+        result = @chat_agent.execute(prompt)
+
+        # Build OpenAI-compatible response
+        {
+          id: "chatcmpl-#{SecureRandom.hex(12)}",
+          object: 'chat.completion',
+          created: Time.now.to_i,
+          model: @chat_endpoint.model_name,
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: 'assistant',
+                content: result
+              },
+              finish_reason: 'stop'
+            }
+          ],
+          usage: {
+            prompt_tokens: estimate_tokens(prompt),
+            completion_tokens: estimate_tokens(result),
+            total_tokens: estimate_tokens(prompt) + estimate_tokens(result)
+          }
+        }
+      end
+
+      # Handle streaming chat completion
+      #
+      # @param request_data [Hash] Parsed request data
+      # @param request [Rack::Request] The Rack request
+      # @return [Array] Rack streaming response
+      def handle_streaming_chat(request_data, _request)
+        messages = request_data['messages'] || []
+        prompt = build_prompt_from_messages(messages)
+
+        # Return a streaming response
+        [
+          200,
+          {
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'Connection' => 'keep-alive'
+          },
+          StreamingBody.new(@chat_agent, prompt, @chat_endpoint.model_name)
+        ]
+      end
+
+      # Build prompt from OpenAI message format
+      #
+      # @param messages [Array<Hash>] Array of message objects
+      # @return [String] Combined prompt
+      def build_prompt_from_messages(messages)
+        # Combine all messages into a single prompt
+        # System messages become instructions
+        # User/assistant messages become conversation
+        prompt_parts = []
+
+        # Add system prompt if configured
+        prompt_parts << "System: #{@chat_endpoint.system_prompt}" if @chat_endpoint.system_prompt
+
+        # Add conversation history
+        messages.each do |msg|
+          role = msg['role']
+          content = msg['content']
+
+          case role
+          when 'system'
+            prompt_parts << "System: #{content}"
+          when 'user'
+            prompt_parts << "User: #{content}"
+          when 'assistant'
+            prompt_parts << "Assistant: #{content}"
+          end
+        end
+
+        prompt_parts.join("\n\n")
+      end
+
+      # Estimate token count (rough approximation)
+      #
+      # @param text [String] Text to estimate
+      # @return [Integer] Estimated token count
+      def estimate_tokens(text)
+        # Rough approximation: 1 token ≈ 4 characters
+        (text.length / 4.0).ceil
+      end
+
       # Build success response
       #
       # @param data [Hash, String] Response data
       # @return [Array] Rack response
       def success_response(data)
+        # If data is already a Rack response tuple, return as-is
+        return data if data.is_a?(Array) && data.length == 3 && data[0].is_a?(Integer)
+
         body = data.is_a?(Hash) ? JSON.generate(data) : data.to_s
 
         [
@@ -297,6 +458,104 @@ module LanguageOperator
       # @return [String] Normalized key
       def normalize_route_key(path, method)
         "#{method.to_s.upcase} #{path}"
+      end
+    end
+
+    # Streaming body for Server-Sent Events (SSE)
+    #
+    # Implements the Rack streaming protocol for chat completion responses.
+    # Streams agent output as it's generated.
+    class StreamingBody
+      def initialize(agent, prompt, model_name)
+        @agent = agent
+        @prompt = prompt
+        @model_name = model_name
+        @id = "chatcmpl-#{SecureRandom.hex(12)}"
+      end
+
+      # Implement each for Rack::Test compatibility
+      #
+      # @yield [String] Each chunk of data
+      # @return [void]
+      def each
+        buffer = StringIO.new
+        stream = MockStream.new(buffer)
+        call(stream)
+        yield buffer.string
+      end
+
+      # Mock stream for testing
+      class MockStream
+        def initialize(buffer)
+          @buffer = buffer
+        end
+
+        def write(data)
+          @buffer.write(data)
+        end
+
+        def close
+          # No-op
+        end
+      end
+
+      # Called by Rack to stream the response
+      #
+      # @param stream [Object] The stream object
+      # @return [void]
+      def call(stream)
+        # Execute agent and stream response
+        result = @agent.execute(@prompt)
+
+        # Send the result as a single chunk (for simplicity)
+        # In a real implementation, this could stream token-by-token
+        chunk = {
+          id: @id,
+          object: 'chat.completion.chunk',
+          created: Time.now.to_i,
+          model: @model_name,
+          choices: [
+            {
+              index: 0,
+              delta: {
+                role: 'assistant',
+                content: result
+              },
+              finish_reason: nil
+            }
+          ]
+        }
+
+        stream.write("data: #{JSON.generate(chunk)}\n\n")
+
+        # Send final chunk with finish_reason
+        final_chunk = {
+          id: @id,
+          object: 'chat.completion.chunk',
+          created: Time.now.to_i,
+          model: @model_name,
+          choices: [
+            {
+              index: 0,
+              delta: {},
+              finish_reason: 'stop'
+            }
+          ]
+        }
+
+        stream.write("data: #{JSON.generate(final_chunk)}\n\n")
+        stream.write("data: [DONE]\n\n")
+      rescue StandardError => e
+        error_chunk = {
+          error: {
+            message: e.message,
+            type: 'server_error',
+            code: nil
+          }
+        }
+        stream.write("data: #{JSON.generate(error_chunk)}\n\n")
+      ensure
+        stream.close
       end
     end
   end
