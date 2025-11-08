@@ -76,7 +76,7 @@ RSpec.describe LanguageOperator::Errors do
     end
 
     it 'handles mixed content in array' do
-      result = described_class.missing_config(['VAR1', 'VAR2'])
+      result = described_class.missing_config(%w[VAR1 VAR2])
       expect(result).to eq('Error: Missing configuration: VAR1, VAR2')
     end
   end
