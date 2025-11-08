@@ -575,6 +575,62 @@ module LanguageOperator
           exit 1
         end
 
+        desc 'workspace NAME', 'Browse agent workspace files'
+        long_desc <<-DESC
+          Browse and manage the workspace files for an agent.
+
+          Workspaces provide persistent storage for agents to maintain state,
+          cache data, and remember information across executions.
+
+          Examples:
+            aictl agent workspace my-agent                           # List all files
+            aictl agent workspace my-agent --path /workspace/state.json  # View specific file
+            aictl agent workspace my-agent --clean                   # Clear workspace
+        DESC
+        option :cluster, type: :string, desc: 'Override current cluster context'
+        option :path, type: :string, desc: 'View specific file contents'
+        option :clean, type: :boolean, desc: 'Clear workspace (with confirmation)'
+        def workspace(name)
+          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
+          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
+
+          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+
+          # Get agent to verify it exists
+          begin
+            agent = k8s.get_resource('LanguageAgent', name, cluster_config[:namespace])
+          rescue K8s::Error::NotFound
+            Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{cluster}'")
+            exit 1
+          end
+
+          # Check if workspace is enabled
+          workspace_enabled = agent.dig('spec', 'workspace', 'enabled')
+          unless workspace_enabled
+            Formatters::ProgressFormatter.warn("Workspace is not enabled for agent '#{name}'")
+            puts
+            puts 'Enable workspace in agent configuration:'
+            puts '  spec:'
+            puts '    workspace:'
+            puts '      enabled: true'
+            puts '      size: 10Gi'
+            exit 1
+          end
+
+          if options[:path]
+            view_workspace_file(k8s, name, options[:path], cluster_config)
+          elsif options[:clean]
+            clean_workspace(k8s, name, cluster_config)
+          else
+            list_workspace_files(k8s, name, cluster_config)
+          end
+        rescue StandardError => e
+          Formatters::ProgressFormatter.error("Failed to access workspace: #{e.message}")
+          raise if ENV['DEBUG']
+
+          exit 1
+        end
+
         private
 
         def handle_agent_not_found(name, cluster, k8s, cluster_config)
@@ -987,6 +1043,287 @@ module LanguageOperator
                                         .transform_values { |agents| agents.map { |a| a.except(:cluster) } }
 
           Formatters::TableFormatter.all_agents(agents_by_cluster)
+        end
+
+        # Workspace-related helper methods
+
+        def get_agent_pod(k8s, agent_name, namespace)
+          # Find pod for this agent using label selector
+          label_selector = "app.kubernetes.io/name=#{agent_name}"
+          pods = k8s.list_resources('Pod', namespace: namespace, label_selector: label_selector)
+
+          if pods.empty?
+            Formatters::ProgressFormatter.error("No running pods found for agent '#{agent_name}'")
+            puts
+            puts 'Possible reasons:'
+            puts '  - Agent pod has not started yet'
+            puts '  - Agent is paused or stopped'
+            puts '  - Agent failed to deploy'
+            puts
+            puts 'Check agent status with:'
+            puts "  aictl agent inspect #{agent_name}"
+            exit 1
+          end
+
+          # Find a running pod
+          running_pod = pods.find do |pod|
+            pod.dig('status', 'phase') == 'Running'
+          end
+
+          unless running_pod
+            Formatters::ProgressFormatter.error('Agent pod exists but is not running')
+            puts
+            puts "Current pod status: #{pods.first.dig('status', 'phase')}"
+            puts
+            puts 'Check pod logs with:'
+            puts "  aictl agent logs #{agent_name}"
+            exit 1
+          end
+
+          running_pod.dig('metadata', 'name')
+        end
+
+        def exec_in_pod(pod_name, namespace, command, cluster_config)
+          # Build kubectl exec command
+          kubeconfig_arg = cluster_config[:kubeconfig] ? "--kubeconfig=#{cluster_config[:kubeconfig]}" : ''
+          context_arg = cluster_config[:context] ? "--context=#{cluster_config[:context]}" : ''
+          namespace_arg = "-n #{namespace}"
+
+          # Properly escape command for shell
+          cmd_str = command.is_a?(Array) ? command.join(' ') : command
+          kubectl_cmd = "kubectl #{kubeconfig_arg} #{context_arg} #{namespace_arg} exec #{pod_name} -- #{cmd_str}"
+
+          # Execute and capture output
+          require 'open3'
+          stdout, stderr, status = Open3.capture3(kubectl_cmd)
+
+          raise "Command failed: #{stderr}" unless status.success?
+
+          stdout
+        end
+
+        def list_workspace_files(k8s, agent_name, cluster_config)
+          require 'pastel'
+          pastel = Pastel.new
+
+          pod_name = get_agent_pod(k8s, agent_name, cluster_config[:namespace])
+
+          # Check if workspace directory exists
+          begin
+            exec_in_pod(pod_name, cluster_config[:namespace], 'test -d /workspace', cluster_config)
+          rescue StandardError
+            Formatters::ProgressFormatter.error('Workspace directory not found in agent pod')
+            puts
+            puts 'The /workspace directory does not exist in the agent pod.'
+            puts 'This agent may not have workspace support enabled.'
+            exit 1
+          end
+
+          # Get workspace usage
+          usage_output = exec_in_pod(
+            pod_name,
+            cluster_config[:namespace],
+            'du -sh /workspace 2>/dev/null || echo "0\t/workspace"',
+            cluster_config
+          )
+          workspace_size = usage_output.split("\t").first.strip
+
+          # List files with details
+          file_list = exec_in_pod(
+            pod_name,
+            cluster_config[:namespace],
+            'find /workspace -ls 2>/dev/null | tail -n +2',
+            cluster_config
+          )
+
+          puts
+          puts pastel.cyan("Workspace for agent '#{agent_name}' (#{workspace_size})")
+          puts '=' * 60
+          puts
+
+          if file_list.strip.empty?
+            puts pastel.dim('Workspace is empty')
+            puts
+            puts 'The agent will create files here as it runs.'
+            puts
+            return
+          end
+
+          # Parse and display file list
+          file_list.each_line do |line|
+            parts = line.strip.split(/\s+/, 11)
+            next if parts.length < 11
+
+            # Extract relevant parts
+            # Format: inode blocks perms links user group size month day time path
+            perms = parts[2]
+            size = parts[6]
+            month = parts[7]
+            day = parts[8]
+            time_or_year = parts[9]
+            path = parts[10]
+
+            # Skip the /workspace directory itself
+            next if path == '/workspace'
+
+            # Determine file type and icon
+            icon = if perms.start_with?('d')
+                     pastel.blue('📁')
+                   else
+                     pastel.white('📄')
+                   end
+
+            # Format path relative to workspace
+            relative_path = path.sub('/workspace/', '')
+            indent = '  ' * relative_path.count('/')
+
+            # Format size
+            formatted_size = format_file_size(size.to_i).rjust(8)
+
+            # Format time
+            formatted_time = "#{month} #{day.rjust(2)} #{time_or_year}"
+
+            puts "#{indent}#{icon} #{File.basename(relative_path).ljust(30)} #{pastel.dim(formatted_size)}  #{pastel.dim(formatted_time)}"
+          end
+
+          puts
+          puts pastel.dim('Commands:')
+          puts pastel.dim("  aictl agent workspace #{agent_name} --path /workspace/<file>  # View file")
+          puts pastel.dim("  aictl agent workspace #{agent_name} --clean                   # Clear workspace")
+          puts
+        end
+
+        def view_workspace_file(k8s, agent_name, file_path, cluster_config)
+          require 'pastel'
+          pastel = Pastel.new
+
+          pod_name = get_agent_pod(k8s, agent_name, cluster_config[:namespace])
+
+          # Check if file exists
+          begin
+            exec_in_pod(pod_name, cluster_config[:namespace], "test -f #{file_path}", cluster_config)
+          rescue StandardError
+            Formatters::ProgressFormatter.error("File not found: #{file_path}")
+            puts
+            puts 'List available files with:'
+            puts "  aictl agent workspace #{agent_name}"
+            exit 1
+          end
+
+          # Get file metadata
+          stat_output = exec_in_pod(
+            pod_name,
+            cluster_config[:namespace],
+            "stat -c '%s %Y' #{file_path}",
+            cluster_config
+          )
+          size, mtime = stat_output.strip.split
+
+          # Get file contents
+          contents = exec_in_pod(
+            pod_name,
+            cluster_config[:namespace],
+            "cat #{file_path}",
+            cluster_config
+          )
+
+          # Display file
+          puts
+          puts pastel.cyan("File: #{file_path}")
+          puts "Size: #{format_file_size(size.to_i)}"
+          puts "Modified: #{format_timestamp(Time.at(mtime.to_i))}"
+          puts '=' * 60
+          puts
+          puts contents
+          puts
+        end
+
+        def clean_workspace(k8s, agent_name, cluster_config)
+          require 'pastel'
+          pastel = Pastel.new
+
+          pod_name = get_agent_pod(k8s, agent_name, cluster_config[:namespace])
+
+          # Get current workspace usage
+          usage_output = exec_in_pod(
+            pod_name,
+            cluster_config[:namespace],
+            'du -sh /workspace 2>/dev/null || echo "0\t/workspace"',
+            cluster_config
+          )
+          workspace_size = usage_output.split("\t").first.strip
+
+          # Count files
+          file_count = exec_in_pod(
+            pod_name,
+            cluster_config[:namespace],
+            'find /workspace -type f | wc -l',
+            cluster_config
+          ).strip.to_i
+
+          puts
+          puts pastel.yellow("This will delete ALL files in the workspace for '#{agent_name}'")
+          puts
+          puts 'The agent will lose:'
+          puts '  • Execution history'
+          puts '  • Cached data'
+          puts '  • State information'
+          puts
+          puts "Current workspace: #{file_count} files, #{workspace_size}"
+          puts
+          print 'Are you sure? (y/N): '
+          confirmation = $stdin.gets.chomp
+
+          unless confirmation.downcase == 'y'
+            puts 'Workspace cleanup cancelled'
+            return
+          end
+
+          # Delete all files in workspace
+          Formatters::ProgressFormatter.with_spinner('Cleaning workspace') do
+            exec_in_pod(
+              pod_name,
+              cluster_config[:namespace],
+              'find /workspace -mindepth 1 -delete',
+              cluster_config
+            )
+          end
+
+          Formatters::ProgressFormatter.success("Workspace cleared (freed #{workspace_size})")
+          puts
+          puts 'The agent will start fresh on its next execution.'
+        end
+
+        def format_file_size(bytes)
+          if bytes < 1024
+            "#{bytes}B"
+          elsif bytes < 1024 * 1024
+            "#{(bytes / 1024.0).round(1)}KB"
+          elsif bytes < 1024 * 1024 * 1024
+            "#{(bytes / (1024.0 * 1024)).round(1)}MB"
+          else
+            "#{(bytes / (1024.0 * 1024 * 1024)).round(1)}GB"
+          end
+        end
+
+        def format_timestamp(time)
+          now = Time.now
+          diff = now - time
+
+          if diff < 60
+            "#{diff.to_i} seconds ago"
+          elsif diff < 3600
+            minutes = (diff / 60).to_i
+            "#{minutes} minute#{'s' if minutes != 1} ago"
+          elsif diff < 86_400
+            hours = (diff / 3600).to_i
+            "#{hours} hour#{'s' if hours != 1} ago"
+          elsif diff < 604_800
+            days = (diff / 86_400).to_i
+            "#{days} day#{'s' if days != 1} ago"
+          else
+            time.strftime('%Y-%m-%d %H:%M')
+          end
         end
       end
     end
