@@ -88,3 +88,13 @@ require 'langop'
 agent "demo" do
 end
 ```
+
+## Documentation
+
+### Architecture
+
+- [Agent Runtime Architecture](docs/architecture/agent-runtime.md) - How synthesized code loads and executes in agent pods
+
+### Examples
+
+- [Agent DSL Example](examples/agent_example.rb) - Complete agent definition example
