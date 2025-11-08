@@ -9,7 +9,27 @@ module LanguageOperator
     class Client
       attr_reader :client
 
-      def initialize(kubeconfig: nil, context: nil)
+      # Get singleton K8s client instance with automatic config detection
+      # @return [LanguageOperator::Kubernetes::Client] Client instance
+      # @raise [RuntimeError] if client initialization fails
+      def self.instance
+        @singleton_instance ||= build_singleton
+      end
+
+      # Reset the singleton (useful for testing)
+      # @return [nil]
+      def self.reset!
+        @singleton_instance = nil
+      end
+
+      # Check if running inside a Kubernetes cluster
+      # @return [Boolean] True if in-cluster, false otherwise
+      def self.in_cluster?
+        File.exist?('/var/run/secrets/kubernetes.io/serviceaccount/token')
+      end
+
+      def initialize(kubeconfig: nil, context: nil, in_cluster: false)
+        @in_cluster = in_cluster
         @kubeconfig = kubeconfig || ENV.fetch('KUBECONFIG', File.expand_path('~/.kube/config'))
         @context = context
         @client = build_client
@@ -17,9 +37,16 @@ module LanguageOperator
 
       # Get the current namespace from the context
       def current_namespace
-        config = K8s::Config.load_file(@kubeconfig)
-        config = config.context(@context) if @context
-        config.context&.namespace
+        if @in_cluster
+          # In-cluster: read from service account namespace
+          File.read('/var/run/secrets/kubernetes.io/serviceaccount/namespace').strip
+        else
+          config = K8s::Config.load_file(@kubeconfig)
+          config = config.context(@context) if @context
+          config.context&.namespace
+        end
+      rescue Errno::ENOENT
+        nil
       end
 
       # Create or update a Kubernetes resource
@@ -134,10 +161,26 @@ module LanguageOperator
 
       private
 
+      # Build singleton instance with automatic config detection
+      def self.build_singleton
+        if in_cluster?
+          new(in_cluster: true)
+        else
+          new
+        end
+      rescue StandardError => e
+        raise "Failed to initialize Kubernetes client: #{e.message}"
+      end
+      private_class_method :build_singleton
+
       def build_client
-        config = K8s::Config.load_file(@kubeconfig)
-        config = config.context(@context) if @context
-        K8s::Client.config(config)
+        if @in_cluster
+          K8s::Client.in_cluster_config
+        else
+          config = K8s::Config.load_file(@kubeconfig)
+          config = config.context(@context) if @context
+          K8s::Client.config(config)
+        end
       end
 
       def resource_client_for_resource(resource)
