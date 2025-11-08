@@ -317,7 +317,7 @@ module LanguageOperator
           # Create model resource
           model_name = 'local'
 
-          create_model_resource(cluster_info, model_name, 'openai_compatible', model_id, nil, endpoint)
+          create_model_resource(cluster_info, model_name, 'openai-compatible', model_id, nil, endpoint)
 
           Formatters::ProgressFormatter.success("✓ Using model: #{model_id}")
           puts
@@ -359,7 +359,7 @@ module LanguageOperator
           # Create model resource
           model_name = 'custom'
 
-          create_model_resource(cluster_info, model_name, 'openai_compatible', model_id, api_key, endpoint)
+          create_model_resource(cluster_info, model_name, 'openai-compatible', model_id, api_key, endpoint)
 
           Formatters::ProgressFormatter.success("✓ Model configured: #{model_id}")
           puts
