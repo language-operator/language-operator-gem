@@ -139,11 +139,6 @@ module LanguageOperator
             { name: name, namespace: namespace, kubeconfig: kubeconfig_path, context: context, k8s: k8s }
           end
 
-          puts
-          Formatters::ProgressFormatter.success("✓ Connected to #{context}")
-          Formatters::ProgressFormatter.success("✓ Cluster '#{name}' created")
-          puts
-
           {
             name: name,
             namespace: (kubeconfig_path && K8s::Config.load_file(kubeconfig_path).context(context).namespace) || 'default',
@@ -235,17 +230,11 @@ module LanguageOperator
             return nil
           end
 
-          puts
-          Formatters::ProgressFormatter.success('✓ Connected to Anthropic API')
-
           # Create model resource
           model_name = 'claude'
           model_id = 'claude-3-5-sonnet-20241022'
 
           create_model_resource(cluster_info, model_name, 'anthropic', model_id, api_key)
-
-          Formatters::ProgressFormatter.success("✓ Using model: #{model_id}")
-          puts
 
           { name: model_name, provider: 'anthropic', model: model_id }
         end
@@ -275,17 +264,11 @@ module LanguageOperator
             return nil
           end
 
-          puts
-          Formatters::ProgressFormatter.success('✓ Connected to OpenAI API')
-
           # Create model resource
           model_name = 'gpt4'
           model_id = 'gpt-4-turbo'
 
           create_model_resource(cluster_info, model_name, 'openai', model_id, api_key)
-
-          Formatters::ProgressFormatter.success("✓ Using model: #{model_id}")
-          puts
 
           { name: model_name, provider: 'openai', model: model_id }
         end
@@ -311,16 +294,10 @@ module LanguageOperator
             return nil
           end
 
-          puts
-          Formatters::ProgressFormatter.success('✓ Connected to Ollama')
-
           # Create model resource
           model_name = 'local'
 
           create_model_resource(cluster_info, model_name, 'openai-compatible', model_id, nil, endpoint)
-
-          Formatters::ProgressFormatter.success("✓ Using model: #{model_id}")
-          puts
 
           { name: model_name, provider: 'ollama', model: model_id }
         end
@@ -360,9 +337,6 @@ module LanguageOperator
           model_name = 'custom'
 
           create_model_resource(cluster_info, model_name, 'openai-compatible', model_id, api_key, endpoint)
-
-          Formatters::ProgressFormatter.success("✓ Model configured: #{model_id}")
-          puts
 
           { name: model_name, provider: 'custom', model: model_id }
         end
@@ -407,6 +381,9 @@ module LanguageOperator
 
           models_url = URI.join(endpoint, '/v1/models').to_s
 
+          models = nil
+          count = 0
+
           Formatters::ProgressFormatter.with_spinner('Fetching available models') do
             uri = URI(models_url)
             request = Net::HTTP::Get.new(uri)
@@ -421,13 +398,15 @@ module LanguageOperator
               data = JSON.parse(response.body)
               # Extract model IDs from the response
               models = data['data']&.map { |m| m['id'] } || []
-              Formatters::ProgressFormatter.success("✓ Found #{models.size} models") if models.any?
-              models
+              count = models.size
             else
               Formatters::ProgressFormatter.warn("Could not fetch models (HTTP #{response.code})")
-              nil
             end
           end
+
+          # Show count after spinner completes
+          puts pastel.dim("Found #{count} models") if count.positive?
+          models
         rescue StandardError => e
           Formatters::ProgressFormatter.warn("Could not fetch models: #{e.message}")
           nil
@@ -516,19 +495,12 @@ module LanguageOperator
           end
 
           puts
-          Formatters::ProgressFormatter.success("✓ Agent '#{agent_name}' created")
-
-          # NOTE: In a real implementation, we would watch for synthesis and trigger execution
-          # For now, just inform the user
-          puts
           puts pastel.dim('Note: The agent has been created and will start synthesizing.')
           puts pastel.dim('Check its status with: aictl agent inspect ruby-facts')
           puts
         end
 
         def show_next_steps
-          puts
-          Formatters::ProgressFormatter.success('✓ Success! Your setup is complete.')
           puts
           puts pastel.cyan("╭─ What's Next? #{'─' * 30}╮")
           puts '│'
