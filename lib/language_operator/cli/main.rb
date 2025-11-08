@@ -9,6 +9,7 @@ require_relative 'commands/status'
 require_relative 'commands/persona'
 require_relative 'commands/tool'
 require_relative 'commands/model'
+require_relative 'commands/quickstart'
 require_relative 'formatters/progress_formatter'
 require_relative '../config/cluster_config'
 require_relative '../kubernetes/client'
@@ -85,6 +86,11 @@ module LanguageOperator
 
       desc 'model SUBCOMMAND ...ARGS', 'Manage language models'
       subcommand 'model', Commands::Model
+
+      desc 'quickstart', 'Interactive setup wizard for first-time users'
+      def quickstart
+        Commands::Quickstart.new.invoke(:run)
+      end
 
       desc 'new TYPE NAME', 'Generate a new tool or agent project (TYPE: tool, agent)'
       long_desc <<-DESC
