@@ -252,6 +252,41 @@ module LanguageOperator
         @constraints[:rate_limit] = value
       end
 
+      # Budget constraints
+      def daily_budget(value)
+        @constraints[:daily_budget] = value
+      end
+
+      def hourly_budget(value)
+        @constraints[:hourly_budget] = value
+      end
+
+      def token_budget(value)
+        @constraints[:token_budget] = value
+      end
+
+      # Rate limiting
+      def requests_per_minute(value)
+        @constraints[:requests_per_minute] = value
+      end
+
+      def requests_per_hour(value)
+        @constraints[:requests_per_hour] = value
+      end
+
+      def requests_per_day(value)
+        @constraints[:requests_per_day] = value
+      end
+
+      # Content filtering
+      def blocked_patterns(patterns)
+        @constraints[:blocked_patterns] = patterns
+      end
+
+      def blocked_topics(topics)
+        @constraints[:blocked_topics] = topics
+      end
+
       def to_h
         @constraints
       end
