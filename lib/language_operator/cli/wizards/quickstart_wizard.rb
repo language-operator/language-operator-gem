@@ -336,14 +336,22 @@ module LanguageOperator
             q.messages[:valid?] = 'Must be a valid HTTP(S) URL'
           end
 
-          model_id = prompt.ask('Model identifier:') do |q|
-            q.required true
-          end
-
           requires_auth = prompt.yes?('Does this endpoint require authentication?')
 
           api_key = nil
           api_key = prompt.mask('Enter API key:') if requires_auth
+
+          # Try to fetch available models from the endpoint
+          puts
+          available_models = fetch_available_models(endpoint, api_key)
+
+          model_id = if available_models && !available_models.empty?
+                       prompt.select('Select a model:', available_models, per_page: 10)
+                     else
+                       prompt.ask('Model identifier:') do |q|
+                         q.required true
+                       end
+                     end
 
           puts
           Formatters::ProgressFormatter.info('Skipping connection test for custom endpoint')
@@ -390,6 +398,39 @@ module LanguageOperator
           { success: true }
         rescue StandardError => e
           { success: false, error: e.message }
+        end
+
+        def fetch_available_models(endpoint, api_key = nil)
+          require 'net/http'
+          require 'json'
+          require 'uri'
+
+          models_url = URI.join(endpoint, '/v1/models').to_s
+
+          Formatters::ProgressFormatter.with_spinner('Fetching available models') do
+            uri = URI(models_url)
+            request = Net::HTTP::Get.new(uri)
+            request['Authorization'] = "Bearer #{api_key}" if api_key
+            request['Content-Type'] = 'application/json'
+
+            response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') do |http|
+              http.request(request)
+            end
+
+            if response.is_a?(Net::HTTPSuccess)
+              data = JSON.parse(response.body)
+              # Extract model IDs from the response
+              models = data['data']&.map { |m| m['id'] } || []
+              Formatters::ProgressFormatter.success("✓ Found #{models.size} models") if models.any?
+              models
+            else
+              Formatters::ProgressFormatter.warn("Could not fetch models (HTTP #{response.code})")
+              nil
+            end
+          end
+        rescue StandardError => e
+          Formatters::ProgressFormatter.warn("Could not fetch models: #{e.message}")
+          nil
         end
 
         def create_model_resource(cluster_info, name, provider, model, api_key = nil, endpoint = nil)
