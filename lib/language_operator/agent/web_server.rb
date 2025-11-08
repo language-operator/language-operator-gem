@@ -2,6 +2,7 @@
 
 require 'rack'
 require 'rackup'
+require 'mcp'
 
 module LanguageOperator
   module Agent
@@ -26,6 +27,8 @@ module LanguageOperator
         @port = port || ENV.fetch('PORT', '8080').to_i
         @routes = {}
         @executor = Executor.new(agent)
+        @mcp_server = nil
+        @mcp_transport = nil
 
         setup_default_routes
       end
@@ -59,6 +62,40 @@ module LanguageOperator
       # @return [Boolean]
       def route_exists?(path, method)
         @routes.key?(normalize_route_key(path, method))
+      end
+
+      # Register MCP tools
+      #
+      # Sets up MCP protocol endpoints for tool discovery and execution.
+      # Tools defined in the agent will be exposed via MCP protocol.
+      #
+      # @param mcp_server_def [LanguageOperator::Dsl::McpServerDefinition] MCP server definition
+      # @return [void]
+      def register_mcp_tools(mcp_server_def)
+        require_relative '../dsl/adapter'
+
+        # Convert tool definitions to MCP::Tool classes
+        mcp_tools = mcp_server_def.all_tools.map do |tool_def|
+          Dsl::Adapter.tool_definition_to_mcp_tool(tool_def)
+        end
+
+        # Create MCP server
+        @mcp_server = MCP::Server.new(
+          name: mcp_server_def.server_name,
+          version: LanguageOperator::VERSION,
+          tools: mcp_tools
+        )
+
+        # Create the Streamable HTTP transport
+        @mcp_transport = MCP::Server::Transports::StreamableHTTPTransport.new(@mcp_server)
+        @mcp_server.transport = @mcp_transport
+
+        # Register MCP endpoint
+        register_route('/mcp', method: :post) do |context|
+          handle_mcp_request(context[:request])
+        end
+
+        puts "Registered #{mcp_tools.size} MCP tools"
       end
 
       # Handle incoming HTTP request
@@ -193,6 +230,17 @@ module LanguageOperator
           result: result,
           timestamp: Time.now.iso8601
         }
+      end
+
+      # Handle MCP protocol request
+      #
+      # @param request [Rack::Request] The request
+      # @return [Hash] Response data (will be converted to Rack response by transport)
+      def handle_mcp_request(request)
+        return { error: 'MCP server not initialized' } unless @mcp_transport
+
+        # The transport handles the MCP protocol
+        @mcp_transport.handle_request(request)
       end
 
       # Build success response

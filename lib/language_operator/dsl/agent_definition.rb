@@ -2,6 +2,7 @@
 
 require_relative 'workflow_definition'
 require_relative 'webhook_definition'
+require_relative 'mcp_server_definition'
 require_relative '../logger'
 require_relative '../loggable'
 
@@ -46,7 +47,7 @@ module LanguageOperator
       include LanguageOperator::Loggable
 
       attr_reader :name, :description, :persona, :schedule, :objectives, :workflow,
-                  :constraints, :output_config, :execution_mode, :webhooks
+                  :constraints, :output_config, :execution_mode, :webhooks, :mcp_server
 
       def initialize(name)
         @name = name
@@ -59,6 +60,7 @@ module LanguageOperator
         @output_config = {}
         @execution_mode = :autonomous
         @webhooks = []
+        @mcp_server = nil
 
         logger.debug('Agent definition initialized',
                      name: name,
@@ -173,6 +175,20 @@ module LanguageOperator
         webhook_def
       end
 
+      # Define MCP server capabilities
+      #
+      # Allows this agent to expose tools via MCP protocol.
+      # Other agents or MCP clients can discover and call these tools.
+      #
+      # @yield MCP server configuration block
+      # @return [McpServerDefinition] The MCP server definition
+      def as_mcp_server(&block)
+        @mcp_server = McpServerDefinition.new(@name)
+        @mcp_server.instance_eval(&block) if block
+        @execution_mode = :reactive if @execution_mode == :autonomous
+        @mcp_server
+      end
+
       # Execute the agent
       #
       # @return [void]
@@ -228,7 +244,8 @@ module LanguageOperator
       def run_reactive
         logger.info('Running agent in reactive mode',
                     name: @name,
-                    webhooks: @webhooks.size)
+                    webhooks: @webhooks.size,
+                    mcp_tools: @mcp_server&.tools&.size || 0)
 
         # Create an Agent::Base instance with this definition
         require_relative '../agent/base'
@@ -248,6 +265,9 @@ module LanguageOperator
         @webhooks.each do |webhook_def|
           webhook_def.register(web_server)
         end
+
+        # Register MCP tools
+        web_server.register_mcp_tools(@mcp_server) if @mcp_server&.tools?
 
         # Start the server
         web_server.start

@@ -80,7 +80,7 @@ module LanguageOperator
 
         schema = {
           type: map_type(param_type),
-          description: param_desc
+          description: param_desc || '' # MCP requires description to be a string
         }
 
         schema[:enum] = param_enum if param_enum

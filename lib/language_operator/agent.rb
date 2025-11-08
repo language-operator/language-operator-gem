@@ -135,9 +135,10 @@ module LanguageOperator
         scheduler = LanguageOperator::Agent::Scheduler.new(agent)
         scheduler.start_with_workflow(agent_def)
       when 'reactive', 'http', 'webhook'
-        # Start web server with webhooks
+        # Start web server with webhooks and MCP tools
         web_server = LanguageOperator::Agent::WebServer.new(agent)
         agent_def.webhooks.each { |webhook_def| webhook_def.register(web_server) }
+        web_server.register_mcp_tools(agent_def.mcp_server) if agent_def.mcp_server&.tools?
         web_server.start
       else
         raise "Unknown agent mode: #{agent.mode}"
