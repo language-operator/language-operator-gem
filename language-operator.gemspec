@@ -37,10 +37,13 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'ruby_llm-mcp', '~> 0.1'
   spec.add_dependency 'thor', '~> 1.3'
 
-  # HTTP server dependencies for MCP tools
+  # HTTP server dependencies for MCP tools and agents
   spec.add_dependency 'puma', '~> 6.0'
   spec.add_dependency 'rack', '~> 3.0'
   spec.add_dependency 'rackup', '~> 2.0'
+
+  # Agent dependencies
+  spec.add_dependency 'rufus-scheduler', '~> 3.9'
 
   # Kubernetes client
   spec.add_dependency 'k8s-ruby', '~> 0.17'
@@ -56,6 +59,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency 'bundler', '~> 2.0'
   spec.add_development_dependency 'rake', '~> 13.0'
   spec.add_development_dependency 'rspec', '~> 3.0'
+  spec.add_development_dependency 'rack-test', '~> 2.1'
   spec.add_development_dependency 'rubocop', '~> 1.60'
   spec.add_development_dependency 'rubocop-performance', '~> 1.20'
   spec.add_development_dependency 'webmock', '~> 3.23'

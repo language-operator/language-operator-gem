@@ -41,6 +41,19 @@ module LanguageOperator
                      safety_enabled: @safety_manager&.enabled?)
       end
 
+      # Execute a task with additional context (for webhooks/HTTP requests)
+      #
+      # @param instruction [String] The instruction to execute
+      # @param context [Hash] Additional context (webhook payload, request data, etc.)
+      # @return [String] The result
+      def execute_with_context(instruction:, context: {})
+        # Build enriched instruction with context
+        enriched_instruction = build_instruction_with_context(instruction, context)
+
+        # Execute with standard logic
+        execute(enriched_instruction)
+      end
+
       # Execute a single task or workflow
       #
       # @param task [String] The task to execute
@@ -298,6 +311,37 @@ module LanguageOperator
 
       def logger_component
         'Agent::Executor'
+      end
+
+      # Build instruction enriched with request context
+      #
+      # @param instruction [String] Base instruction
+      # @param context [Hash] Request context
+      # @return [String] Enriched instruction
+      def build_instruction_with_context(instruction, context)
+        enriched = instruction.dup
+        enriched += "\n\n## Request Context\n"
+        enriched += "- Method: #{context[:method]}\n" if context[:method]
+        enriched += "- Path: #{context[:path]}\n" if context[:path]
+
+        if context[:params] && !context[:params].empty?
+          enriched += "\n### Parameters:\n"
+          enriched += "```json\n#{JSON.pretty_generate(context[:params])}\n```\n"
+        end
+
+        if context[:body] && !context[:body].empty?
+          enriched += "\n### Request Body:\n"
+          enriched += "```\n#{context[:body][0..1000]}\n```\n"
+        end
+
+        if context[:headers] && !context[:headers].empty?
+          enriched += "\n### Headers:\n"
+          context[:headers].each do |key, value|
+            enriched += "- #{key}: #{value}\n"
+          end
+        end
+
+        enriched
       end
 
       def initialize_safety_manager(agent_definition)

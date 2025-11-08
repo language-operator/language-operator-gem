@@ -25,10 +25,13 @@ module LanguageOperator
 
         # Build a LanguageAgent resource
         def language_agent(name, instructions:, cluster: nil, schedule: nil, persona: nil, tools: [], models: [],
-                           labels: {})
+                           mode: nil, labels: {})
+          # Determine mode: reactive, scheduled, or autonomous
+          spec_mode = mode || (schedule ? 'scheduled' : 'autonomous')
+
           spec = {
             'instructions' => instructions,
-            'mode' => schedule ? 'scheduled' : 'autonomous',
+            'mode' => spec_mode,
             'image' => 'git.theryans.io/language-operator/agent:latest'
           }
 
@@ -117,6 +120,43 @@ module LanguageOperator
               'labels' => default_labels.merge(labels)
             },
             'spec' => spec
+          }
+        end
+
+        # Build a Kubernetes Service resource for a reactive agent
+        #
+        # @param agent_name [String] Name of the agent
+        # @param namespace [String] Kubernetes namespace
+        # @param port [Integer] Service port (default: 8080)
+        # @param labels [Hash] Additional labels
+        # @return [Hash] Service manifest
+        def agent_service(agent_name, namespace: nil, port: 8080, labels: {})
+          {
+            'apiVersion' => 'v1',
+            'kind' => 'Service',
+            'metadata' => {
+              'name' => agent_name,
+              'namespace' => namespace || 'default',
+              'labels' => default_labels.merge(
+                'app.kubernetes.io/name' => agent_name,
+                'app.kubernetes.io/component' => 'agent'
+              ).merge(labels)
+            },
+            'spec' => {
+              'type' => 'ClusterIP',
+              'selector' => {
+                'app.kubernetes.io/name' => agent_name,
+                'app.kubernetes.io/component' => 'agent'
+              },
+              'ports' => [
+                {
+                  'name' => 'http',
+                  'protocol' => 'TCP',
+                  'port' => port,
+                  'targetPort' => port
+                }
+              ]
+            }
           }
         end
 

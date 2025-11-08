@@ -3,6 +3,7 @@
 require_relative 'agent/base'
 require_relative 'agent/executor'
 require_relative 'agent/scheduler'
+require_relative 'agent/web_server'
 require_relative 'dsl'
 require_relative 'logger'
 
@@ -133,6 +134,11 @@ module LanguageOperator
         # Schedule workflow execution
         scheduler = LanguageOperator::Agent::Scheduler.new(agent)
         scheduler.start_with_workflow(agent_def)
+      when 'reactive', 'http', 'webhook'
+        # Start web server with webhooks
+        web_server = LanguageOperator::Agent::WebServer.new(agent)
+        agent_def.webhooks.each { |webhook_def| webhook_def.register(web_server) }
+        web_server.start
       else
         raise "Unknown agent mode: #{agent.mode}"
       end

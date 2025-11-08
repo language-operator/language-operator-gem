@@ -40,6 +40,8 @@ module LanguageOperator
           run_autonomous
         when 'scheduled', 'event-driven'
           run_scheduled
+        when 'reactive', 'http', 'webhook'
+          run_reactive
         else
           raise "Unknown agent mode: #{@mode}"
         end
@@ -77,6 +79,15 @@ module LanguageOperator
       def run_scheduled
         @scheduler = Scheduler.new(self)
         @scheduler.start
+      end
+
+      # Run in reactive mode (HTTP server)
+      #
+      # @return [void]
+      def run_reactive
+        require_relative 'web_server'
+        @web_server = WebServer.new(self)
+        @web_server.start
       end
     end
   end

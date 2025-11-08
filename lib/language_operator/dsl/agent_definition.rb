@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'workflow_definition'
+require_relative 'webhook_definition'
 require_relative '../logger'
 require_relative '../loggable'
 
@@ -28,11 +29,24 @@ module LanguageOperator
     #       step :summarize, depends_on: :search
     #     end
     #   end
+    #
+    # @example Define a webhook agent
+    #   agent "github-webhook" do
+    #     description "Handle GitHub webhooks"
+    #     mode :reactive
+    #
+    #     webhook "/github/pr-opened" do
+    #       method :post
+    #       on_request do |context|
+    #         # Process webhook
+    #       end
+    #     end
+    #   end
     class AgentDefinition
       include LanguageOperator::Loggable
 
       attr_reader :name, :description, :persona, :schedule, :objectives, :workflow,
-                  :constraints, :output_config, :execution_mode
+                  :constraints, :output_config, :execution_mode, :webhooks
 
       def initialize(name)
         @name = name
@@ -44,6 +58,7 @@ module LanguageOperator
         @constraints = {}
         @output_config = {}
         @execution_mode = :autonomous
+        @webhooks = []
 
         logger.debug('Agent definition initialized',
                      name: name,
@@ -145,6 +160,19 @@ module LanguageOperator
         @execution_mode = mode
       end
 
+      # Define a webhook endpoint
+      #
+      # @param path [String] URL path for the webhook
+      # @yield Webhook configuration block
+      # @return [WebhookDefinition] The webhook definition
+      def webhook(path, &block)
+        webhook_def = WebhookDefinition.new(path)
+        webhook_def.instance_eval(&block) if block
+        @webhooks << webhook_def
+        @execution_mode = :reactive if @execution_mode == :autonomous
+        webhook_def
+      end
+
       # Execute the agent
       #
       # @return [void]
@@ -198,11 +226,52 @@ module LanguageOperator
       end
 
       def run_reactive
-        logger.info('Running agent in reactive mode', name: @name)
-        # Reactive mode implementation (event-driven)
-        # This would be implemented with event listeners
-        logger.error('Reactive mode not implemented')
-        raise NotImplementedError, 'Reactive mode not yet implemented'
+        logger.info('Running agent in reactive mode',
+                    name: @name,
+                    webhooks: @webhooks.size)
+
+        # Create an Agent::Base instance with this definition
+        require_relative '../agent/base'
+        require_relative '../agent/web_server'
+
+        # Build agent config
+        agent_config = build_agent_config
+
+        # Create agent instance
+        agent = LanguageOperator::Agent::Base.new(agent_config)
+        agent.instance_variable_set(:@mode, 'reactive')
+
+        # Create web server
+        web_server = LanguageOperator::Agent::WebServer.new(agent)
+
+        # Register webhooks
+        @webhooks.each do |webhook_def|
+          webhook_def.register(web_server)
+        end
+
+        # Start the server
+        web_server.start
+      end
+
+      # Build agent configuration hash
+      #
+      # @return [Hash] Agent configuration
+      def build_agent_config
+        {
+          'agent' => {
+            'name' => @name,
+            'instructions' => @description || "Process incoming requests for #{@name}",
+            'persona' => @persona
+          },
+          'llm' => {
+            'provider' => ENV['LLM_PROVIDER'] || 'anthropic',
+            'model' => ENV['LLM_MODEL'] || 'claude-3-5-sonnet-20241022',
+            'api_key' => ENV.fetch('ANTHROPIC_API_KEY', nil)
+          },
+          'mcp' => {
+            'servers' => {}
+          }
+        }
       end
 
       def execute_objectives
