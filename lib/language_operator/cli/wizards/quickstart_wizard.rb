@@ -466,10 +466,19 @@ module LanguageOperator
           puts pastel.cyan('Step 3/3: Create Your First Agent')
           puts '─' * 50
           puts
-          puts "Let's create a simple agent to see how it works."
+
+          # Ask if user wants to create an example agent
+          create_agent = prompt.yes?('Would you like to create a simple agent to see how things work?')
+
+          unless create_agent
+            puts
+            puts pastel.dim('Skipping example agent creation.')
+            puts
+            return
+          end
+
           puts
           puts "I'll create an agent that tells you fun facts about Ruby."
-          puts 'This agent will run once to show you how it works.'
           puts
 
           agent_name = 'ruby-facts'
