@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative '../formatters/progress_formatter'
+require_relative '../errors/handler'
 require_relative 'kubeconfig_validator'
 require_relative '../../config/cluster_config'
 
@@ -14,18 +15,7 @@ module LanguageOperator
           def ensure_cluster_selected!
             return current_cluster if current_cluster
 
-            Formatters::ProgressFormatter.error('No cluster selected')
-            puts "\nYou must select a cluster before managing agents."
-            puts
-            puts 'Create a new cluster:'
-            puts '  aictl cluster create <name>'
-            puts
-            puts 'Or select an existing cluster:'
-            puts '  aictl use <cluster>'
-            puts
-            puts 'List available clusters:'
-            puts '  aictl cluster list'
-            exit 1
+            Errors::Handler.handle_no_cluster_selected
           end
 
           # Get current cluster, or allow override via --cluster flag
@@ -42,20 +32,16 @@ module LanguageOperator
           def validate_cluster_exists!(name)
             return if Config::ClusterConfig.cluster_exists?(name)
 
-            Formatters::ProgressFormatter.error("Cluster '#{name}' not found")
-            puts "\nAvailable clusters:"
+            # Build context with available clusters for fuzzy matching
             clusters = Config::ClusterConfig.list_clusters
-            if clusters.empty?
-              puts '  (none)'
-              puts
-              puts 'Create a cluster first:'
-              puts '  aictl cluster create <name>'
-            else
-              clusters.each do |cluster|
-                puts "  - #{cluster[:name]}"
-              end
-            end
-            exit 1
+            available_names = clusters.map { |c| c[:name] }
+
+            # Use error handler with fuzzy matching
+            error = K8s::Error::NotFound.new(404, 'Not Found', 'cluster')
+            Errors::Handler.handle_not_found(error,
+                                             resource_type: 'cluster',
+                                             resource_name: name,
+                                             available_resources: available_names)
           end
 
           # Get current cluster name

@@ -4,6 +4,7 @@ require 'thor'
 require_relative '../formatters/progress_formatter'
 require_relative '../formatters/table_formatter'
 require_relative '../helpers/cluster_validator'
+require_relative '../errors/handler'
 require_relative '../../config/cluster_config'
 require_relative '../../kubernetes/client'
 require_relative '../../kubernetes/resource_builder'
@@ -79,13 +80,7 @@ module LanguageOperator
             available_models = k8s.list_resources('LanguageModel', namespace: cluster_config[:namespace])
             models = available_models.map { |m| m.dig('metadata', 'name') }
 
-            if models.empty?
-              Formatters::ProgressFormatter.error('No models found in cluster')
-              puts
-              puts 'Create a model first with:'
-              puts '  aictl model create <name> --provider <provider> --model <model>'
-              exit 1
-            end
+            Errors::Handler.handle_no_models_available(cluster: cluster) if models.empty?
           end
 
           # Build LanguageAgent resource
@@ -235,8 +230,7 @@ module LanguageOperator
           # Recent events (if available)
           # This would require querying events, which we can add later
         rescue K8s::Error::NotFound
-          Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{cluster}'")
-          exit 1
+          handle_agent_not_found(name, cluster, k8s, cluster_config)
         rescue StandardError => e
           Formatters::ProgressFormatter.error("Failed to inspect agent: #{e.message}")
           raise if ENV['DEBUG']
@@ -582,6 +576,19 @@ module LanguageOperator
         end
 
         private
+
+        def handle_agent_not_found(name, cluster, k8s, cluster_config)
+          # Get available agents for fuzzy matching
+          agents = k8s.list_resources('LanguageAgent', namespace: cluster_config[:namespace])
+          available_names = agents.map { |a| a.dig('metadata', 'name') }
+
+          error = K8s::Error::NotFound.new(404, 'Not Found', 'LanguageAgent')
+          Errors::Handler.handle_not_found(error,
+                                           resource_type: 'LanguageAgent',
+                                           resource_name: name,
+                                           cluster: cluster,
+                                           available_resources: available_names)
+        end
 
         def display_agent_created(agent, cluster, _description, synthesis_result)
           require 'pastel'
