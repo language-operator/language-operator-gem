@@ -53,7 +53,7 @@ module LanguageOperator
           puts '  3. Create your first autonomous agent'
           puts
           puts pastel.dim('Press Enter to begin...')
-          gets
+          $stdin.gets
         end
 
         def setup_cluster
@@ -219,7 +219,7 @@ module LanguageOperator
             puts "Get an API key at: #{pastel.cyan('https://console.anthropic.com')}"
             puts
             puts pastel.dim('Press Enter when you have your key...')
-            gets
+            $stdin.gets
           end
 
           puts
@@ -259,7 +259,7 @@ module LanguageOperator
             puts "Get an API key at: #{pastel.cyan('https://platform.openai.com/api-keys')}"
             puts
             puts pastel.dim('Press Enter when you have your key...')
-            gets
+            $stdin.gets
           end
 
           puts
