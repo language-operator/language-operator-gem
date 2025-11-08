@@ -101,9 +101,7 @@ module LanguageOperator
           synthesis_result = watch_synthesis_status(k8s, agent_name, cluster_config[:namespace])
 
           # Exit if synthesis failed
-          unless synthesis_result[:success]
-            exit 1
-          end
+          exit 1 unless synthesis_result[:success]
 
           # Fetch the updated agent to get complete details
           agent = k8s.get_resource('LanguageAgent', agent_name, cluster_config[:namespace])
@@ -546,7 +544,7 @@ module LanguageOperator
 
         private
 
-        def display_agent_created(agent, cluster, description, synthesis_result)
+        def display_agent_created(agent, cluster, _description, synthesis_result)
           require 'pastel'
           require_relative '../formatters/code_formatter'
 
@@ -611,9 +609,7 @@ module LanguageOperator
 
           # Tools
           tools = agent.dig('spec', 'tools') || []
-          if tools.any?
-            puts "  Tools:        #{tools.join(', ')}"
-          end
+          puts "  Tools:        #{tools.join(', ')}" if tools.any?
 
           # Models
           model_refs = agent.dig('spec', 'modelRefs') || []
@@ -651,16 +647,16 @@ module LanguageOperator
           # Common patterns
           if minute == '0' && hour != '*' && day == '*' && month == '*' && weekday == '*'
             # Daily at specific hour
-            hour_12 = hour.to_i % 12
-            hour_12 = 12 if hour_12.zero?
+            hour12 = hour.to_i % 12
+            hour12 = 12 if hour12.zero?
             period = hour.to_i < 12 ? 'AM' : 'PM'
-            return "Daily at #{hour_12}:00 #{period}"
+            return "Daily at #{hour12}:00 #{period}"
           elsif minute != '*' && hour != '*' && day == '*' && month == '*' && weekday == '*'
             # Daily at specific time
-            hour_12 = hour.to_i % 12
-            hour_12 = 12 if hour_12.zero?
+            hour12 = hour.to_i % 12
+            hour12 = 12 if hour12.zero?
             period = hour.to_i < 12 ? 'AM' : 'PM'
-            return "Daily at #{hour_12}:#{minute.rjust(2, '0')} #{period}"
+            return "Daily at #{hour12}:#{minute.rjust(2, '0')} #{period}"
           elsif minute.start_with?('*/') && hour == '*'
             # Every N minutes
             interval = minute[2..].to_i
@@ -678,7 +674,7 @@ module LanguageOperator
         def format_time_until(future_time)
           diff = future_time - Time.now
 
-          if diff < 0
+          if diff.negative?
             'overdue'
           elsif diff < 60
             "in #{diff.to_i}s"
@@ -812,35 +808,8 @@ module LanguageOperator
           synthesis_data = {}
 
           loop do
-            agent = k8s.get_resource('LanguageAgent', agent_name, namespace)
-            conditions = agent.dig('status', 'conditions') || []
-            synthesis_status = agent.dig('status', 'synthesis')
-
-            # Capture synthesis metadata
-            if synthesis_status
-              synthesis_data[:model] = synthesis_status['model']
-              synthesis_data[:token_count] = synthesis_status['tokenCount']
-            end
-
-            # Check for synthesis completion
-            synthesized = conditions.find { |c| c['type'] == 'Synthesized' }
-            if synthesized
-              if synthesized['status'] == 'True'
-                duration = Time.now - start_time
-                spinner.success("(#{pastel.green('✓')})")
-
-                # Show synthesis details
-                puts pastel.green("✓ Code synthesis completed in #{format_duration(duration)}")
-                puts "  Model: #{synthesis_data[:model]}" if synthesis_data[:model]
-                puts "  Tokens: #{synthesis_data[:token_count]}" if synthesis_data[:token_count]
-
-                return { success: true, duration: duration, **synthesis_data }
-              elsif synthesized['status'] == 'False'
-                spinner.error("(#{pastel.red('✗')})")
-                Formatters::ProgressFormatter.error("Synthesis failed: #{synthesized['message']}")
-                return { success: false }
-              end
-            end
+            result = check_synthesis_status(k8s, agent_name, namespace, synthesis_data, start_time, spinner, pastel)
+            return result if result
 
             # Timeout check
             if elapsed >= max_wait
@@ -868,6 +837,38 @@ module LanguageOperator
           spinner.error("(#{pastel.red('✗')})")
           Formatters::ProgressFormatter.warn("Could not watch synthesis: #{e.message}")
           { success: true } # Continue anyway
+        end
+
+        def check_synthesis_status(k8s, agent_name, namespace, synthesis_data, start_time, spinner, pastel)
+          agent = k8s.get_resource('LanguageAgent', agent_name, namespace)
+          conditions = agent.dig('status', 'conditions') || []
+          synthesis_status = agent.dig('status', 'synthesis')
+
+          # Capture synthesis metadata
+          if synthesis_status
+            synthesis_data[:model] = synthesis_status['model']
+            synthesis_data[:token_count] = synthesis_status['tokenCount']
+          end
+
+          # Check for synthesis completion
+          synthesized = conditions.find { |c| c['type'] == 'Synthesized' }
+          return nil unless synthesized
+
+          if synthesized['status'] == 'True'
+            duration = Time.now - start_time
+            spinner.success("(#{pastel.green('✓')})")
+
+            # Show synthesis details
+            puts pastel.green("✓ Code synthesis completed in #{format_duration(duration)}")
+            puts "  Model: #{synthesis_data[:model]}" if synthesis_data[:model]
+            puts "  Tokens: #{synthesis_data[:token_count]}" if synthesis_data[:token_count]
+
+            { success: true, duration: duration, **synthesis_data }
+          elsif synthesized['status'] == 'False'
+            spinner.error("(#{pastel.red('✗')})")
+            Formatters::ProgressFormatter.error("Synthesis failed: #{synthesized['message']}")
+            { success: false }
+          end
         end
 
         def format_duration(seconds)
