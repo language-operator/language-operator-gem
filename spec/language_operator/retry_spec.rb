@@ -107,7 +107,7 @@ RSpec.describe LanguageOperator::Retry do
       expect do
         described_class.on_exceptions([ArgumentError], max_retries: 3) do
           counter += 1
-          raise RuntimeError, 'do not retry'
+          raise 'do not retry'
         end
       end.to raise_error(RuntimeError, 'do not retry')
 
