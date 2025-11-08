@@ -61,23 +61,6 @@ module LanguageOperator
         @routes.key?(normalize_route_key(path, method))
       end
 
-      private
-
-      # Build the Rack application
-      #
-      # @return [Rack::Builder]
-      def rack_app
-        server = self
-
-        Rack::Builder.new do
-          use Rack::CommonLogger
-          use Rack::ShowExceptions
-          use Rack::ContentLength
-
-          run ->(env) { server.handle_request(env) }
-        end
-      end
-
       # Handle incoming HTTP request
       #
       # @param env [Hash] Rack environment
@@ -98,6 +81,23 @@ module LanguageOperator
         end
       rescue StandardError => e
         error_response(e)
+      end
+
+      private
+
+      # Build the Rack application
+      #
+      # @return [Rack::Builder]
+      def rack_app
+        server = self
+
+        Rack::Builder.new do
+          use Rack::CommonLogger
+          use Rack::ShowExceptions
+          use Rack::ContentLength
+
+          run ->(env) { server.handle_request(env) }
+        end
       end
 
       # Execute a route handler
@@ -121,12 +121,19 @@ module LanguageOperator
       # @param request [Rack::Request] The request
       # @return [Hash] Request context
       def build_request_context(request)
+        # Read body, handling nil case
+        body_content = if request.body
+                         request.body.read
+                       else
+                         ''
+                       end
+
         {
           path: request.path,
           method: request.request_method,
           headers: extract_headers(request),
           params: request.params,
-          body: request.body.read,
+          body: body_content,
           request: request
         }
       end

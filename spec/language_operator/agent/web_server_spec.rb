@@ -51,6 +51,12 @@ RSpec.describe LanguageOperator::Agent::WebServer do
       it 'returns healthy status' do
         get '/health'
 
+        # Debug output
+        unless last_response.ok?
+          puts "Status: #{last_response.status}"
+          puts "Body: #{last_response.body}"
+        end
+
         expect(last_response).to be_ok
         expect(last_response.content_type).to include('application/json')
 
