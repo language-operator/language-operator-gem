@@ -42,6 +42,7 @@ Metrics/ClassLength:
   Exclude:
     - 'spec/**/*'
     - 'lib/language_operator/cli/**/*'
+    - 'lib/language_operator/agent/**/*'
 
 Metrics/ModuleLength:
   Max: 150
