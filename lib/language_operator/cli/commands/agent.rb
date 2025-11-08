@@ -834,18 +834,10 @@ module LanguageOperator
         end
 
         def watch_synthesis_status(k8s, agent_name, namespace)
-          require 'tty-spinner'
-          require 'pastel'
-
-          pastel = Pastel.new
-
           # Start with analyzing description
           puts
-          puts pastel.cyan('Synthesizing agent code...')
+          Formatters::ProgressFormatter.info('Synthesizing agent code...')
           puts
-
-          spinner = TTY::Spinner.new("[:spinner] #{pastel.dim('Analyzing description and generating code...')}", format: :dots)
-          spinner.auto_spin
 
           max_wait = 600 # Wait up to 10 minutes (local models can be slow)
           interval = 2   # Check every 2 seconds
@@ -853,39 +845,48 @@ module LanguageOperator
           start_time = Time.now
           synthesis_data = {}
 
-          loop do
-            result = check_synthesis_status(k8s, agent_name, namespace, synthesis_data, start_time, spinner, pastel)
-            return result if result
+          result = Formatters::ProgressFormatter.with_spinner('Analyzing description and generating code') do
+            loop do
+              status = check_synthesis_status(k8s, agent_name, namespace, synthesis_data, start_time)
+              return status if status
 
-            # Timeout check
-            if elapsed >= max_wait
-              spinner.stop
-              Formatters::ProgressFormatter.warn('Synthesis taking longer than expected, continuing in background...')
-              puts
-              puts 'Check synthesis status with:'
-              puts "  aictl agent inspect #{agent_name}"
-              return { success: true, timeout: true }
+              # Timeout check
+              if elapsed >= max_wait
+                Formatters::ProgressFormatter.warn('Synthesis taking longer than expected, continuing in background...')
+                puts
+                puts 'Check synthesis status with:'
+                puts "  aictl agent inspect #{agent_name}"
+                return { success: true, timeout: true }
+              end
+
+              sleep interval
+              elapsed += interval
             end
-
+          rescue K8s::Error::NotFound
+            # Agent not found yet, keep waiting
             sleep interval
             elapsed += interval
-          end
-        rescue K8s::Error::NotFound
-          # Agent not found yet, keep waiting
-          sleep interval
-          elapsed += interval
-          retry if elapsed < max_wait
+            retry if elapsed < max_wait
 
-          spinner.error("(#{pastel.red('✗')})")
-          Formatters::ProgressFormatter.error('Agent resource not found')
-          { success: false }
-        rescue StandardError => e
-          spinner.error("(#{pastel.red('✗')})")
-          Formatters::ProgressFormatter.warn("Could not watch synthesis: #{e.message}")
-          { success: true } # Continue anyway
+            Formatters::ProgressFormatter.error('Agent resource not found')
+            return { success: false }
+          rescue StandardError => e
+            Formatters::ProgressFormatter.warn("Could not watch synthesis: #{e.message}")
+            return { success: true } # Continue anyway
+          end
+
+          # Show synthesis details after spinner completes
+          if result[:success] && !result[:timeout]
+            duration = result[:duration]
+            Formatters::ProgressFormatter.success("Code synthesis completed in #{format_duration(duration)}")
+            puts "  Model: #{synthesis_data[:model]}" if synthesis_data[:model]
+            puts "  Tokens: #{synthesis_data[:token_count]}" if synthesis_data[:token_count]
+          end
+
+          result
         end
 
-        def check_synthesis_status(k8s, agent_name, namespace, synthesis_data, start_time, spinner, pastel)
+        def check_synthesis_status(k8s, agent_name, namespace, synthesis_data, start_time)
           agent = k8s.get_resource('LanguageAgent', agent_name, namespace)
           conditions = agent.dig('status', 'conditions') || []
           synthesis_status = agent.dig('status', 'synthesis')
@@ -902,16 +903,8 @@ module LanguageOperator
 
           if synthesized['status'] == 'True'
             duration = Time.now - start_time
-            spinner.success("(#{pastel.green('✓')})")
-
-            # Show synthesis details
-            puts pastel.green("✓ Code synthesis completed in #{format_duration(duration)}")
-            puts "  Model: #{synthesis_data[:model]}" if synthesis_data[:model]
-            puts "  Tokens: #{synthesis_data[:token_count]}" if synthesis_data[:token_count]
-
             { success: true, duration: duration, **synthesis_data }
           elsif synthesized['status'] == 'False'
-            spinner.error("(#{pastel.red('✗')})")
             Formatters::ProgressFormatter.error("Synthesis failed: #{synthesized['message']}")
             { success: false }
           end
