@@ -45,6 +45,37 @@ module LanguageOperator
         @rufus_scheduler.join
       end
 
+      # Start the scheduler with a workflow definition
+      #
+      # @param agent_def [LanguageOperator::Dsl::AgentDefinition] The agent definition with workflow
+      # @return [void]
+      def start_with_workflow(agent_def)
+        logger.info('Agent starting in scheduled mode with workflow',
+                    agent_name: agent_def.name,
+                    has_workflow: !agent_def.workflow.nil?)
+        logger.info("Workspace: #{@agent.workspace_path}")
+        logger.info("Connected to #{@agent.servers_info.length} MCP server(s)")
+
+        # Extract schedule from agent definition or use default
+        cron_schedule = agent_def.schedule&.cron || '0 6 * * *'
+
+        logger.info('Scheduling workflow', cron: cron_schedule, agent: agent_def.name)
+
+        @rufus_scheduler.cron(cron_schedule) do
+          logger.timed('Scheduled workflow execution') do
+            logger.info('Executing scheduled workflow', agent: agent_def.name)
+            result = @executor.execute_workflow(agent_def)
+            result_text = result.is_a?(String) ? result : result.content
+            preview = result_text[0..200]
+            preview += '...' if result_text.length > 200
+            logger.info('Workflow completed', result_preview: preview)
+          end
+        end
+
+        logger.info('Scheduler started, waiting for scheduled tasks')
+        @rufus_scheduler.join
+      end
+
       # Stop the scheduler
       #
       # @return [void]
