@@ -13,13 +13,13 @@ module LanguageOperator
       # @return [LanguageOperator::Kubernetes::Client] Client instance
       # @raise [RuntimeError] if client initialization fails
       def self.instance
-        @singleton_instance ||= build_singleton
+        @instance ||= build_singleton
       end
 
       # Reset the singleton (useful for testing)
       # @return [nil]
       def self.reset!
-        @singleton_instance = nil
+        @instance = nil
       end
 
       # Check if running inside a Kubernetes cluster

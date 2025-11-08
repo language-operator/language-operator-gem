@@ -43,6 +43,7 @@ Metrics/ClassLength:
     - 'spec/**/*'
     - 'lib/language_operator/cli/**/*'
     - 'lib/language_operator/agent/**/*'
+    - 'lib/language_operator/kubernetes/**/*'
 
 Metrics/ModuleLength:
   Max: 150
