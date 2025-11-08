@@ -45,7 +45,7 @@ module LanguageOperator
                 Formatters::ProgressFormatter.error('Operator: not installed')
                 puts
                 puts 'Install the operator with:'
-                puts '  helm install language-operator oci://git.theryans.io/langop/charts/language-operator'
+                puts '  aictl install'
                 puts
                 return
               end

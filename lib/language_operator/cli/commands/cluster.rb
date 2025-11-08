@@ -51,7 +51,7 @@ module LanguageOperator
           unless k8s.operator_installed?
             Formatters::ProgressFormatter.error('Language Operator not found in cluster')
             puts "\nInstall the operator first:"
-            puts '  helm install language-operator oci://git.theryans.io/langop/charts/language-operator'
+            puts '  aictl install'
             exit 1
           end
 

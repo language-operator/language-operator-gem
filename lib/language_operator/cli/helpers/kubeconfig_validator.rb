@@ -130,17 +130,16 @@ module LanguageOperator
 
               To install the operator:
 
-              1. Using Helm:
-                 helm repo add langop https://charts.langop.io
-                 helm install language-operator langop/language-operator \\
-                   --namespace kube-system
+              1. Using aictl (recommended):
+                 aictl install
 
-              2. Or from OCI registry:
-                 helm install language-operator oci://git.theryans.io/langop/charts/language-operator \\
-                   --namespace kube-system
+              2. Or manually with Helm:
+                 helm repo add git.theryans.io https://git.theryans.io/api/packages/language-operator/helm
+                 helm repo update
+                 helm install language-operator git.theryans.io/language-operator
 
               3. Verify installation:
-                 kubectl get deployment -n kube-system language-operator
+                 kubectl get deployment -n language-operator-system language-operator
 
               For more information, visit: https://github.com/langop/language-operator
             MSG

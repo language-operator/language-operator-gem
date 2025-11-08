@@ -127,7 +127,7 @@ module LanguageOperator
               puts
               puts 'The operator needs to be installed first.'
               puts 'Install with:'
-              puts '  helm install language-operator oci://git.theryans.io/langop/charts/language-operator'
+              puts '  aictl install'
               puts
               exit 1
             end

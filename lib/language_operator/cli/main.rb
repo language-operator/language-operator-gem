@@ -10,6 +10,7 @@ require_relative 'commands/persona'
 require_relative 'commands/tool'
 require_relative 'commands/model'
 require_relative 'commands/quickstart'
+require_relative 'commands/install'
 require_relative 'formatters/progress_formatter'
 require_relative '../config/cluster_config'
 require_relative '../kubernetes/client'
@@ -90,6 +91,37 @@ module LanguageOperator
       desc 'quickstart', 'Interactive setup wizard for first-time users'
       def quickstart
         Commands::Quickstart.new.invoke(:start)
+      end
+
+      desc 'install', 'Install the language-operator using Helm'
+      long_desc Commands::Install.long_desc_for(:install)
+      option :values, type: :string, desc: 'Path to custom Helm values file'
+      option :namespace, type: :string, default: Commands::Install::DEFAULT_NAMESPACE, desc: 'Kubernetes namespace'
+      option :version, type: :string, desc: 'Specific chart version to install'
+      option :dry_run, type: :boolean, default: false, desc: 'Preview installation without applying'
+      option :wait, type: :boolean, default: true, desc: 'Wait for deployment to complete'
+      option :create_namespace, type: :boolean, default: true, desc: 'Create namespace if it does not exist'
+      def install
+        Commands::Install.new([], options).install
+      end
+
+      desc 'upgrade', 'Upgrade the language-operator using Helm'
+      long_desc Commands::Install.long_desc_for(:upgrade)
+      option :values, type: :string, desc: 'Path to custom Helm values file'
+      option :namespace, type: :string, default: Commands::Install::DEFAULT_NAMESPACE, desc: 'Kubernetes namespace'
+      option :version, type: :string, desc: 'Specific chart version to upgrade to'
+      option :dry_run, type: :boolean, default: false, desc: 'Preview upgrade without applying'
+      option :wait, type: :boolean, default: true, desc: 'Wait for deployment to complete'
+      def upgrade
+        Commands::Install.new([], options).upgrade
+      end
+
+      desc 'uninstall', 'Uninstall the language-operator using Helm'
+      long_desc Commands::Install.long_desc_for(:uninstall)
+      option :namespace, type: :string, default: Commands::Install::DEFAULT_NAMESPACE, desc: 'Kubernetes namespace'
+      option :force, type: :boolean, default: false, desc: 'Skip confirmation prompt'
+      def uninstall
+        Commands::Install.new([], options).uninstall
       end
 
       desc 'new TYPE NAME', 'Generate a new tool or agent project (TYPE: tool, agent)'
