@@ -324,8 +324,32 @@ module LanguageOperator
           Formatters::ProgressFormatter.info("Streaming logs for agent '#{name}'...")
           puts
 
-          # Execute kubectl logs
-          exec(cmd)
+          # Stream and format logs in real-time
+          require 'open3'
+          Open3.popen3(cmd) do |_stdin, stdout, stderr, wait_thr|
+            # Handle stdout (logs)
+            stdout_thread = Thread.new do
+              stdout.each_line do |line|
+                puts Formatters::LogFormatter.format_line(line.chomp)
+                $stdout.flush
+              end
+            end
+
+            # Handle stderr (errors)
+            stderr_thread = Thread.new do
+              stderr.each_line do |line|
+                warn line
+              end
+            end
+
+            # Wait for both streams to complete
+            stdout_thread.join
+            stderr_thread.join
+
+            # Check exit status
+            exit_status = wait_thr.value
+            exit exit_status.exitstatus unless exit_status.success?
+          end
         rescue StandardError => e
           Formatters::ProgressFormatter.error("Failed to get logs: #{e.message}")
           raise if ENV['DEBUG']

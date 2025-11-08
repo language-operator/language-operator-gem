@@ -49,12 +49,13 @@ module LanguageOperator
                     max_iterations: @max_iterations)
         logger.debug('Prompt', prompt: task[0..200])
 
-        result = logger.timed('LLM request') do
+        logger.info('🤖 LLM request')
+        result = logger.timed('LLM response received') do
           @agent.send_message(task)
         end
 
         result_text = result.is_a?(String) ? result : result.content
-        logger.info('Iteration completed',
+        logger.info('✓ Iteration completed',
                     iteration: @iteration_count,
                     response_length: result_text.length)
         logger.debug('Response preview', response: result_text[0..200])
@@ -68,16 +69,22 @@ module LanguageOperator
       #
       # @return [void]
       def run_loop
-        logger.info('Agent starting in autonomous mode')
+        start_time = Time.now
+
+        logger.info('▶ Starting execution')
         logger.info('Configuration',
                     workspace: @agent.workspace_path,
                     mcp_servers: @agent.servers_info.length,
                     max_iterations: @max_iterations)
 
+        # Log persona loading
+        persona = @agent.config.dig('agent', 'persona') || 'default'
+        logger.info("👤 Loading persona: #{persona}")
+
         # Log MCP server details
         if @agent.servers_info.any?
           @agent.servers_info.each do |server|
-            logger.info('  MCP server', name: server[:name], tool_count: server[:tool_count])
+            logger.info('◆ MCP server connected', name: server[:name], tool_count: server[:tool_count])
           end
         end
 
@@ -119,6 +126,15 @@ module LanguageOperator
           sleep 5
         end
 
+        # Log execution summary
+        total_duration = Time.now - start_time
+        logger.info('✅ Execution complete',
+                    iterations: @iteration_count,
+                    duration_s: total_duration.round(2),
+                    reason: @iteration_count >= @max_iterations ? 'max_iterations' : 'completed')
+
+        return unless @iteration_count >= @max_iterations
+
         logger.warn('Maximum iterations reached',
                     iterations: @max_iterations,
                     reason: 'Hit max_iterations limit')
@@ -129,7 +145,12 @@ module LanguageOperator
       # @param agent_def [LanguageOperator::Dsl::AgentDefinition] The agent definition
       # @return [RubyLLM::Message] The final response
       def execute_workflow(agent_def)
-        logger.info("🔄 Starting workflow execution: #{agent_def.name}")
+        start_time = Time.now
+
+        logger.info("▶ Starting workflow execution: #{agent_def.name}")
+
+        # Log persona if defined
+        logger.info("👤 Loading persona: #{agent_def.persona}") if agent_def.persona
 
         # Build orchestration prompt from agent definition
         prompt = build_workflow_prompt(agent_def)
@@ -137,17 +158,20 @@ module LanguageOperator
 
         # Register workflow steps as tools (placeholder - will implement after tool converter)
         # For now, just execute with instructions
-        result = logger.timed('Workflow execution completed') do
+        result = logger.timed('🤖 LLM request') do
           @agent.send_message(prompt)
         end
 
         # Write output if configured
         write_output(agent_def, result) if agent_def.output_config && result
 
-        logger.info('✅ Workflow execution completed')
+        # Log execution summary
+        total_duration = Time.now - start_time
+        logger.info('✅ Workflow execution completed',
+                    duration_s: total_duration.round(2))
         result
       rescue StandardError => e
-        logger.error('Workflow execution failed', error: e.message)
+        logger.error('❌ Workflow execution failed', error: e.message)
         handle_error(e)
       end
 
