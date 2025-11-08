@@ -4,6 +4,8 @@ require 'thor'
 require_relative '../formatters/progress_formatter'
 require_relative '../formatters/table_formatter'
 require_relative '../helpers/cluster_validator'
+require_relative '../helpers/cluster_context'
+require_relative '../helpers/user_prompts'
 require_relative '../errors/handler'
 require_relative '../../config/cluster_config'
 require_relative '../../kubernetes/client'
@@ -242,36 +244,28 @@ module LanguageOperator
         option :cluster, type: :string, desc: 'Override current cluster context'
         option :force, type: :boolean, default: false, desc: 'Skip confirmation'
         def delete(name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+          ctx = Helpers::ClusterContext.from_options(options)
 
           # Get agent to show details before deletion
           begin
-            agent = k8s.get_resource('LanguageAgent', name, cluster_config[:namespace])
+            agent = ctx.client.get_resource('LanguageAgent', name, ctx.namespace)
           rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{cluster}'")
+            Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{ctx.name}'")
             exit 1
           end
 
-          # Confirm deletion unless --force
+          # Confirm deletion using UserPrompts helper
           unless options[:force]
-            puts "This will delete agent '#{name}' from cluster '#{cluster}':"
+            puts "This will delete agent '#{name}' from cluster '#{ctx.name}':"
             puts "  Instructions: #{agent.dig('spec', 'instructions')}"
             puts "  Mode:         #{agent.dig('spec', 'mode') || 'autonomous'}"
             puts
-            print 'Are you sure? (y/N): '
-            confirmation = $stdin.gets.chomp
-            unless confirmation.downcase == 'y'
-              puts 'Deletion cancelled'
-              return
-            end
+            return unless Helpers::UserPrompts.confirm('Are you sure?')
           end
 
           # Delete the agent
           Formatters::ProgressFormatter.with_spinner("Deleting agent '#{name}'") do
-            k8s.delete_resource('LanguageAgent', name, cluster_config[:namespace])
+            ctx.client.delete_resource('LanguageAgent', name, ctx.namespace)
           end
 
           Formatters::ProgressFormatter.success("Agent '#{name}' deleted successfully")
@@ -591,16 +585,13 @@ module LanguageOperator
         option :path, type: :string, desc: 'View specific file contents'
         option :clean, type: :boolean, desc: 'Clear workspace (with confirmation)'
         def workspace(name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+          ctx = Helpers::ClusterContext.from_options(options)
 
           # Get agent to verify it exists
           begin
-            agent = k8s.get_resource('LanguageAgent', name, cluster_config[:namespace])
+            agent = ctx.client.get_resource('LanguageAgent', name, ctx.namespace)
           rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{cluster}'")
+            Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{ctx.name}'")
             exit 1
           end
 
@@ -618,11 +609,11 @@ module LanguageOperator
           end
 
           if options[:path]
-            view_workspace_file(k8s, name, options[:path], cluster_config)
+            view_workspace_file(ctx, name, options[:path])
           elsif options[:clean]
-            clean_workspace(k8s, name, cluster_config)
+            clean_workspace(ctx, name)
           else
-            list_workspace_files(k8s, name, cluster_config)
+            list_workspace_files(ctx, name)
           end
         rescue StandardError => e
           Formatters::ProgressFormatter.error("Failed to access workspace: #{e.message}")
@@ -1047,10 +1038,10 @@ module LanguageOperator
 
         # Workspace-related helper methods
 
-        def get_agent_pod(k8s, agent_name, namespace)
+        def get_agent_pod(ctx, agent_name)
           # Find pod for this agent using label selector
           label_selector = "app.kubernetes.io/name=#{agent_name}"
-          pods = k8s.list_resources('Pod', namespace: namespace, label_selector: label_selector)
+          pods = ctx.client.list_resources('Pod', namespace: ctx.namespace, label_selector: label_selector)
 
           if pods.empty?
             Formatters::ProgressFormatter.error("No running pods found for agent '#{agent_name}'")
@@ -1083,15 +1074,10 @@ module LanguageOperator
           running_pod.dig('metadata', 'name')
         end
 
-        def exec_in_pod(pod_name, namespace, command, cluster_config)
-          # Build kubectl exec command
-          kubeconfig_arg = cluster_config[:kubeconfig] ? "--kubeconfig=#{cluster_config[:kubeconfig]}" : ''
-          context_arg = cluster_config[:context] ? "--context=#{cluster_config[:context]}" : ''
-          namespace_arg = "-n #{namespace}"
-
+        def exec_in_pod(ctx, pod_name, command)
           # Properly escape command for shell
           cmd_str = command.is_a?(Array) ? command.join(' ') : command
-          kubectl_cmd = "kubectl #{kubeconfig_arg} #{context_arg} #{namespace_arg} exec #{pod_name} -- #{cmd_str}"
+          kubectl_cmd = "#{ctx.kubectl_prefix} exec #{pod_name} -- #{cmd_str}"
 
           # Execute and capture output
           require 'open3'
@@ -1102,15 +1088,15 @@ module LanguageOperator
           stdout
         end
 
-        def list_workspace_files(k8s, agent_name, cluster_config)
+        def list_workspace_files(ctx, agent_name)
           require 'pastel'
           pastel = Pastel.new
 
-          pod_name = get_agent_pod(k8s, agent_name, cluster_config[:namespace])
+          pod_name = get_agent_pod(ctx, agent_name)
 
           # Check if workspace directory exists
           begin
-            exec_in_pod(pod_name, cluster_config[:namespace], 'test -d /workspace', cluster_config)
+            exec_in_pod(ctx, pod_name, 'test -d /workspace')
           rescue StandardError
             Formatters::ProgressFormatter.error('Workspace directory not found in agent pod')
             puts
@@ -1121,19 +1107,17 @@ module LanguageOperator
 
           # Get workspace usage
           usage_output = exec_in_pod(
+            ctx,
             pod_name,
-            cluster_config[:namespace],
-            'du -sh /workspace 2>/dev/null || echo "0\t/workspace"',
-            cluster_config
+            'du -sh /workspace 2>/dev/null || echo "0\t/workspace"'
           )
           workspace_size = usage_output.split("\t").first.strip
 
           # List files with details
           file_list = exec_in_pod(
+            ctx,
             pod_name,
-            cluster_config[:namespace],
-            'find /workspace -ls 2>/dev/null | tail -n +2',
-            cluster_config
+            'find /workspace -ls 2>/dev/null | tail -n +2'
           )
 
           puts
@@ -1193,15 +1177,15 @@ module LanguageOperator
           puts
         end
 
-        def view_workspace_file(k8s, agent_name, file_path, cluster_config)
+        def view_workspace_file(ctx, agent_name, file_path)
           require 'pastel'
           pastel = Pastel.new
 
-          pod_name = get_agent_pod(k8s, agent_name, cluster_config[:namespace])
+          pod_name = get_agent_pod(ctx, agent_name)
 
           # Check if file exists
           begin
-            exec_in_pod(pod_name, cluster_config[:namespace], "test -f #{file_path}", cluster_config)
+            exec_in_pod(ctx, pod_name, "test -f #{file_path}")
           rescue StandardError
             Formatters::ProgressFormatter.error("File not found: #{file_path}")
             puts
@@ -1212,19 +1196,17 @@ module LanguageOperator
 
           # Get file metadata
           stat_output = exec_in_pod(
+            ctx,
             pod_name,
-            cluster_config[:namespace],
-            "stat -c '%s %Y' #{file_path}",
-            cluster_config
+            "stat -c '%s %Y' #{file_path}"
           )
           size, mtime = stat_output.strip.split
 
           # Get file contents
           contents = exec_in_pod(
+            ctx,
             pod_name,
-            cluster_config[:namespace],
-            "cat #{file_path}",
-            cluster_config
+            "cat #{file_path}"
           )
 
           # Display file
@@ -1238,27 +1220,25 @@ module LanguageOperator
           puts
         end
 
-        def clean_workspace(k8s, agent_name, cluster_config)
+        def clean_workspace(ctx, agent_name)
           require 'pastel'
           pastel = Pastel.new
 
-          pod_name = get_agent_pod(k8s, agent_name, cluster_config[:namespace])
+          pod_name = get_agent_pod(ctx, agent_name)
 
           # Get current workspace usage
           usage_output = exec_in_pod(
+            ctx,
             pod_name,
-            cluster_config[:namespace],
-            'du -sh /workspace 2>/dev/null || echo "0\t/workspace"',
-            cluster_config
+            'du -sh /workspace 2>/dev/null || echo "0\t/workspace"'
           )
           workspace_size = usage_output.split("\t").first.strip
 
           # Count files
           file_count = exec_in_pod(
+            ctx,
             pod_name,
-            cluster_config[:namespace],
-            'find /workspace -type f | wc -l',
-            cluster_config
+            'find /workspace -type f | wc -l'
           ).strip.to_i
 
           puts
@@ -1271,21 +1251,16 @@ module LanguageOperator
           puts
           puts "Current workspace: #{file_count} files, #{workspace_size}"
           puts
-          print 'Are you sure? (y/N): '
-          confirmation = $stdin.gets.chomp
 
-          unless confirmation.downcase == 'y'
-            puts 'Workspace cleanup cancelled'
-            return
-          end
+          # Use UserPrompts helper
+          return unless Helpers::UserPrompts.confirm('Are you sure?')
 
           # Delete all files in workspace
           Formatters::ProgressFormatter.with_spinner('Cleaning workspace') do
             exec_in_pod(
+              ctx,
               pod_name,
-              cluster_config[:namespace],
-              'find /workspace -mindepth 1 -delete',
-              cluster_config
+              'find /workspace -mindepth 1 -delete'
             )
           end
 
