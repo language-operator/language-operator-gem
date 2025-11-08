@@ -1,6 +1,6 @@
 # Iterate
 
-Background: this is a early-phase project that works exclusively in main, and each task is a patch release.
+Background: this is a early-phase project that works exclusively in main.
 
 Follow these directions closely:
 
@@ -13,11 +13,8 @@ Follow these directions closely:
 7. **CRITICAL: Test the actual functionality manually before committing.** If it's a CLI command, run it. If it's library code, test it in the appropriate context. Never commit untested code.
 8. Commit the change and push to origin.
 9. **CRITICAL: Halt while CI runs**.  Do not proceed until tests pass.
-10. Update the patch version in lib/language_operator/version.rb and re-run bundler to update the lockfile.
-11. Commit the version with the message "vX.Y.Z" and push to origin.
-12. Tag the new version and push to origin with the --tags argument.
-13. Comment on your solution in the ForgeJo issue.
-14. Resolve the issue.
+10. Comment on your solution in the ForgeJo issue.
+11. Resolve the issue.
 
 
 # Forgejo Project Information

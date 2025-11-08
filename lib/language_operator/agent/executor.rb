@@ -2,6 +2,7 @@
 
 require_relative '../logger'
 require_relative '../loggable'
+require_relative 'metrics_tracker'
 
 module LanguageOperator
   module Agent
@@ -15,7 +16,7 @@ module LanguageOperator
     class Executor
       include LanguageOperator::Loggable
 
-      attr_reader :agent, :iteration_count
+      attr_reader :agent, :iteration_count, :metrics_tracker
 
       # Initialize the executor
       #
@@ -25,6 +26,7 @@ module LanguageOperator
         @iteration_count = 0
         @max_iterations = 100
         @show_full_responses = ENV.fetch('SHOW_FULL_RESPONSES', 'false') == 'true'
+        @metrics_tracker = MetricsTracker.new
 
         logger.debug('Executor initialized',
                      max_iterations: @max_iterations,
@@ -54,10 +56,17 @@ module LanguageOperator
           @agent.send_message(task)
         end
 
+        # Record metrics
+        model_id = @agent.config.dig('llm', 'model')
+        @metrics_tracker.record_request(result, model_id) if model_id
+
         result_text = result.is_a?(String) ? result : result.content
+        metrics = @metrics_tracker.cumulative_stats
         logger.info('✓ Iteration completed',
                     iteration: @iteration_count,
-                    response_length: result_text.length)
+                    response_length: result_text.length,
+                    total_tokens: metrics[:totalTokens],
+                    estimated_cost: "$#{metrics[:estimatedCost]}")
         logger.debug('Response preview', response: result_text[0..200])
 
         result
@@ -128,9 +137,13 @@ module LanguageOperator
 
         # Log execution summary
         total_duration = Time.now - start_time
+        metrics = @metrics_tracker.cumulative_stats
         logger.info('✅ Execution complete',
                     iterations: @iteration_count,
                     duration_s: total_duration.round(2),
+                    total_requests: metrics[:requestCount],
+                    total_tokens: metrics[:totalTokens],
+                    estimated_cost: "$#{metrics[:estimatedCost]}",
                     reason: @iteration_count >= @max_iterations ? 'max_iterations' : 'completed')
 
         return unless @iteration_count >= @max_iterations
@@ -162,13 +175,20 @@ module LanguageOperator
           @agent.send_message(prompt)
         end
 
+        # Record metrics
+        model_id = @agent.config.dig('llm', 'model')
+        @metrics_tracker.record_request(result, model_id) if model_id
+
         # Write output if configured
         write_output(agent_def, result) if agent_def.output_config && result
 
         # Log execution summary
         total_duration = Time.now - start_time
+        metrics = @metrics_tracker.cumulative_stats
         logger.info('✅ Workflow execution completed',
-                    duration_s: total_duration.round(2))
+                    duration_s: total_duration.round(2),
+                    total_tokens: metrics[:totalTokens],
+                    estimated_cost: "$#{metrics[:estimatedCost]}")
         result
       rescue StandardError => e
         logger.error('❌ Workflow execution failed', error: e.message)

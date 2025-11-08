@@ -9,7 +9,7 @@ RSpec.describe LanguageOperator::Agent::Executor do
       LanguageOperator::Agent::Base,
       workspace_path: '/workspace',
       servers_info: [{ name: 'test-server', url: 'http://localhost:8080' }],
-      config: { 'agent' => { 'instructions' => 'Test instructions' } },
+      config: { 'agent' => { 'instructions' => 'Test instructions' }, 'llm' => { 'model' => 'gpt-4o' } },
       send_message: 'Test response'
     )
   end
@@ -35,6 +35,10 @@ RSpec.describe LanguageOperator::Agent::Executor do
       exec = described_class.new(agent_double)
       expect(exec.instance_variable_get(:@show_full_responses)).to be true
       ENV.delete('SHOW_FULL_RESPONSES')
+    end
+
+    it 'initializes metrics tracker' do
+      expect(executor.metrics_tracker).to be_a(LanguageOperator::Agent::MetricsTracker)
     end
   end
 
@@ -77,6 +81,32 @@ RSpec.describe LanguageOperator::Agent::Executor do
       result = executor.execute('test task')
       expect(result).to include('Error executing task')
       expect(result).to include('Connection refused')
+    end
+
+    context 'with metrics tracking' do
+      let(:response_with_tokens) do
+        double('RubyLLM::Message',
+               content: 'Test response',
+               input_tokens: 150,
+               output_tokens: 50,
+               cached_tokens: 0,
+               cache_creation_tokens: 0)
+      end
+
+      before do
+        allow(agent_double).to receive(:send_message).and_return(response_with_tokens)
+      end
+
+      it 'records metrics for successful requests' do
+        expect(executor.metrics_tracker).to receive(:record_request).with(response_with_tokens, 'gpt-4o')
+        executor.execute('test task')
+      end
+
+      it 'increments request count' do
+        expect do
+          executor.execute('test task')
+        end.to change { executor.metrics_tracker.cumulative_stats[:requestCount] }.by(1)
+      end
     end
   end
 
