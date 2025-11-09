@@ -109,7 +109,6 @@ module LanguageOperator
         # Restore type in case it was overwritten by method calls
         @type = :all_of
       end
-
     end
   end
 end

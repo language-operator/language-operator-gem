@@ -54,7 +54,7 @@ LanguageOperator::Dsl.define_agents do
           signed_payload = "#{timestamp}.#{context[:body]}"
 
           # Compute expected signature
-          secret = ENV['STRIPE_WEBHOOK_SECRET']
+          secret = ENV.fetch('STRIPE_WEBHOOK_SECRET', nil)
           expected = OpenSSL::HMAC.hexdigest('sha256', secret, signed_payload)
 
           # Compare signatures (constant-time)
@@ -102,7 +102,7 @@ LanguageOperator::Dsl.define_agents do
       authenticate do
         verify_api_key(
           header: 'X-API-Key',
-          key: ENV['STRIPE_INTERNAL_API_KEY']
+          key: ENV.fetch('STRIPE_INTERNAL_API_KEY', nil)
         )
       end
 

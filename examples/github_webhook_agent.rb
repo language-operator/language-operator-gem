@@ -34,7 +34,7 @@ LanguageOperator::Dsl.define_agents do
       authenticate do
         verify_signature(
           header: 'X-Hub-Signature-256',
-          secret: ENV['GITHUB_WEBHOOK_SECRET'],
+          secret: ENV.fetch('GITHUB_WEBHOOK_SECRET', nil),
           algorithm: :sha256,
           prefix: 'sha256='
         )
@@ -72,7 +72,7 @@ LanguageOperator::Dsl.define_agents do
       authenticate do
         verify_signature(
           header: 'X-Hub-Signature-256',
-          secret: ENV['GITHUB_WEBHOOK_SECRET'],
+          secret: ENV.fetch('GITHUB_WEBHOOK_SECRET', nil),
           algorithm: :sha256,
           prefix: 'sha256='
         )
@@ -110,7 +110,7 @@ LanguageOperator::Dsl.define_agents do
       authenticate do
         verify_signature(
           header: 'X-Hub-Signature-256',
-          secret: ENV['GITHUB_WEBHOOK_SECRET'],
+          secret: ENV.fetch('GITHUB_WEBHOOK_SECRET', nil),
           algorithm: :sha256,
           prefix: 'sha256='
         )
@@ -134,7 +134,7 @@ LanguageOperator::Dsl.define_agents do
 end
 
 # Helper methods for PR handling
-def handle_pr_opened(pr, context)
+def handle_pr_opened(pr, _context)
   {
     status: 'processed',
     action: 'pr_opened',
@@ -145,7 +145,7 @@ def handle_pr_opened(pr, context)
   }
 end
 
-def handle_pr_updated(pr, context)
+def handle_pr_updated(pr, _context)
   {
     status: 'processed',
     action: 'pr_updated',
@@ -154,7 +154,7 @@ def handle_pr_updated(pr, context)
   }
 end
 
-def handle_pr_closed(pr, context)
+def handle_pr_closed(pr, _context)
   {
     status: 'processed',
     action: 'pr_closed',

@@ -190,9 +190,7 @@ module LanguageOperator
         require_relative 'webhook_authenticator'
 
         # Support legacy handler-only format
-        if route_config.is_a?(Proc)
-          route_config = { handler: route_config, authentication: nil, validations: [] }
-        end
+        route_config = { handler: route_config, authentication: nil, validations: [] } if route_config.is_a?(Proc)
 
         handler = route_config[:handler]
         authentication = route_config[:authentication]

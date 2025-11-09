@@ -161,7 +161,7 @@ module LanguageOperator
       # Validate required headers
       def self.validate_headers(required_headers, context)
         errors = []
-        headers = context[:headers] || {}
+        context[:headers] || {}
 
         required_headers.each do |header_name, expected_value|
           actual_value = get_header(context, header_name)
@@ -179,7 +179,7 @@ module LanguageOperator
       # Validate content type
       def self.validate_content_type(allowed_types, context)
         content_type = get_header(context, 'Content-Type')
-        return ["Missing Content-Type header"] unless content_type
+        return ['Missing Content-Type header'] unless content_type
 
         # Extract media type (ignore charset, boundary, etc.)
         media_type = content_type.split(';').first.strip.downcase
