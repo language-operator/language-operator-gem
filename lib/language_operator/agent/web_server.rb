@@ -49,10 +49,16 @@ module LanguageOperator
       #
       # @param path [String] The URL path
       # @param method [Symbol] HTTP method (:get, :post, :put, :delete, :patch)
+      # @param authentication [LanguageOperator::Dsl::WebhookAuthentication, nil] Authentication configuration
+      # @param validations [Array<Hash>, nil] Validation rules
       # @param handler [Proc] Request handler block
       # @return [void]
-      def register_route(path, method: :post, &handler)
-        @routes[normalize_route_key(path, method)] = handler
+      def register_route(path, method: :post, authentication: nil, validations: nil, &handler)
+        @routes[normalize_route_key(path, method)] = {
+          handler: handler,
+          authentication: authentication,
+          validations: validations || []
+        }
       end
 
       # Check if a route exists
@@ -147,10 +153,10 @@ module LanguageOperator
 
         # Try to find a matching route
         route_key = normalize_route_key(path, method)
-        handler = @routes[route_key]
+        route_config = @routes[route_key]
 
-        if handler
-          execute_handler(handler, request)
+        if route_config
+          execute_handler(route_config, request)
         else
           not_found_response(path, method)
         end
@@ -177,12 +183,47 @@ module LanguageOperator
 
       # Execute a route handler
       #
-      # @param handler [Proc] The handler block
+      # @param route_config [Hash, Proc] Route configuration or legacy handler proc
       # @param request [Rack::Request] The request
       # @return [Array] Rack response
-      def execute_handler(handler, request)
+      def execute_handler(route_config, request)
+        require_relative 'webhook_authenticator'
+
+        # Support legacy handler-only format
+        if route_config.is_a?(Proc)
+          route_config = { handler: route_config, authentication: nil, validations: [] }
+        end
+
+        handler = route_config[:handler]
+        authentication = route_config[:authentication]
+        validations = route_config[:validations]
+
         # Build request context
         context = build_request_context(request)
+
+        # Perform authentication
+        if authentication
+          authenticated = WebhookAuthenticator.authenticate(authentication, context)
+          unless authenticated
+            return [
+              401,
+              { 'Content-Type' => 'application/json' },
+              [JSON.generate({ error: 'Unauthorized', message: 'Authentication failed' })]
+            ]
+          end
+        end
+
+        # Perform validations
+        unless validations.empty?
+          validation_errors = WebhookAuthenticator.validate(validations, context)
+          unless validation_errors.empty?
+            return [
+              400,
+              { 'Content-Type' => 'application/json' },
+              [JSON.generate({ error: 'Bad Request', message: 'Validation failed', errors: validation_errors })]
+            ]
+          end
+        end
 
         # Execute handler (could be async)
         result = handler.call(context)
@@ -222,8 +263,17 @@ module LanguageOperator
         request.each_header do |key, value|
           # Convert HTTP_HEADER_NAME to Header-Name
           if key.start_with?('HTTP_')
+            # Strip HTTP_ prefix and normalize
             header_name = key[5..].split('_').map(&:capitalize).join('-')
             headers[header_name] = value
+          # Also include standard CGI headers like CONTENT_TYPE, CONTENT_LENGTH
+          # But only if not already set by HTTP_ version (HTTP_CONTENT_TYPE takes precedence)
+          elsif %w[CONTENT_TYPE CONTENT_LENGTH].include?(key)
+            header_name = key.split('_').map(&:capitalize).join('-')
+            headers[header_name] ||= value # Only set if not already present
+          # In test environment (Rack::Test), headers may come through as-is
+          elsif key.include?('-') || key.start_with?('X-', 'Authorization')
+            headers[key] = value
           end
         end
         headers

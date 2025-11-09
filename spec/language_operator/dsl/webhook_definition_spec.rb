@@ -60,7 +60,9 @@ RSpec.describe LanguageOperator::Dsl::WebhookDefinition do
 
       expect(web_server).to receive(:register_route).with(
         '/test/webhook',
-        method: :post
+        method: :post,
+        authentication: nil,
+        validations: []
       )
 
       webhook.register(web_server)
@@ -77,7 +79,9 @@ RSpec.describe LanguageOperator::Dsl::WebhookDefinition do
 
       expect(web_server).to receive(:register_route).with(
         '/test/webhook',
-        method: :get
+        method: :get,
+        authentication: nil,
+        validations: []
       )
 
       webhook.register(web_server)
