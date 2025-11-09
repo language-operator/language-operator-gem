@@ -91,10 +91,30 @@ end
 
 ## Documentation
 
+### Agent DSL Reference
+
+Complete guides for the agent DSL:
+
+- **[Agent Reference](docs/dsl/agent-reference.md)** - Complete agent DSL syntax, execution modes, schedules, objectives, personas
+- **[Workflows](docs/dsl/workflows.md)** - Step-by-step workflow definition, dependencies, parameter passing, error handling
+- **[Constraints](docs/dsl/constraints.md)** - Time limits, budgets, rate limiting, content filtering
+- **[Webhooks](docs/dsl/webhooks.md)** - Webhook configuration, authentication methods, event handling
+- **[MCP Integration](docs/dsl/mcp-integration.md)** - MCP server tools, parameter validation, tool execution
+- **[Chat Endpoints](docs/dsl/chat-endpoints.md)** - OpenAI-compatible chat completion endpoints
+- **[Best Practices](docs/dsl/best-practices.md)** - Production patterns, security, performance, cost optimization
+
 ### Architecture
 
 - [Agent Runtime Architecture](docs/architecture/agent-runtime.md) - How synthesized code loads and executes in agent pods
 
 ### Examples
 
-- [Agent DSL Example](examples/agent_example.rb) - Complete agent definition example
+All examples include complete, runnable code with detailed comments:
+
+- **[Examples Overview](examples/README.md)** - Guide to all example files with running instructions
+- [Agent Example](examples/agent_example.rb) - Scheduled agent with workflow
+- [Webhook Agent](examples/webhook_agent.rb) - Basic webhook handler
+- [GitHub Webhook](examples/github_webhook_agent.rb) - GitHub PR reviewer with HMAC auth
+- [Stripe Webhook](examples/stripe_webhook_agent.rb) - Payment event processor
+- [MCP Agent](examples/mcp_agent.rb) - Agent exposing tools via MCP
+- [Chat Endpoint](examples/chat_endpoint_agent.rb) - OpenAI-compatible chat API
