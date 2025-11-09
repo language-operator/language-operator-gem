@@ -94,55 +94,19 @@ module LanguageOperator
       end
 
       # Run a command in the background and return immediately
-      # Returns a process object that can be checked later
-      def self.spawn(cmd, *args, env: {}, chdir: nil)
-        escaped_args = args.map { |arg| Shellwords.escape(arg.to_s) }
-        full_cmd = "#{cmd} #{escaped_args.join(' ')}"
-
-        pid = Process.spawn(env, full_cmd, chdir: chdir, out: :close, err: :close)
-
-        {
-          pid: pid,
-          command: full_cmd
-        }
+      # @deprecated This method has been removed for security reasons
+      # @raise [SecurityError] Always raises an error
+      def self.spawn(_cmd, *_args, env: {}, chdir: nil)
+        raise SecurityError, 'Shell.spawn has been removed for security reasons. Background process execution is not allowed in synthesized code.'
       end
 
-      # Execute raw shell command (USE WITH CAUTION!)
-      # This should only be used when you fully control the input
-      # and need shell features like pipes, redirects, etc.
-      def self.raw(command, env: {}, chdir: nil, timeout: 30)
-        stdout = nil
-        stderr = nil
-        status = nil
-
-        begin
-          Timeout.timeout(timeout) do
-            stdout, stderr, status = Open3.capture3(env, command, chdir: chdir)
-          end
-        rescue Timeout::Error
-          return {
-            success: false,
-            output: '',
-            error: "Command timed out after #{timeout} seconds",
-            exitcode: -1,
-            timeout: true
-          }
-        rescue StandardError => e
-          return {
-            success: false,
-            output: '',
-            error: e.message,
-            exitcode: -1
-          }
-        end
-
-        {
-          success: status.success?,
-          output: stdout,
-          error: stderr,
-          exitcode: status.exitstatus,
-          timeout: false
-        }
+      # Execute raw shell command (REMOVED FOR SECURITY)
+      # This method has been removed as it allowed arbitrary shell execution
+      # with pipes, redirects, etc. which is a security risk in synthesized code.
+      # @deprecated This method has been removed for security reasons
+      # @raise [SecurityError] Always raises an error
+      def self.raw(_command, env: {}, chdir: nil, timeout: 30)
+        raise SecurityError, 'Shell.raw has been removed for security reasons. Use Shell.run with explicit arguments instead.'
       end
 
       # Safely build a command string with escaped arguments

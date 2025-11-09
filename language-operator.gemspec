@@ -45,6 +45,9 @@ Gem::Specification.new do |spec|
   # Agent dependencies
   spec.add_dependency 'rufus-scheduler', '~> 3.9'
 
+  # Code security and AST parsing
+  spec.add_dependency 'parser', '~> 3.0'
+
   # Kubernetes client
   spec.add_dependency 'k8s-ruby', '~> 0.17'
 

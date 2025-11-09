@@ -99,21 +99,13 @@ module LanguageOperator
         execute_request(http, request)
       end
 
-      # Wrapper for curl commands (when you need curl-specific features)
-      def self.curl(url, options: [])
-        require 'shellwords'
-
-        cmd_parts = ['curl', '-s']
-        cmd_parts.concat(options)
-        cmd_parts << Shellwords.escape(url)
-
-        output = `#{cmd_parts.join(' ')}`
-
-        {
-          success: $CHILD_STATUS.success?,
-          output: output,
-          exitcode: $CHILD_STATUS.exitstatus
-        }
+      # Wrapper for curl commands (REMOVED FOR SECURITY)
+      # This method has been removed as it executes shell commands via backticks
+      # which is a security risk in synthesized code.
+      # @deprecated This method has been removed for security reasons
+      # @raise [SecurityError] Always raises an error
+      def self.curl(_url, options: [])
+        raise SecurityError, 'HTTP.curl has been removed for security reasons. Use HTTP.get, HTTP.post, etc. instead.'
       end
 
       class << self

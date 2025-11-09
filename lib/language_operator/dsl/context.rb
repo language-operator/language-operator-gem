@@ -24,6 +24,10 @@ module LanguageOperator
     class Context
       include LanguageOperator::Dsl::Helpers
 
+      # Provide access to HTTP and Shell helper classes as constants
+      HTTP = LanguageOperator::Dsl::HTTP
+      Shell = LanguageOperator::Dsl::Shell
+
       # Initialize context with registry
       #
       # @param registry [LanguageOperator::Dsl::Registry] Tool registry

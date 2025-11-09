@@ -51,18 +51,17 @@ module LanguageOperator
       end
 
       # Shell escape for backtick execution (deprecated - use Shell.run instead)
+      # @deprecated This method is deprecated and will be removed for security reasons
       def shell_escape(str)
+        warn 'DEPRECATION WARNING: shell_escape is deprecated and should not be used'
         Shellwords.escape(str.to_s)
       end
 
       # Run a command and return structured result
-      def run_command(cmd)
-        output = `#{cmd}`
-        {
-          success: $CHILD_STATUS.success?,
-          output: output,
-          exitcode: $CHILD_STATUS.exitstatus
-        }
+      # @deprecated This method has been removed for security reasons. Use Shell.run instead.
+      # @raise [SecurityError] Always raises an error
+      def run_command(_cmd)
+        raise SecurityError, 'run_command has been removed for security reasons. Use Shell.run instead.'
       end
 
       # Check required environment variables

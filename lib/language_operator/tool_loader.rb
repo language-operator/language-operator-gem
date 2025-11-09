@@ -67,7 +67,15 @@ module LanguageOperator
       begin
         context = LanguageOperator::Dsl::Context.new(@registry)
         code = File.read(file)
-        context.instance_eval(code, file)
+
+        # Execute in sandbox with validation
+        executor = LanguageOperator::Agent::Safety::SafeExecutor.new(context)
+        executor.eval(code, file)
+      rescue Agent::Safety::SafeExecutor::SecurityError, Agent::Safety::ASTValidator::SecurityError => e
+        # Re-raise security errors so they're not silently ignored
+        warn "Error loading tool file #{file}: #{e.message}"
+        warn e.backtrace.join("\n")
+        raise e
       rescue StandardError => e
         warn "Error loading tool file #{file}: #{e.message}"
         warn e.backtrace.join("\n")

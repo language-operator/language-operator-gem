@@ -14,6 +14,10 @@ module LanguageOperator
     class ExecutionContext
       include LanguageOperator::Dsl::Helpers
 
+      # Provide access to HTTP and Shell helper classes as constants
+      HTTP = LanguageOperator::Dsl::HTTP
+      Shell = LanguageOperator::Dsl::Shell
+
       # Initialize execution context with parameters
       #
       # @param params [Hash] Tool execution parameters

@@ -48,16 +48,18 @@ RSpec.describe LanguageOperator::Dsl::ExecutionContext do
     end
 
     describe '#run_command' do
-      it 'executes shell command' do
-        result = context.run_command('echo "hello"')
-        expect(result[:success]).to be true
-        expect(result[:output]).to include('hello')
+      it 'raises SecurityError (removed for security)' do
+        expect { context.run_command('echo "hello"') }.to raise_error(
+          SecurityError,
+          /run_command has been removed for security reasons/
+        )
       end
 
-      it 'captures exit codes' do
-        result = context.run_command('false')
-        expect(result[:success]).to be false
-        expect(result[:exitcode]).not_to eq(0)
+      it 'advises using Shell.run instead' do
+        expect { context.run_command('false') }.to raise_error(
+          SecurityError,
+          /Use Shell.run instead/
+        )
       end
     end
 

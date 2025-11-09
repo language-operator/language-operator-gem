@@ -1,0 +1,234 @@
+# frozen_string_literal: true
+
+require 'parser/current'
+
+module LanguageOperator
+  module Agent
+    module Safety
+      # Validates synthesized Ruby code for security before execution
+      # Performs static analysis to detect dangerous method calls
+      class ASTValidator
+        # Dangerous methods that should never be called in synthesized code
+        DANGEROUS_METHODS = %w[
+          system exec spawn fork ` eval instance_eval class_eval module_eval
+          require load autoload require_relative
+          send __send__ public_send method __method__
+          const_set const_get remove_const
+          define_method define_singleton_method
+          undef_method remove_method alias_method
+          exit exit! abort raise fail throw
+          trap at_exit
+          open
+        ].freeze
+
+        # Dangerous constants that should not be accessed
+        DANGEROUS_CONSTANTS = %w[
+          File Dir IO FileUtils Pathname
+          Process Kernel ObjectSpace GC
+          Thread Fiber Mutex ConditionVariable
+          Socket TCPSocket UDPSocket TCPServer UDPServer
+          STDIN STDOUT STDERR
+        ].freeze
+
+        # Safe DSL methods that are allowed in agent definitions
+        SAFE_AGENT_METHODS = %w[
+          agent description persona schedule objectives objective
+          workflow step tool params depends_on prompt
+          constraints budget max_requests rate_limit content_filter
+          output mode webhook as_mcp_server as_chat_endpoint
+        ].freeze
+
+        # Safe DSL methods for tool definitions
+        SAFE_TOOL_METHODS = %w[
+          tool description parameter type required default
+          execute
+        ].freeze
+
+        # Safe helper methods available in execute blocks
+        SAFE_HELPER_METHODS = %w[
+          HTTP Shell
+          validate_url validate_phone validate_email
+          env_required env_get
+          truncate parse_csv
+          error success
+        ].freeze
+
+        # Safe Ruby built-in methods and classes
+        SAFE_BUILTINS = %w[
+          String Array Hash Integer Float Symbol
+          puts print p pp warn
+          true false nil
+          if unless case when then else elsif end
+          while until for break next redo retry return
+          begin rescue ensure
+          lambda proc block_given? yield
+          attr_reader attr_writer attr_accessor
+          private protected public
+          initialize new
+        ].freeze
+
+        class SecurityError < StandardError; end
+
+        def initialize
+          @parser = Parser::CurrentRuby.new
+        end
+
+        # Validate code and raise SecurityError if dangerous methods found
+        # @param code [String] Ruby code to validate
+        # @param file_path [String] Path to file (for error messages)
+        # @raise [SecurityError] if code contains dangerous methods
+        def validate!(code, file_path = '(eval)')
+          ast = parse_code(code, file_path)
+          return if ast.nil? # Empty code is safe
+
+          violations = scan_ast(ast)
+
+          return if violations.empty?
+
+          raise SecurityError, format_violations(violations, file_path)
+        end
+
+        # Validate code and return array of violations (non-raising version)
+        # @param code [String] Ruby code to validate
+        # @param file_path [String] Path to file (for error messages)
+        # @return [Array<Hash>] Array of violation hashes
+        def validate(code, file_path = '(eval)')
+          begin
+            ast = parse_code(code, file_path)
+          rescue SecurityError => e
+            # Convert SecurityError (which wraps Parser::SyntaxError) to violation
+            return [{ type: :syntax_error, message: e.message }]
+          end
+
+          return [] if ast.nil?
+
+          scan_ast(ast)
+        rescue Parser::SyntaxError => e
+          [{ type: :syntax_error, message: e.message }]
+        end
+
+        private
+
+        def parse_code(code, file_path)
+          buffer = Parser::Source::Buffer.new(file_path)
+          buffer.source = code
+          @parser.parse(buffer)
+        rescue Parser::SyntaxError => e
+          raise SecurityError, "Syntax error in #{file_path}: #{e.message}"
+        end
+
+        def scan_ast(node, violations = [])
+          return violations if node.nil?
+
+          case node.type
+          when :send
+            check_method_call(node, violations)
+          when :const
+            check_constant(node, violations)
+          when :gvar
+            check_global_variable(node, violations)
+          when :xstr
+            # Backtick string execution (e.g., `command`)
+            violations << {
+              type: :backtick_execution,
+              location: node.location.line,
+              message: 'Backtick command execution is not allowed'
+            }
+          end
+
+          # Recursively scan all child nodes
+          node.children.each do |child|
+            scan_ast(child, violations) if child.is_a?(Parser::AST::Node)
+          end
+
+          violations
+        end
+
+        def check_method_call(node, violations)
+          receiver, method_name, * = node.children
+
+          method_str = method_name.to_s
+
+          # Check for dangerous methods
+          if DANGEROUS_METHODS.include?(method_str)
+            violations << {
+              type: :dangerous_method,
+              method: method_str,
+              location: node.location.line,
+              message: "Dangerous method '#{method_str}' is not allowed"
+            }
+          end
+
+          # Check for File/Dir/IO operations
+          if receiver && receiver.type == :const
+            const_name = receiver.children[1].to_s
+            if DANGEROUS_CONSTANTS.include?(const_name)
+              violations << {
+                type: :dangerous_constant,
+                constant: const_name,
+                method: method_str,
+                location: node.location.line,
+                message: "Access to #{const_name}.#{method_str} is not allowed"
+              }
+            end
+          end
+
+          # Check for backtick execution (e.g., `command`)
+          # Note: backticks are represented as send with method name :`
+          return unless method_str == '`'
+
+          violations << {
+            type: :backtick_execution,
+            location: node.location.line,
+            message: 'Backtick command execution is not allowed'
+          }
+        end
+
+        def check_constant(node, violations)
+          _, const_name = node.children
+          const_str = const_name.to_s
+
+          # Check for dangerous constants being accessed directly
+          return unless DANGEROUS_CONSTANTS.include?(const_str)
+
+          violations << {
+            type: :dangerous_constant_access,
+            constant: const_str,
+            location: node.location.line,
+            message: "Direct access to #{const_str} constant is not allowed"
+          }
+        end
+
+        def check_global_variable(node, violations)
+          var_name = node.children[0].to_s
+
+          # Block access to dangerous global variables
+          dangerous_globals = %w[$0 $PROGRAM_NAME $LOAD_PATH $: $LOADED_FEATURES $"]
+
+          return unless dangerous_globals.include?(var_name)
+
+          violations << {
+            type: :dangerous_global,
+            variable: var_name,
+            location: node.location.line,
+            message: "Access to global variable #{var_name} is not allowed"
+          }
+        end
+
+        def format_violations(violations, file_path)
+          header = "Security violations detected in #{file_path}:\n\n"
+
+          violation_messages = violations.map do |v|
+            "  Line #{v[:location]}: #{v[:message]}"
+          end
+
+          footer = "\n\nSynthesized code must only use safe DSL methods and approved helpers."
+          footer += "\nSafe methods include: #{SAFE_AGENT_METHODS.join(', ')}, #{SAFE_TOOL_METHODS.join(', ')}"
+          footer += "\nSafe helpers include: HTTP.*, Shell.run, validate_*, env_*"
+
+          header + violation_messages.join("\n") + footer
+        end
+      end
+    end
+  end
+end

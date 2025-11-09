@@ -4,6 +4,7 @@ PATH
     language-operator (0.1.26)
       k8s-ruby (~> 0.17)
       mcp (~> 0.4)
+      parser (~> 3.0)
       pastel (~> 0.8)
       puma (~> 6.0)
       rack (~> 3.0)

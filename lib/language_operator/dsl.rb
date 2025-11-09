@@ -14,6 +14,8 @@ require_relative 'dsl/execution_context'
 require_relative 'dsl/agent_definition'
 require_relative 'dsl/agent_context'
 require_relative 'dsl/workflow_definition'
+require_relative 'agent/safety/ast_validator'
+require_relative 'agent/safety/safe_executor'
 
 module LanguageOperator
   # DSL for defining MCP tools and autonomous agents
@@ -102,7 +104,11 @@ module LanguageOperator
       def load_file(file_path)
         code = File.read(file_path)
         context = Context.new(registry)
-        context.instance_eval(code, file_path)
+
+        # Execute in sandbox with validation
+        executor = Agent::Safety::SafeExecutor.new(context)
+        executor.eval(code, file_path)
+
         registry
       end
 
@@ -116,7 +122,11 @@ module LanguageOperator
       def load_agent_file(file_path)
         code = File.read(file_path)
         context = AgentContext.new(agent_registry)
-        context.instance_eval(code, file_path)
+
+        # Execute in sandbox with validation
+        executor = Agent::Safety::SafeExecutor.new(context)
+        executor.eval(code, file_path)
+
         agent_registry
       end
 

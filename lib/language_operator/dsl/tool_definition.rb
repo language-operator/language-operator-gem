@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 require_relative 'parameter_definition'
+require_relative 'http'
+require_relative 'shell'
+require_relative 'helpers'
 
 module LanguageOperator
   module Dsl
@@ -24,6 +27,12 @@ module LanguageOperator
     #     end
     #   end
     class ToolDefinition
+      include LanguageOperator::Dsl::Helpers
+
+      # Provide access to HTTP and Shell helper classes as constants
+      HTTP = LanguageOperator::Dsl::HTTP
+      Shell = LanguageOperator::Dsl::Shell
+
       attr_reader :name, :parameters, :execute_block
 
       def initialize(name)
