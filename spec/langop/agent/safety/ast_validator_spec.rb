@@ -99,13 +99,39 @@ RSpec.describe LanguageOperator::Agent::Safety::ASTValidator do
         )
       end
 
-      it 'blocks require()' do
+      it 'blocks require() for non-allowlisted gems' do
         code = 'require "socket"'
 
         expect { validator.validate!(code) }.to raise_error(
           LanguageOperator::Agent::Safety::ASTValidator::SecurityError,
           /Dangerous method 'require'/
         )
+      end
+
+      it 'allows require for language_operator with single quotes' do
+        code = "require 'language_operator'"
+
+        expect { validator.validate!(code) }.not_to raise_error
+      end
+
+      it 'allows require for language_operator with double quotes' do
+        code = 'require "language_operator"'
+
+        expect { validator.validate!(code) }.not_to raise_error
+      end
+
+      it 'allows full agent code with require language_operator' do
+        code = <<~RUBY
+          require 'language_operator'
+
+          agent "test" do
+            workflow do
+              step :hello, execute: -> { puts "hello" }
+            end
+          end
+        RUBY
+
+        expect { validator.validate!(code) }.not_to raise_error
       end
 
       it 'blocks load()' do

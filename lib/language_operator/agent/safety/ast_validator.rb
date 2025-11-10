@@ -8,6 +8,12 @@ module LanguageOperator
       # Validates synthesized Ruby code for security before execution
       # Performs static analysis to detect dangerous method calls
       class ASTValidator
+        # Gems that are safe to require (allowlist)
+        # These are required for agent execution and are safe
+        ALLOWED_REQUIRES = %w[
+          language_operator
+        ].freeze
+
         # Dangerous methods that should never be called in synthesized code
         DANGEROUS_METHODS = %w[
           system exec spawn fork ` eval instance_eval class_eval module_eval
@@ -145,11 +151,28 @@ module LanguageOperator
         end
 
         def check_method_call(node, violations)
-          receiver, method_name, * = node.children
+          receiver, method_name, *args = node.children
 
           method_str = method_name.to_s
 
-          # Check for dangerous methods
+          # Special handling for require - check if it's in the allowlist
+          if %w[require require_relative].include?(method_str)
+            required_gem = extract_require_argument(args)
+
+            # Allow if in the allowlist
+            return if required_gem && ALLOWED_REQUIRES.include?(required_gem)
+
+            # Otherwise, add violation
+            violations << {
+              type: :dangerous_method,
+              method: method_str,
+              location: node.location.line,
+              message: "Dangerous method '#{method_str}' is not allowed"
+            }
+            return
+          end
+
+          # Check for other dangerous methods
           if DANGEROUS_METHODS.include?(method_str)
             violations << {
               type: :dangerous_method,
@@ -213,6 +236,21 @@ module LanguageOperator
             location: node.location.line,
             message: "Access to global variable #{var_name} is not allowed"
           }
+        end
+
+        def extract_require_argument(args)
+          # args is an array of AST nodes representing the arguments to require
+          # We're looking for a string literal like 'language_operator' or "language_operator"
+          return nil if args.empty?
+
+          arg_node = args.first
+          return nil unless arg_node
+
+          # Check if it's a string literal (:str node)
+          return arg_node.children[0] if arg_node.type == :str
+
+          # If it's not a string literal (e.g., dynamic require), we can't verify it
+          nil
         end
 
         def format_violations(violations, file_path)
