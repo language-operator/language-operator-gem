@@ -51,6 +51,12 @@ Gem::Specification.new do |spec|
   # Kubernetes client
   spec.add_dependency 'k8s-ruby', '~> 0.17'
 
+  # OpenTelemetry instrumentation
+  spec.add_dependency 'opentelemetry-exporter-otlp', '~> 0.27'
+  spec.add_dependency 'opentelemetry-instrumentation-http', '~> 0.23'
+  spec.add_dependency 'opentelemetry-instrumentation-rack', '~> 0.24'
+  spec.add_dependency 'opentelemetry-sdk', '~> 1.4'
+
   # Beautiful CLI output
   spec.add_dependency 'pastel', '~> 0.8'
   spec.add_dependency 'rouge', '~> 4.0'
