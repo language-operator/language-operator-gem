@@ -17,7 +17,48 @@ RSpec.describe LanguageOperator::Agent::Base do
 
   let(:agent) { described_class.new(config) }
 
+  before do
+    # Mock OpenTelemetry configuration to avoid actual setup in tests
+    allow(LanguageOperator::Agent::Telemetry).to receive(:configure)
+    # Mock logger
+    logger_double = instance_double(LanguageOperator::Logger)
+    allow(logger_double).to receive(:info)
+    allow(logger_double).to receive(:debug)
+    allow(logger_double).to receive(:warn)
+    allow(logger_double).to receive(:error)
+    allow_any_instance_of(described_class).to receive(:logger).and_return(logger_double)
+  end
+
+  after do
+    ENV.delete('OTEL_EXPORTER_OTLP_ENDPOINT')
+  end
+
   describe '#initialize' do
+    it 'calls Telemetry.configure' do
+      expect(LanguageOperator::Agent::Telemetry).to receive(:configure)
+      described_class.new(config)
+    end
+
+    it 'logs OpenTelemetry enabled when endpoint is set' do
+      ENV['OTEL_EXPORTER_OTLP_ENDPOINT'] = 'http://otel-collector:4318'
+      logger_double = instance_double(LanguageOperator::Logger)
+      expect(logger_double).to receive(:info).with('OpenTelemetry enabled')
+      allow(logger_double).to receive(:debug)
+      allow_any_instance_of(described_class).to receive(:logger).and_return(logger_double)
+      described_class.new(config)
+    end
+
+    it 'logs OpenTelemetry disabled when endpoint is not set' do
+      logger_double = instance_double(LanguageOperator::Logger)
+      expect(logger_double).to receive(:info).with('OpenTelemetry disabled')
+      allow(logger_double).to receive(:debug)
+      allow_any_instance_of(described_class).to receive(:logger).and_return(logger_double)
+      described_class.new(config)
+    end
+
+    it 'does not raise error without OpenTelemetry endpoint' do
+      expect { described_class.new(config) }.not_to raise_error
+    end
     it 'sets workspace path from environment or default' do
       expect(agent.workspace_path).to eq('/workspace')
     end

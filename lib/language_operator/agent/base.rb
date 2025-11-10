@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative '../client'
+require_relative 'telemetry'
 
 module LanguageOperator
   module Agent
@@ -23,6 +24,12 @@ module LanguageOperator
       # @param config [Hash] Configuration hash
       def initialize(config)
         super
+
+        # Initialize OpenTelemetry
+        LanguageOperator::Agent::Telemetry.configure
+        otel_enabled = !ENV.fetch('OTEL_EXPORTER_OTLP_ENDPOINT', nil).nil?
+        logger.info "OpenTelemetry #{otel_enabled ? 'enabled' : 'disabled'}"
+
         @workspace_path = ENV.fetch('WORKSPACE_PATH', '/workspace')
         @mode = ENV.fetch('AGENT_MODE', 'autonomous')
         @executor = nil
