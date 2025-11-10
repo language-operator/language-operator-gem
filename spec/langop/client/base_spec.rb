@@ -175,4 +175,120 @@ RSpec.describe LanguageOperator::Client::Base do
       expect(enabled_servers.first['name']).to eq('test-server')
     end
   end
+
+  describe '#send_message with OpenTelemetry instrumentation' do
+    let(:tracer_double) { instance_double(OpenTelemetry::Trace::Tracer) }
+    let(:span_double) { instance_double(OpenTelemetry::Trace::Span) }
+    let(:tracer_provider_double) { instance_double(OpenTelemetry::Trace::TracerProvider) }
+    let(:chat_double) { double('RubyLLM::Chat') }
+    let(:response_with_tokens) do
+      double('RubyLLM::Message',
+             content: 'Test response',
+             input_tokens: 100,
+             output_tokens: 50)
+    end
+
+    before do
+      # Mock OpenTelemetry tracer
+      allow(OpenTelemetry).to receive(:tracer_provider).and_return(tracer_provider_double)
+      allow(tracer_provider_double).to receive(:tracer).and_return(tracer_double)
+      allow(tracer_double).to receive(:in_span).and_yield(span_double)
+      allow(span_double).to receive(:set_attribute)
+
+      # Setup chat mock
+      client.instance_variable_set(:@chat, chat_double)
+      allow(chat_double).to receive(:ask).and_return(response_with_tokens)
+    end
+
+    it 'creates a span with correct name during LLM request' do
+      expect(tracer_double).to receive(:in_span).with('agent.llm.request', anything).and_yield(span_double)
+      client.send_message('test message')
+    end
+
+    it 'includes llm.model attribute' do
+      expect(tracer_double).to receive(:in_span).with(
+        'agent.llm.request',
+        hash_including(attributes: hash_including('llm.model' => 'claude-3-5-sonnet-20241022'))
+      ).and_yield(span_double)
+      client.send_message('test message')
+    end
+
+    it 'includes llm.provider attribute' do
+      expect(tracer_double).to receive(:in_span).with(
+        'agent.llm.request',
+        hash_including(attributes: hash_including('llm.provider' => 'anthropic'))
+      ).and_yield(span_double)
+      client.send_message('test message')
+    end
+
+    it 'sets llm.input_tokens attribute after response' do
+      expect(span_double).to receive(:set_attribute).with('llm.input_tokens', 100)
+      client.send_message('test message')
+    end
+
+    it 'sets llm.output_tokens attribute after response' do
+      expect(span_double).to receive(:set_attribute).with('llm.output_tokens', 50)
+      client.send_message('test message')
+    end
+
+    it 'calculates and sets llm.cost_usd attribute' do
+      # Claude Sonnet: $3/1M input, $15/1M output
+      # 100 input tokens = 0.0003, 50 output tokens = 0.00075
+      # Total = 0.001050
+      expect(span_double).to receive(:set_attribute).with('llm.cost_usd', 0.001050)
+      client.send_message('test message')
+    end
+
+    it 'executes LLM request within the span' do
+      expect(chat_double).to receive(:ask).with('test message')
+      client.send_message('test message')
+    end
+
+    context 'when response does not have token information' do
+      let(:response_without_tokens) { 'Simple string response' }
+
+      before do
+        allow(chat_double).to receive(:ask).and_return(response_without_tokens)
+      end
+
+      it 'does not set token attributes' do
+        expect(span_double).not_to receive(:set_attribute).with('llm.input_tokens', anything)
+        expect(span_double).not_to receive(:set_attribute).with('llm.output_tokens', anything)
+        client.send_message('test message')
+      end
+    end
+
+    context 'when model is not in pricing table' do
+      before do
+        config['llm']['model'] = 'unknown-model'
+      end
+
+      it 'does not set cost attribute' do
+        expect(span_double).not_to receive(:set_attribute).with('llm.cost_usd', anything)
+        client.send_message('test message')
+      end
+    end
+  end
+
+  describe '#calculate_cost' do
+    it 'calculates cost for GPT-4' do
+      cost = client.send(:calculate_cost, 'gpt-4', 1_000_000, 1_000_000)
+      expect(cost).to eq(90.0) # $30 input + $60 output
+    end
+
+    it 'calculates cost for Claude Sonnet' do
+      cost = client.send(:calculate_cost, 'claude-3-5-sonnet-20241022', 1_000_000, 1_000_000)
+      expect(cost).to eq(18.0) # $3 input + $15 output
+    end
+
+    it 'handles fractional token counts' do
+      cost = client.send(:calculate_cost, 'gpt-4o', 500_000, 250_000)
+      expect(cost).to eq(6.25) # (0.5M * $5) + (0.25M * $15)
+    end
+
+    it 'returns nil for unknown model' do
+      cost = client.send(:calculate_cost, 'unknown-model', 1_000_000, 1_000_000)
+      expect(cost).to be_nil
+    end
+  end
 end

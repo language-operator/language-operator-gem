@@ -7,6 +7,7 @@ require_relative 'config'
 require_relative '../logger'
 require_relative '../loggable'
 require_relative '../retryable'
+require_relative '../agent/instrumentation'
 
 module LanguageOperator
   module Client
@@ -29,8 +30,23 @@ module LanguageOperator
     class Base
       include LanguageOperator::Loggable
       include LanguageOperator::Retryable
+      include LanguageOperator::Agent::Instrumentation
 
       attr_reader :config, :clients, :chat
+
+      # Model pricing per 1M tokens (input, output) in USD
+      MODEL_PRICING = {
+        # OpenAI models
+        'gpt-4' => [30.0, 60.0],
+        'gpt-4-turbo' => [10.0, 30.0],
+        'gpt-4o' => [5.0, 15.0],
+        'gpt-3.5-turbo' => [0.5, 1.5],
+        # Anthropic models
+        'claude-3-5-sonnet-20241022' => [3.0, 15.0],
+        'claude-3-opus-20240229' => [15.0, 75.0],
+        'claude-3-sonnet-20240229' => [3.0, 15.0],
+        'claude-3-haiku-20240307' => [0.25, 1.25]
+      }.freeze
 
       # Initialize the client with configuration
       #
@@ -64,7 +80,29 @@ module LanguageOperator
       def send_message(message)
         raise 'Not connected. Call #connect! first.' unless @chat
 
-        @chat.ask(message)
+        model = @config.dig('llm', 'model')
+        provider = @config.dig('llm', 'provider')
+
+        with_span('agent.llm.request', attributes: {
+                    'llm.model' => model,
+                    'llm.provider' => provider,
+                    'llm.message_count' => @chat.respond_to?(:messages) ? @chat.messages.length : nil
+                  }) do |span|
+          result = @chat.ask(message)
+
+          # Add token usage and cost attributes if available
+          if result.respond_to?(:input_tokens)
+            input_tokens = result.input_tokens || 0
+            output_tokens = result.output_tokens || 0
+            cost = calculate_cost(model, input_tokens, output_tokens)
+
+            span.set_attribute('llm.input_tokens', input_tokens)
+            span.set_attribute('llm.output_tokens', output_tokens)
+            span.set_attribute('llm.cost_usd', cost.round(6)) if cost
+          end
+
+          result
+        end
       end
 
       # Stream a message and yield each chunk
@@ -293,6 +331,21 @@ module LanguageOperator
         end
 
         chat_params
+      end
+
+      # Calculate cost based on model and token usage
+      #
+      # @param model [String] Model name
+      # @param input_tokens [Integer] Number of input tokens
+      # @param output_tokens [Integer] Number of output tokens
+      # @return [Float, nil] Cost in USD, or nil if model pricing not found
+      def calculate_cost(model, input_tokens, output_tokens)
+        pricing = MODEL_PRICING[model]
+        return nil unless pricing
+
+        input_cost = (input_tokens / 1_000_000.0) * pricing[0]
+        output_cost = (output_tokens / 1_000_000.0) * pricing[1]
+        input_cost + output_cost
       end
     end
   end
