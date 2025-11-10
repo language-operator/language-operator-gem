@@ -2,6 +2,7 @@
 
 require 'rufus-scheduler'
 require_relative 'executor'
+require_relative 'instrumentation'
 require_relative '../logger'
 require_relative '../loggable'
 
@@ -16,6 +17,7 @@ module LanguageOperator
     #   scheduler.start
     class Scheduler
       include LanguageOperator::Loggable
+      include LanguageOperator::Agent::Instrumentation
 
       attr_reader :agent, :rufus_scheduler
 
@@ -62,13 +64,19 @@ module LanguageOperator
         logger.info('Scheduling workflow', cron: cron_schedule, agent: agent_def.name)
 
         @rufus_scheduler.cron(cron_schedule) do
-          logger.timed('Scheduled workflow execution') do
-            logger.info('Executing scheduled workflow', agent: agent_def.name)
-            result = @executor.execute_workflow(agent_def)
-            result_text = result.is_a?(String) ? result : result.content
-            preview = result_text[0..200]
-            preview += '...' if result_text.length > 200
-            logger.info('Workflow completed', result_preview: preview)
+          with_span('agent.scheduler.execute', attributes: {
+                      'scheduler.cron_expression' => cron_schedule,
+                      'agent.name' => agent_def.name,
+                      'scheduler.task_type' => 'workflow'
+                    }) do
+            logger.timed('Scheduled workflow execution') do
+              logger.info('Executing scheduled workflow', agent: agent_def.name)
+              result = @executor.execute_workflow(agent_def)
+              result_text = result.is_a?(String) ? result : result.content
+              preview = result_text[0..200]
+              preview += '...' if result_text.length > 200
+              logger.info('Workflow completed', result_preview: preview)
+            end
           end
         end
 
@@ -119,16 +127,23 @@ module LanguageOperator
       def add_schedule(schedule)
         cron = schedule['cron']
         task = schedule['task']
+        agent_name = @agent.config.dig('agent', 'name')
 
         logger.info('Scheduling task', cron: cron, task: task[0..100])
 
         @rufus_scheduler.cron(cron) do
-          logger.timed('Scheduled task execution') do
-            logger.info('Executing scheduled task', task: task[0..100])
-            result = @executor.execute(task)
-            preview = result[0..200]
-            preview += '...' if result.length > 200
-            logger.info('Task completed', result_preview: preview)
+          with_span('agent.scheduler.execute', attributes: {
+                      'scheduler.cron_expression' => cron,
+                      'agent.name' => agent_name,
+                      'scheduler.task_type' => 'scheduled'
+                    }) do
+            logger.timed('Scheduled task execution') do
+              logger.info('Executing scheduled task', task: task[0..100])
+              result = @executor.execute(task)
+              preview = result[0..200]
+              preview += '...' if result.length > 200
+              logger.info('Task completed', result_preview: preview)
+            end
           end
         end
       end
@@ -139,17 +154,25 @@ module LanguageOperator
       def setup_default_schedule
         instructions = @agent.config.dig('agent', 'instructions') ||
                        'Check for updates and report status'
+        agent_name = @agent.config.dig('agent', 'name')
+        cron = '0 6 * * *'
 
-        logger.info('Setting up default schedule', cron: '0 6 * * *',
+        logger.info('Setting up default schedule', cron: cron,
                                                    instructions: instructions[0..100])
 
-        @rufus_scheduler.cron('0 6 * * *') do
-          logger.timed('Daily task execution') do
-            logger.info('Executing daily task')
-            result = @executor.execute(instructions)
-            preview = result[0..200]
-            preview += '...' if result.length > 200
-            logger.info('Daily task completed', result_preview: preview)
+        @rufus_scheduler.cron(cron) do
+          with_span('agent.scheduler.execute', attributes: {
+                      'scheduler.cron_expression' => cron,
+                      'agent.name' => agent_name,
+                      'scheduler.task_type' => 'default'
+                    }) do
+            logger.timed('Daily task execution') do
+              logger.info('Executing daily task')
+              result = @executor.execute(instructions)
+              preview = result[0..200]
+              preview += '...' if result.length > 200
+              logger.info('Daily task completed', result_preview: preview)
+            end
           end
         end
 
