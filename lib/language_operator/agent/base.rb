@@ -2,6 +2,7 @@
 
 require_relative '../client'
 require_relative 'telemetry'
+require_relative 'instrumentation'
 
 module LanguageOperator
   module Agent
@@ -17,6 +18,8 @@ module LanguageOperator
     #   agent.connect!
     #   agent.execute_goal("Complete the task")
     class Base < LanguageOperator::Client::Base
+      include Instrumentation
+
       attr_reader :workspace_path, :mode
 
       # Initialize the agent
@@ -40,17 +43,23 @@ module LanguageOperator
       #
       # @return [void]
       def run
-        connect!
+        with_span('agent.run', attributes: {
+                    'agent.name' => ENV.fetch('AGENT_NAME', nil),
+                    'agent.mode' => @mode,
+                    'agent.workspace_available' => workspace_available?
+                  }) do
+          connect!
 
-        case @mode
-        when 'autonomous', 'interactive'
-          run_autonomous
-        when 'scheduled', 'event-driven'
-          run_scheduled
-        when 'reactive', 'http', 'webhook'
-          run_reactive
-        else
-          raise "Unknown agent mode: #{@mode}"
+          case @mode
+          when 'autonomous', 'interactive'
+            run_autonomous
+          when 'scheduled', 'event-driven'
+            run_scheduled
+          when 'reactive', 'http', 'webhook'
+            run_reactive
+          else
+            raise "Unknown agent mode: #{@mode}"
+          end
         end
       end
 

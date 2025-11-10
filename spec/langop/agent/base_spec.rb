@@ -150,10 +150,83 @@ RSpec.describe LanguageOperator::Agent::Base do
   end
 
   describe '#run' do
-    xit 'raises error for unknown mode' do
+    let(:tracer_double) { instance_double(OpenTelemetry::Trace::Tracer) }
+    let(:span_double) { instance_double(OpenTelemetry::Trace::Span) }
+    let(:tracer_provider_double) { instance_double(OpenTelemetry::Trace::TracerProvider) }
+
+    before do
+      # Mock OpenTelemetry tracer
+      allow(OpenTelemetry).to receive(:tracer_provider).and_return(tracer_provider_double)
+      allow(tracer_provider_double).to receive(:tracer).and_return(tracer_double)
+      allow(tracer_double).to receive(:in_span).and_yield(span_double)
+
+      # Mock agent methods to avoid actual execution
+      allow(agent).to receive(:connect!)
+      allow(agent).to receive(:run_autonomous)
+      allow(agent).to receive(:workspace_available?).and_return(true)
+    end
+
+    it 'creates a span with correct name' do
+      expect(tracer_double).to receive(:in_span).with('agent.run', anything).and_yield(span_double)
+      agent.run
+    end
+
+    it 'includes agent.name attribute from environment' do
+      ENV['AGENT_NAME'] = 'test-agent'
+      expect(tracer_double).to receive(:in_span).with(
+        'agent.run',
+        hash_including(attributes: hash_including('agent.name' => 'test-agent'))
+      ).and_yield(span_double)
+      agent.run
+      ENV.delete('AGENT_NAME')
+    end
+
+    it 'includes agent.mode attribute' do
+      agent.instance_variable_set(:@mode, 'autonomous')
+      expect(tracer_double).to receive(:in_span).with(
+        'agent.run',
+        hash_including(attributes: hash_including('agent.mode' => 'autonomous'))
+      ).and_yield(span_double)
+      agent.run
+    end
+
+    it 'includes agent.workspace_available attribute' do
+      allow(agent).to receive(:workspace_available?).and_return(true)
+      expect(tracer_double).to receive(:in_span).with(
+        'agent.run',
+        hash_including(attributes: hash_including('agent.workspace_available' => true))
+      ).and_yield(span_double)
+      agent.run
+    end
+
+    it 'records exception on span when run raises error' do
+      error = StandardError.new('Test error')
+      allow(agent).to receive(:connect!).and_raise(error)
+
+      expect(span_double).to receive(:record_exception).with(error)
+      expect(span_double).to receive(:status=).with(instance_of(OpenTelemetry::Trace::Status))
+
+      expect { agent.run }.to raise_error(StandardError, 'Test error')
+    end
+
+    it 'raises error for unknown mode' do
       agent.instance_variable_set(:@mode, 'unknown')
 
+      expect(span_double).to receive(:record_exception).with(instance_of(RuntimeError))
+      expect(span_double).to receive(:status=).with(instance_of(OpenTelemetry::Trace::Status))
+
       expect { agent.run }.to raise_error(/Unknown agent mode/)
+    end
+
+    it 'calls connect! within the span' do
+      expect(agent).to receive(:connect!)
+      agent.run
+    end
+
+    it 'runs autonomous mode within the span' do
+      agent.instance_variable_set(:@mode, 'autonomous')
+      expect(agent).to receive(:run_autonomous)
+      agent.run
     end
   end
 end
