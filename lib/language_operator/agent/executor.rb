@@ -4,6 +4,7 @@ require_relative '../logger'
 require_relative '../loggable'
 require_relative 'metrics_tracker'
 require_relative 'safety/manager'
+require_relative 'instrumentation'
 
 module LanguageOperator
   module Agent
@@ -16,6 +17,7 @@ module LanguageOperator
     #   executor.execute("Complete the task")
     class Executor
       include LanguageOperator::Loggable
+      include Instrumentation
 
       attr_reader :agent, :iteration_count, :metrics_tracker
 
@@ -59,62 +61,68 @@ module LanguageOperator
       # @param task [String] The task to execute
       # @param agent_definition [LanguageOperator::Dsl::AgentDefinition, nil] Optional agent definition with workflow
       # @return [String] The result
+      # rubocop:disable Metrics/BlockLength
       def execute(task, agent_definition: nil)
-        @iteration_count += 1
+        with_span('agent.execute_goal', attributes: {
+                    'agent.goal_description' => task[0...500]
+                  }) do
+          @iteration_count += 1
 
-        # Route to workflow execution if agent has a workflow defined
-        return execute_workflow(agent_definition) if agent_definition&.workflow
+          # Route to workflow execution if agent has a workflow defined
+          return execute_workflow(agent_definition) if agent_definition&.workflow
 
-        # Standard instruction-based execution
-        logger.info('Starting iteration',
-                    iteration: @iteration_count,
-                    max_iterations: @max_iterations)
-        logger.debug('Prompt', prompt: task[0..200])
+          # Standard instruction-based execution
+          logger.info('Starting iteration',
+                      iteration: @iteration_count,
+                      max_iterations: @max_iterations)
+          logger.debug('Prompt', prompt: task[0..200])
 
-        # Safety check before request
-        if @safety_manager&.enabled?
-          # Estimate cost and tokens (rough estimate)
-          estimated_tokens = estimate_tokens(task)
-          estimated_cost = estimate_cost(estimated_tokens)
+          # Safety check before request
+          if @safety_manager&.enabled?
+            # Estimate cost and tokens (rough estimate)
+            estimated_tokens = estimate_tokens(task)
+            estimated_cost = estimate_cost(estimated_tokens)
 
-          @safety_manager.check_request!(
-            message: task,
-            estimated_cost: estimated_cost,
-            estimated_tokens: estimated_tokens
-          )
+            @safety_manager.check_request!(
+              message: task,
+              estimated_cost: estimated_cost,
+              estimated_tokens: estimated_tokens
+            )
+          end
+
+          logger.info('🤖 LLM request')
+          result = logger.timed('LLM response received') do
+            @agent.send_message(task)
+          end
+
+          # Record metrics
+          model_id = @agent.config.dig('llm', 'model')
+          @metrics_tracker.record_request(result, model_id) if model_id
+
+          # Safety check after response and record spending
+          result_text = result.is_a?(String) ? result : result.content
+          metrics = @metrics_tracker.cumulative_stats
+
+          if @safety_manager&.enabled?
+            @safety_manager.check_response!(result_text)
+            @safety_manager.record_request(
+              cost: metrics[:estimatedCost],
+              tokens: metrics[:totalTokens]
+            )
+          end
+          logger.info('✓ Iteration completed',
+                      iteration: @iteration_count,
+                      response_length: result_text.length,
+                      total_tokens: metrics[:totalTokens],
+                      estimated_cost: "$#{metrics[:estimatedCost]}")
+          logger.debug('Response preview', response: result_text[0..200])
+
+          result
+        rescue StandardError => e
+          handle_error(e)
         end
-
-        logger.info('🤖 LLM request')
-        result = logger.timed('LLM response received') do
-          @agent.send_message(task)
-        end
-
-        # Record metrics
-        model_id = @agent.config.dig('llm', 'model')
-        @metrics_tracker.record_request(result, model_id) if model_id
-
-        # Safety check after response and record spending
-        result_text = result.is_a?(String) ? result : result.content
-        metrics = @metrics_tracker.cumulative_stats
-
-        if @safety_manager&.enabled?
-          @safety_manager.check_response!(result_text)
-          @safety_manager.record_request(
-            cost: metrics[:estimatedCost],
-            tokens: metrics[:totalTokens]
-          )
-        end
-        logger.info('✓ Iteration completed',
-                    iteration: @iteration_count,
-                    response_length: result_text.length,
-                    total_tokens: metrics[:totalTokens],
-                    estimated_cost: "$#{metrics[:estimatedCost]}")
-        logger.debug('Response preview', response: result_text[0..200])
-
-        result
-      rescue StandardError => e
-        handle_error(e)
       end
+      # rubocop:enable Metrics/BlockLength
 
       # Run continuous execution loop
       #
