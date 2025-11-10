@@ -2,6 +2,7 @@
 
 require_relative 'dsl'
 require 'mcp'
+require 'opentelemetry/sdk'
 
 module LanguageOperator
   # Loads tool definitions from Ruby files
@@ -177,7 +178,12 @@ module LanguageOperator
     #
     # @param tool_def [LanguageOperator::Dsl::ToolDefinition] Tool definition from DSL
     # @return [Class] MCP::Tool subclass
+    # rubocop:disable Metrics/MethodLength
     def self.create_mcp_tool(tool_def)
+      # Capture tool name and tracer for use in the dynamic class
+      tool_name = tool_def.name
+      tracer = OpenTelemetry.tracer_provider.tracer('language-operator-agent', LanguageOperator::VERSION)
+
       # Create a dynamic MCP::Tool class
       Class.new(MCP::Tool) do
         description tool_def.description || "Tool: #{tool_def.name}"
@@ -202,20 +208,35 @@ module LanguageOperator
         # Store the execute block
         @execute_block = tool_def.execute_block
 
-        # Define the call method
+        # Define the call method with OpenTelemetry instrumentation
         define_singleton_method(:call) do |**params|
-          # Execute the tool's block
-          result = @execute_block.call(params)
+          tracer.in_span('agent.tool.execute', attributes: {
+                           'tool.name' => tool_name,
+                           'tool.type' => 'custom'
+                         }) do |span|
+            # Execute the tool's block
+            result = @execute_block.call(params)
 
-          # Return MCP response
-          MCP::Tool::Response.new([
-                                    {
-                                      type: 'text',
-                                      text: result.to_s
-                                    }
-                                  ])
+            # Set success attribute
+            span.set_attribute('tool.result', 'success')
+
+            # Return MCP response
+            MCP::Tool::Response.new([
+                                      {
+                                        type: 'text',
+                                        text: result.to_s
+                                      }
+                                    ])
+          rescue StandardError => e
+            # Record exception and set failure status
+            span.record_exception(e)
+            span.set_attribute('tool.result', 'failure')
+            span.status = OpenTelemetry::Trace::Status.error(e.message)
+            raise
+          end
         end
       end
     end
+    # rubocop:enable Metrics/MethodLength
   end
 end
