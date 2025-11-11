@@ -32,7 +32,7 @@ module LanguageOperator
           spec = {
             'instructions' => instructions,
             'mode' => spec_mode,
-            'image' => 'git.theryans.io/language-operator/agent:latest'
+            'image' => 'ghcr.io/language-operator/agent:latest'
           }
 
           spec['schedule'] = schedule if schedule

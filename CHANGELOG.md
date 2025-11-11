@@ -8,12 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **GitHub Migration**: Migrated project from self-hosted Forgejo to GitHub
+  - Repository now hosted at: https://github.com/language-operator/language-operator-gem
+  - Updated all infrastructure references to use public GitHub resources
+  - Container images now use GitHub Container Registry (ghcr.io)
+  - Helm charts now use GitHub Pages (https://language-operator.github.io/charts)
+  - Tool registry now uses GitHub raw content URLs
+  - Migrated CI/CD from Forgejo workflows to GitHub Actions
+  - Better community access and collaboration
+
+### Security
+- **Removed hardcoded API token** from tool registry configuration
+- Token authentication now uses environment variables (`GITHUB_TOKEN`)
+- Improved security posture by eliminating embedded credentials
+
+### Changed (Previous)
 - **Gem Hosting Migration**: Switched primary gem hosting from self-hosted Forgejo registry to RubyGems.org
   - RubyGems.org is now the primary publishing target for better discoverability and easier installation
   - Forgejo registry remains as an optional fallback (publishes if `REGISTRY_TOKEN` secret is configured)
   - Updated CI workflow to prioritize RubyGems.org publishing
   - Added installation instructions and RubyGems badge to README.md
   - Users can now install via: `gem install language-operator`
+- **License**: Updated gemspec license from MIT to FSL-1.1-Apache-2.0 to match LICENSE file
+- **Repository Cleanup**: Removed `.rspec_status` from version control (already in .gitignore)
 
 ## [0.1.0] - 2025-11-05
 

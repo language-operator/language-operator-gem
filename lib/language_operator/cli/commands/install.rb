@@ -11,9 +11,9 @@ module LanguageOperator
     module Commands
       # Install, upgrade, and uninstall commands for the language-operator
       class Install < Thor
-        HELM_REPO_NAME = 'git.theryans.io'
-        HELM_REPO_URL = 'https://git.theryans.io/api/packages/language-operator/helm'
-        CHART_NAME = 'git.theryans.io/language-operator'
+        HELM_REPO_NAME = 'language-operator'
+        HELM_REPO_URL = 'https://language-operator.github.io/charts'
+        CHART_NAME = 'language-operator/language-operator'
         RELEASE_NAME = 'language-operator'
         DEFAULT_NAMESPACE = 'language-operator-system'
 

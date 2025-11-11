@@ -134,14 +134,14 @@ module LanguageOperator
                  aictl install
 
               2. Or manually with Helm:
-                 helm repo add git.theryans.io https://git.theryans.io/api/packages/language-operator/helm
+                 helm repo add language-operator https://language-operator.github.io/charts
                  helm repo update
-                 helm install language-operator git.theryans.io/language-operator
+                 helm install language-operator language-operator/language-operator
 
               3. Verify installation:
                  kubectl get deployment -n language-operator-system language-operator
 
-              For more information, visit: https://github.com/langop/language-operator
+              For more information, visit: https://github.com/language-operator/language-operator
             MSG
           end
 

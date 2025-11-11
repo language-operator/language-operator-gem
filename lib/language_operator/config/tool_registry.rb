@@ -8,13 +8,12 @@ module LanguageOperator
   module Config
     # Fetches and caches tool registry from remote URL
     class ToolRegistry
-      REGISTRY_URL = 'https://git.theryans.io/language-operator/language-tools/raw/branch/main/index.yaml'
+      REGISTRY_URL = 'https://raw.githubusercontent.com/language-operator/language-tools/main/index.yaml'
       CACHE_TTL = 3600 # 1 hour
-      DEFAULT_API_TOKEN = '008d58f761268c74e1f316f0b843e37207a8fe69'
 
       def initialize(registry_url: REGISTRY_URL, api_token: nil)
         @registry_url = registry_url
-        @api_token = api_token || ENV.fetch('FORGEJO_API_TOKEN', DEFAULT_API_TOKEN)
+        @api_token = api_token || ENV.fetch('GITHUB_TOKEN', nil)
         @cache = nil
         @cache_time = nil
       end

@@ -3,7 +3,7 @@
 
 # Built-in tools (developed in this project)
 web:
-  image: git.theryans.io/langop/web-tool:latest
+  image: ghcr.io/language-operator/web-tool:latest
   displayName: Web Tool
   description: Search the web and fetch web pages using DuckDuckGo
   deploymentMode: service
@@ -27,7 +27,7 @@ web:
           protocol: TCP
 
 email:
-  image: git.theryans.io/langop/email-tool:latest
+  image: ghcr.io/language-operator/email-tool:latest
   displayName: Email Tool
   description: Send and receive emails via SMTP/IMAP
   deploymentMode: service

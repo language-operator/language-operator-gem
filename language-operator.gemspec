@@ -5,18 +5,18 @@ require_relative 'lib/language_operator/version'
 Gem::Specification.new do |spec|
   spec.name          = 'language-operator'
   spec.version       = LanguageOperator::VERSION
-  spec.authors       = ['Language Operator Team']
-  spec.email         = ['noreply@langop.io']
+  spec.authors       = ['James Ryan']
+  spec.email         = ['james@theryans.io']
 
-  spec.summary       = 'Ruby SDK and CLI (aictl) for language-operator - create autonomous AI agents'
-  spec.description   = 'language-operator Ruby SDK provides the aictl CLI and library for creating and managing autonomous AI agents on Kubernetes'
-  spec.homepage      = 'https://github.com/langop/language-operator'
-  spec.license       = 'MIT'
+  spec.summary       = 'Ruby SDK for Language Operator'
+  spec.description   = 'Used in conjunction with the Language Operator for Kubernetes'
+  spec.homepage      = 'https://github.com/language-operator/language-operator'
+  spec.license       = 'FSL-1.1-Apache-2.0'
   spec.required_ruby_version = '>= 3.2.0'
 
   spec.metadata['homepage_uri'] = spec.homepage
-  spec.metadata['source_code_uri'] = 'https://github.com/langop/language-operator'
-  spec.metadata['changelog_uri'] = 'https://github.com/langop/language-operator/blob/main/sdk/ruby/CHANGELOG.md'
+  spec.metadata['source_code_uri'] = 'https://github.com/language-operator/language-operator-gem'
+  spec.metadata['changelog_uri'] = 'https://github.com/language-operator/language-operator-gem/blob/main/CHANGELOG.md'
   spec.metadata['rubygems_mfa_required'] = 'true'
 
   # Specify which files should be added to the gem when it is released.
