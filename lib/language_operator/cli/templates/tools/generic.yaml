@@ -1,0 +1,66 @@
+apiVersion: langop.io/v1alpha1
+kind: LanguageTool
+metadata:
+  name: <%= name %>
+  namespace: <%= namespace %>
+spec:
+  type: <%= type || 'mcp' %>
+  image: <%= image || "changeme/#{name}-tool:latest" %>
+  imagePullPolicy: Always
+  deploymentMode: <%= deployment_mode || 'sidecar' %>
+  port: <%= port || 8080 %>
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+<% if egress && !egress.empty? -%>
+  egress:
+<% egress.each do |rule| -%>
+    - description: <%= rule['description'] %>
+<% if rule['cidr'] -%>
+      cidr: <%= rule['cidr'] %>
+<% end -%>
+<% if rule['dns'] -%>
+      dns:
+<% rule['dns'].each do |dns| -%>
+        - "<%= dns %>"
+<% end -%>
+<% end -%>
+<% if rule['ports'] -%>
+      ports:
+<% rule['ports'].each do |port_rule| -%>
+        - port: <%= port_rule['port'] %>
+          protocol: <%= port_rule['protocol'] %>
+<% end -%>
+<% end -%>
+<% end -%>
+<% else -%>
+  egress: []
+<% end -%>
+
+<% if rbac -%>
+  rbac:
+<% if rbac['clusterRole'] -%>
+    clusterRole:
+      rules:
+<% rbac['clusterRole']['rules'].each do |rule| -%>
+        - apiGroups:
+<% rule['apiGroups'].each do |group| -%>
+            - <%= group %>
+<% end -%>
+          resources:
+<% rule['resources'].each do |resource| -%>
+            - <%= resource %>
+<% end -%>
+          verbs:
+<% rule['verbs'].each do |verb| -%>
+            - <%= verb %>
+<% end -%>
+<% end -%>
+<% end -%>
+<% end -%>

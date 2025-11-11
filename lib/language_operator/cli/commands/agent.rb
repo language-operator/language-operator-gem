@@ -3,9 +3,11 @@
 require 'thor'
 require_relative '../formatters/progress_formatter'
 require_relative '../formatters/table_formatter'
+require_relative '../formatters/value_formatter'
 require_relative '../helpers/cluster_validator'
 require_relative '../helpers/cluster_context'
 require_relative '../helpers/user_prompts'
+require_relative '../helpers/editor_helper'
 require_relative '../errors/handler'
 require_relative '../../config/cluster_config'
 require_relative '../../kubernetes/client'
@@ -427,19 +429,12 @@ module LanguageOperator
 
           current_instructions = agent.dig('spec', 'instructions')
 
-          # Create temp file with current instructions
-          require 'tempfile'
-          tmpfile = Tempfile.new(['agent-instructions-', '.txt'])
-          tmpfile.write(current_instructions)
-          tmpfile.close
-
-          # Open editor
-          editor = ENV['EDITOR'] || 'vi'
-          system("#{editor} #{tmpfile.path}")
-
-          # Read updated instructions
-          new_instructions = File.read(tmpfile.path).strip
-          tmpfile.unlink
+          # Edit instructions in user's editor
+          new_instructions = Helpers::EditorHelper.edit_content(
+            current_instructions,
+            'agent-instructions-',
+            '.txt'
+          ).strip
 
           # Check if changed
           if new_instructions == current_instructions
@@ -765,24 +760,7 @@ module LanguageOperator
         end
 
         def format_time_until(future_time)
-          diff = future_time - Time.now
-
-          if diff.negative?
-            'overdue'
-          elsif diff < 60
-            "in #{diff.to_i}s"
-          elsif diff < 3600
-            minutes = (diff / 60).to_i
-            "in #{minutes}m"
-          elsif diff < 86_400
-            hours = (diff / 3600).to_i
-            minutes = ((diff % 3600) / 60).to_i
-            "in #{hours}h #{minutes}m"
-          else
-            days = (diff / 86_400).to_i
-            hours = ((diff % 86_400) / 3600).to_i
-            "in #{days}d #{hours}h"
-          end
+          Formatters::ValueFormatter.time_until(future_time)
         end
 
         def display_dry_run_preview(agent_resource, cluster, description)
@@ -958,15 +936,7 @@ module LanguageOperator
         end
 
         def format_duration(seconds)
-          if seconds < 1
-            "#{(seconds * 1000).round}ms"
-          elsif seconds < 60
-            "#{seconds.round(1)}s"
-          else
-            minutes = (seconds / 60).floor
-            secs = (seconds % 60).round
-            "#{minutes}m #{secs}s"
-          end
+          Formatters::ValueFormatter.duration(seconds)
         end
 
         def list_cluster_agents(cluster)
@@ -1270,35 +1240,11 @@ module LanguageOperator
         end
 
         def format_file_size(bytes)
-          if bytes < 1024
-            "#{bytes}B"
-          elsif bytes < 1024 * 1024
-            "#{(bytes / 1024.0).round(1)}KB"
-          elsif bytes < 1024 * 1024 * 1024
-            "#{(bytes / (1024.0 * 1024)).round(1)}MB"
-          else
-            "#{(bytes / (1024.0 * 1024 * 1024)).round(1)}GB"
-          end
+          Formatters::ValueFormatter.file_size(bytes)
         end
 
         def format_timestamp(time)
-          now = Time.now
-          diff = now - time
-
-          if diff < 60
-            "#{diff.to_i} seconds ago"
-          elsif diff < 3600
-            minutes = (diff / 60).to_i
-            "#{minutes} minute#{'s' if minutes != 1} ago"
-          elsif diff < 86_400
-            hours = (diff / 3600).to_i
-            "#{hours} hour#{'s' if hours != 1} ago"
-          elsif diff < 604_800
-            days = (diff / 86_400).to_i
-            "#{days} day#{'s' if days != 1} ago"
-          else
-            time.strftime('%Y-%m-%d %H:%M')
-          end
+          Formatters::ValueFormatter.timestamp(time)
         end
       end
     end

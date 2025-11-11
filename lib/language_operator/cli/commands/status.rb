@@ -12,35 +12,31 @@ module LanguageOperator
     module Commands
       # System status and overview command
       class Status < Thor
-        include Helpers::ClusterValidator
-
         desc 'overview', 'Show system status and overview'
         def overview
           current_cluster = Config::ClusterConfig.current_cluster
           clusters = Config::ClusterConfig.list_clusters
 
-          puts
-          puts '═' * 80
-          puts '  Language Operator CLI Status'
-          puts '═' * 80
-          puts
+          pastel = Pastel.new
 
           # Current cluster context
           if current_cluster
-            puts "Current Cluster: #{current_cluster}"
             cluster_config = Config::ClusterConfig.get_cluster(current_cluster)
-            puts "  Namespace:   #{cluster_config[:namespace]}"
-            puts "  Context:     #{cluster_config[:context] || 'default'}"
+
+            puts "\nCluster Details"
+            puts '----------------'
+            puts "Name: #{pastel.bold.white(current_cluster)}"
+            puts "Namespace: #{pastel.bold.white(cluster_config[:namespace])}"
             puts
 
             # Check cluster health
             begin
-              k8s = kubernetes_client(current_cluster)
+              k8s = Helpers::ClusterValidator.kubernetes_client(current_cluster)
 
               # Operator status
               if k8s.operator_installed?
                 version = k8s.operator_version || 'installed'
-                Formatters::ProgressFormatter.success("Operator: v#{version}")
+                Formatters::ProgressFormatter.success("Operator: #{version}")
               else
                 Formatters::ProgressFormatter.error('Operator: not installed')
                 puts
@@ -120,44 +116,6 @@ module LanguageOperator
             end
           end
 
-          # Multi-cluster summary if multiple clusters exist
-          if clusters.length > 1
-            puts
-            puts '─' * 80
-            puts
-            puts "All Clusters (#{clusters.length} total):"
-            puts
-
-            cluster_summary = []
-            clusters.each do |cluster|
-              k8s = kubernetes_client(cluster[:name])
-
-              agents = k8s.list_resources('LanguageAgent', namespace: cluster[:namespace])
-              tools = k8s.list_resources('LanguageTool', namespace: cluster[:namespace])
-              models = k8s.list_resources('LanguageModel', namespace: cluster[:namespace])
-
-              cluster_summary << {
-                name: cluster[:name],
-                agents: agents.count,
-                tools: tools.count,
-                models: models.count,
-                status: k8s.operator_installed? ? 'Ready' : 'No Operator'
-              }
-            rescue StandardError
-              cluster_summary << {
-                name: cluster[:name],
-                agents: '?',
-                tools: '?',
-                models: '?',
-                status: 'Error'
-              }
-            end
-
-            Formatters::TableFormatter.status_dashboard(cluster_summary, current_cluster: current_cluster)
-          end
-
-          puts
-          puts '═' * 80
           puts
         end
 

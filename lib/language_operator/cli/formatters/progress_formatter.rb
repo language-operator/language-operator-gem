@@ -10,7 +10,7 @@ module LanguageOperator
       class ProgressFormatter
         class << self
           def with_spinner(message, success_msg: nil, &block)
-            spinner = TTY::Spinner.new("[:spinner] #{message}...", format: :dots)
+            spinner = TTY::Spinner.new("[:spinner] #{message}...", format: :dots, success_mark: pastel.green('✔'))
             spinner.auto_spin
 
             result = block.call
@@ -26,7 +26,7 @@ module LanguageOperator
           end
 
           def success(message)
-            puts "[#{pastel.green('✓')}] #{message}"
+            puts "[#{pastel.green('✔')}] #{message}"
           end
 
           def error(message)

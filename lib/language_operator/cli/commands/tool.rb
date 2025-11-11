@@ -9,6 +9,7 @@ require_relative '../formatters/table_formatter'
 require_relative '../helpers/cluster_validator'
 require_relative '../helpers/cluster_context'
 require_relative '../helpers/user_prompts'
+require_relative '../helpers/resource_dependency_checker'
 require_relative '../../config/cluster_config'
 require_relative '../../config/tool_registry'
 require_relative '../../kubernetes/client'
@@ -46,10 +47,7 @@ module LanguageOperator
             status = tool.dig('status', 'phase') || 'Unknown'
 
             # Count agents using this tool
-            agents_using = agents.count do |agent|
-              agent_tools = agent.dig('spec', 'tools') || []
-              agent_tools.include?(name)
-            end
+            agents_using = Helpers::ResourceDependencyChecker.tool_usage_count(agents, name)
 
             # Get health status
             health = tool.dig('status', 'health') || 'unknown'
@@ -92,10 +90,7 @@ module LanguageOperator
 
           # Check for agents using this tool
           agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
-          agents_using = agents.select do |agent|
-            agent_tools = agent.dig('spec', 'tools') || []
-            agent_tools.include?(name)
-          end
+          agents_using = Helpers::ResourceDependencyChecker.agents_using_tool(agents, name)
 
           if agents_using.any? && !options[:force]
             Formatters::ProgressFormatter.warn("Tool '#{name}' is in use by #{agents_using.count} agent(s)")
@@ -170,25 +165,32 @@ module LanguageOperator
             exit 1
           end
 
-          # Check if template exists
-          template_name = tool_key
-          template_path = File.join(__dir__, '..', 'templates', 'tools', "#{template_name}.yaml")
-          unless File.exist?(template_path)
-            Formatters::ProgressFormatter.warn("No template found for '#{tool_name}', using generic template")
-            template_path = File.join(__dir__, '..', 'templates', 'tools', 'generic.yaml')
-          end
-
           # Build template variables
           vars = {
             name: tool_name,
             namespace: namespace,
             deployment_mode: options[:deployment_mode] || tool_config['deploymentMode'],
             replicas: options[:replicas] || 1,
-            auth_secret: nil # Will be set by auth command
+            auth_secret: nil, # Will be set by auth command
+            image: tool_config['image'],
+            port: tool_config['port'],
+            type: tool_config['type'],
+            egress: tool_config['egress'],
+            rbac: tool_config['rbac']
           }
 
+          # Get template content - prefer registry manifest, fall back to generic template
+          if tool_config['manifest']
+            # Use manifest from registry (if provided in the future)
+            template_content = tool_config['manifest']
+          else
+            # Use generic template for all tools
+            template_path = File.join(__dir__, '..', 'templates', 'tools', 'generic.yaml')
+            template_content = File.read(template_path)
+          end
+
           # Render template
-          template = ERB.new(File.read(template_path))
+          template = ERB.new(template_content)
           yaml_content = template.result_with_hash(vars)
 
           # Dry run mode

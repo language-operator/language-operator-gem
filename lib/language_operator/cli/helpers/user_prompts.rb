@@ -16,6 +16,7 @@ module LanguageOperator
 
           print "#{message} (y/N): "
           response = $stdin.gets&.chomp || ''
+          puts
           response.downcase == 'y'
         end
         # rubocop:enable Naming/PredicateMethod

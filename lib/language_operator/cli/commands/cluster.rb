@@ -56,9 +56,7 @@ module LanguageOperator
           end
 
           # Create namespace if it doesn't exist
-          if k8s.namespace_exists?(namespace)
-            Formatters::ProgressFormatter.info("Namespace '#{namespace}' already exists")
-          else
+          unless k8s.namespace_exists?(namespace)
             Formatters::ProgressFormatter.with_spinner("Creating namespace '#{namespace}'") do
               k8s.create_namespace(namespace, labels: {
                                      'app.kubernetes.io/managed-by' => 'aictl',
@@ -74,13 +72,16 @@ module LanguageOperator
             resource
           end
 
+          # Get the actual Kubernetes context being used
+          actual_context = k8s.current_context
+
           # Save cluster to config
           Formatters::ProgressFormatter.with_spinner('Saving cluster configuration') do
             Config::ClusterConfig.add_cluster(
               name,
               namespace,
               kubeconfig || ENV.fetch('KUBECONFIG', File.expand_path('~/.kube/config')),
-              context
+              actual_context
             )
           end
 
@@ -94,10 +95,11 @@ module LanguageOperator
             puts "  aictl use #{name}"
           end
 
-          puts "\nCluster Details:"
-          puts "  Name:      #{name}"
-          puts "  Namespace: #{namespace}"
-          puts "  Context:   #{context || 'default'}"
+          pastel = Pastel.new
+          puts "\nCluster Details"
+          puts '----------------'
+          puts "Name: #{pastel.bold.white(name)}"
+          puts "Namespace: #{pastel.bold.white(namespace)}"
         rescue StandardError => e
           Formatters::ProgressFormatter.error("Failed to create cluster: #{e.message}")
           raise if ENV['DEBUG']
@@ -223,8 +225,8 @@ module LanguageOperator
 
           # Confirm deletion
           unless options[:force]
-            puts "This will delete cluster '#{name}' and all its resources:"
-            puts "  Namespace: #{cluster[:namespace]}"
+            pastel = Pastel.new
+            puts "This will delete cluster #{pastel.bold.red(name)} and all its resources (agents, models, tools, personas)."
             puts
             return unless Helpers::UserPrompts.confirm('Are you sure?')
           end

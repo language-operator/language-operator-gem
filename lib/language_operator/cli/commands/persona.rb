@@ -8,6 +8,8 @@ require_relative '../formatters/table_formatter'
 require_relative '../helpers/cluster_validator'
 require_relative '../helpers/cluster_context'
 require_relative '../helpers/user_prompts'
+require_relative '../helpers/resource_dependency_checker'
+require_relative '../helpers/editor_helper'
 require_relative '../../config/cluster_config'
 require_relative '../../kubernetes/client'
 require_relative '../../kubernetes/resource_builder'
@@ -310,7 +312,7 @@ module LanguageOperator
 
           # Check for agents using this persona
           agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
-          agents_using = agents.select { |a| a.dig('spec', 'persona') == name }
+          agents_using = Helpers::ResourceDependencyChecker.agents_using_persona(agents, name)
 
           if agents_using.any?
             puts
@@ -342,7 +344,7 @@ module LanguageOperator
 
           # Check for agents using this persona
           agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
-          agents_using = agents.select { |a| a.dig('spec', 'persona') == name }
+          agents_using = Helpers::ResourceDependencyChecker.agents_using_persona(agents, name)
 
           if agents_using.any? && !options[:force]
             Formatters::ProgressFormatter.warn("Persona '#{name}' is in use by #{agents_using.count} agent(s)")
@@ -382,22 +384,7 @@ module LanguageOperator
         private
 
         def edit_in_editor(content, filename_prefix)
-          require 'tempfile'
-
-          editor = ENV['EDITOR'] || 'vi'
-          tempfile = Tempfile.new([filename_prefix, '.txt'])
-
-          begin
-            tempfile.write(content)
-            tempfile.flush
-            tempfile.close
-
-            system("#{editor} #{tempfile.path}")
-
-            File.read(tempfile.path)
-          ensure
-            tempfile.unlink
-          end
+          Helpers::EditorHelper.edit_content(content, filename_prefix, '.txt')
         end
 
         def pastel

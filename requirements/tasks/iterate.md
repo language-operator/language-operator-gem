@@ -1,6 +1,21 @@
-# Iterate
+# Task
 
-Background: this is a early-phase project that works exclusively in main.
+## Persona
+
+Adopt the [ruby-engineer](../../../requirements/personas/ruby-engineer.md) persona while executing these instructions, please.
+
+## Inputs
+
+- id int -- A forgejo issue index ID.
+
+## Background
+
+This is a early-phase project that works exclusively in main.
+Issues are found using the Forgejo MCP tools for this project:
+- Owner: language-operator
+- Repository: language-operator-gem
+
+## Instructions
 
 Follow these directions closely:
 
@@ -16,7 +31,6 @@ Follow these directions closely:
 10. Comment on your solution in the ForgeJo issue.
 11. Resolve the issue.
 
+## Output
 
-# Forgejo project for accessing issues
-Owner: language-operator
-Repository: language-operator-gem
+An implementation, test coverage, updated CI, and a closed ticket.

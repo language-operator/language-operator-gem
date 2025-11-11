@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'thor'
+require 'pastel'
 require_relative '../formatters/progress_formatter'
 require_relative '../../config/cluster_config'
 
@@ -28,10 +29,12 @@ module LanguageOperator
           cluster = Config::ClusterConfig.get_cluster(cluster_name)
 
           Formatters::ProgressFormatter.success("Switched to cluster '#{cluster_name}'")
-          puts "\nCluster Details:"
-          puts "  Name:      #{cluster[:name]}"
-          puts "  Namespace: #{cluster[:namespace]}"
-          puts "  Context:   #{cluster[:context] || 'default'}"
+
+          pastel = Pastel.new
+          puts "\nCluster Details"
+          puts '----------------'
+          puts "Name: #{pastel.bold.white(cluster[:name])}"
+          puts "Namespace: #{pastel.bold.white(cluster[:namespace])}"
         rescue StandardError => e
           Formatters::ProgressFormatter.error("Failed to switch cluster: #{e.message}")
           raise if ENV['DEBUG']

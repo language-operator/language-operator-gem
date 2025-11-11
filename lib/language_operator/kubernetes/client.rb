@@ -35,6 +35,16 @@ module LanguageOperator
         @client = build_client
       end
 
+      # Get the current Kubernetes context name
+      def current_context
+        return nil if @in_cluster
+
+        config = K8s::Config.load_file(@kubeconfig)
+        @context || config.current_context
+      rescue Errno::ENOENT
+        nil
+      end
+
       # Get the current namespace from the context
       def current_namespace
         if @in_cluster
@@ -42,7 +52,7 @@ module LanguageOperator
           File.read('/var/run/secrets/kubernetes.io/serviceaccount/namespace').strip
         else
           config = K8s::Config.load_file(@kubeconfig)
-          context_name = @context || config.current_context
+          context_name = current_context
           context_obj = config.context(context_name)
           context_obj&.namespace
         end

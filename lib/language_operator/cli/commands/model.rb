@@ -7,6 +7,8 @@ require_relative '../formatters/table_formatter'
 require_relative '../helpers/cluster_validator'
 require_relative '../helpers/cluster_context'
 require_relative '../helpers/user_prompts'
+require_relative '../helpers/resource_dependency_checker'
+require_relative '../helpers/editor_helper'
 require_relative '../../config/cluster_config'
 require_relative '../../kubernetes/client'
 require_relative '../../kubernetes/resource_builder'
@@ -142,11 +144,7 @@ module LanguageOperator
 
           # Get agents using this model
           agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
-          agents_using = agents.select do |agent|
-            agent_model_refs = agent.dig('spec', 'modelRefs') || []
-            agent_models = agent_model_refs.map { |ref| ref['name'] }
-            agent_models.include?(name)
-          end
+          agents_using = Helpers::ResourceDependencyChecker.agents_using_model(agents, name)
 
           if agents_using.any?
             puts "Agents using this model (#{agents_using.count}):"
@@ -190,11 +188,7 @@ module LanguageOperator
 
           # Check for agents using this model
           agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
-          agents_using = agents.select do |agent|
-            agent_model_refs = agent.dig('spec', 'modelRefs') || []
-            agent_models = agent_model_refs.map { |ref| ref['name'] }
-            agent_models.include?(name)
-          end
+          agents_using = Helpers::ResourceDependencyChecker.agents_using_model(agents, name)
 
           if agents_using.any? && !options[:force]
             Formatters::ProgressFormatter.warn("Model '#{name}' is in use by #{agents_using.count} agent(s)")
@@ -245,18 +239,13 @@ module LanguageOperator
             exit 1
           end
 
-          # Create temporary file with current model YAML
-          require 'tempfile'
-          temp_file = Tempfile.new(['model-', '.yaml'])
-          temp_file.write(model.to_yaml)
-          temp_file.close
-
-          # Open in editor
-          editor = ENV['EDITOR'] || 'vim'
-          system("#{editor} #{temp_file.path}")
-
-          # Read edited content
-          edited_yaml = File.read(temp_file.path)
+          # Edit model YAML in user's editor
+          edited_yaml = Helpers::EditorHelper.edit_content(
+            model.to_yaml,
+            'model-',
+            '.yaml',
+            default_editor: 'vim'
+          )
           edited_model = YAML.safe_load(edited_yaml)
 
           # Apply changes
@@ -270,8 +259,6 @@ module LanguageOperator
           raise if ENV['DEBUG']
 
           exit 1
-        ensure
-          temp_file&.unlink
         end
       end
     end
