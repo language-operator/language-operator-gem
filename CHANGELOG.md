@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Gem Hosting Migration**: Switched primary gem hosting from self-hosted Forgejo registry to RubyGems.org
+  - RubyGems.org is now the primary publishing target for better discoverability and easier installation
+  - Forgejo registry remains as an optional fallback (publishes if `REGISTRY_TOKEN` secret is configured)
+  - Updated CI workflow to prioritize RubyGems.org publishing
+  - Added installation instructions and RubyGems badge to README.md
+  - Users can now install via: `gem install language-operator`
+
 ## [0.1.0] - 2025-11-05
 
 ### Added

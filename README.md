@@ -1,6 +1,28 @@
 # Ruby SDK for Language Operator
 
+[![Gem Version](https://img.shields.io/gem/v/language-operator.svg)](https://rubygems.org/gems/language-operator)
+
 This gem translates a high-level DSL into language operator components.
+
+## Installation
+
+Install the gem from RubyGems.org:
+
+```bash
+gem install language-operator
+```
+
+Or add it to your Gemfile:
+
+```ruby
+gem 'language-operator'
+```
+
+Then run:
+
+```bash
+bundle install
+```
 
 ## Quick Start
 

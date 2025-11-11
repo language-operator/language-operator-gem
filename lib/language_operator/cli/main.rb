@@ -124,9 +124,6 @@ module LanguageOperator
         Commands::Install.new([], options).uninstall
       end
 
-
-
-
       desc 'completion SHELL', 'Install shell completion for aictl (bash, zsh, fish)'
       long_desc <<-DESC
         Install shell completion for aictl. Supports bash, zsh, and fish.
@@ -230,7 +227,6 @@ module LanguageOperator
         puts
         puts 'Or restart your fish shell'
       end
-
     end
   end
 end
