@@ -2,4 +2,4 @@
 
 [![Gem Version](https://img.shields.io/gem/v/language-operator.svg)](https://rubygems.org/gems/language-operator)
 
-This gem is used by [language-operator](https://github.com/language-operator/language-operator).
+This gem is experimental, used by [language-operator](https://github.com/language-operator/language-operator), and not ready for production.
