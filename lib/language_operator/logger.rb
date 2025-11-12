@@ -23,10 +23,10 @@ module LanguageOperator
     }.freeze
 
     LEVEL_EMOJI = {
-      'DEBUG' => '🔍',
-      'INFO' => 'ℹ️ ',
-      'WARN' => '⚠️ ',
-      'ERROR' => '❌'
+      'DEBUG' => '', # 🔍
+      'INFO' => '', # ℹ️
+      'WARN' => '', # ⚠️
+      'ERROR' => '' # ❌
     }.freeze
 
     attr_reader :logger, :format, :show_timing
