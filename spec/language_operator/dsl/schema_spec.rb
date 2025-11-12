@@ -614,4 +614,479 @@ RSpec.describe LanguageOperator::Dsl::Schema do
       end
     end
   end
+
+  describe '.to_openapi' do
+    let(:spec) { described_class.to_openapi }
+
+    it 'returns a Hash' do
+      expect(spec).to be_a(Hash)
+    end
+
+    describe 'OpenAPI metadata' do
+      it 'specifies OpenAPI 3.0.3' do
+        expect(spec[:openapi]).to eq('3.0.3')
+      end
+
+      it 'includes info section' do
+        expect(spec[:info]).to be_a(Hash)
+        expect(spec[:info][:title]).to eq('Language Operator Agent API')
+        expect(spec[:info][:version]).to eq(LanguageOperator::VERSION)
+        expect(spec[:info][:description]).to include('HTTP API endpoints')
+      end
+
+      it 'includes contact information' do
+        expect(spec[:info][:contact]).to be_a(Hash)
+        expect(spec[:info][:contact][:name]).to eq('Language Operator')
+        expect(spec[:info][:contact][:url]).to include('github.com')
+      end
+
+      it 'includes license information' do
+        expect(spec[:info][:license]).to be_a(Hash)
+        expect(spec[:info][:license][:name]).to eq('FSL-1.1-Apache-2.0')
+        expect(spec[:info][:license][:url]).to include('LICENSE')
+      end
+    end
+
+    describe 'servers' do
+      it 'includes servers array' do
+        expect(spec[:servers]).to be_an(Array)
+        expect(spec[:servers].length).to be > 0
+      end
+
+      it 'includes localhost server for development' do
+        localhost = spec[:servers].find { |s| s[:url].include?('localhost') }
+        expect(localhost).not_to be_nil
+        expect(localhost[:description]).to include('development')
+      end
+    end
+
+    describe 'paths' do
+      let(:paths) { spec[:paths] }
+
+      it 'includes paths section' do
+        expect(paths).to be_a(Hash)
+        expect(paths).not_to be_empty
+      end
+
+      it 'includes health endpoint' do
+        expect(paths['/health']).to be_a(Hash)
+        expect(paths['/health'][:get]).to be_a(Hash)
+        expect(paths['/health'][:get][:summary]).to eq('Health check')
+        expect(paths['/health'][:get][:tags]).to include('Health')
+      end
+
+      it 'includes readiness endpoint' do
+        expect(paths['/ready']).to be_a(Hash)
+        expect(paths['/ready'][:get]).to be_a(Hash)
+        expect(paths['/ready'][:get][:summary]).to eq('Readiness check')
+      end
+
+      it 'includes chat completions endpoint' do
+        expect(paths['/v1/chat/completions']).to be_a(Hash)
+        expect(paths['/v1/chat/completions'][:post]).to be_a(Hash)
+        expect(paths['/v1/chat/completions'][:post][:summary]).to include('chat completion')
+      end
+
+      it 'includes models endpoint' do
+        expect(paths['/v1/models']).to be_a(Hash)
+        expect(paths['/v1/models'][:get]).to be_a(Hash)
+        expect(paths['/v1/models'][:get][:summary]).to include('models')
+      end
+
+      describe 'health endpoint specification' do
+        let(:health) { paths['/health'][:get] }
+
+        it 'has operation ID' do
+          expect(health[:operationId]).to eq('getHealth')
+        end
+
+        it 'has 200 response' do
+          expect(health[:responses][:'200']).to be_a(Hash)
+          expect(health[:responses][:'200'][:description]).to include('healthy')
+        end
+
+        it 'references HealthResponse schema' do
+          schema_ref = health[:responses][:'200'][:content][:'application/json'][:schema][:$ref]
+          expect(schema_ref).to eq('#/components/schemas/HealthResponse')
+        end
+      end
+
+      describe 'ready endpoint specification' do
+        let(:ready) { paths['/ready'][:get] }
+
+        it 'has operation ID' do
+          expect(ready[:operationId]).to eq('getReady')
+        end
+
+        it 'has 200 and 503 responses' do
+          expect(ready[:responses][:'200']).to be_a(Hash)
+          expect(ready[:responses][:'503']).to be_a(Hash)
+        end
+
+        it 'references appropriate schemas' do
+          success_ref = ready[:responses][:'200'][:content][:'application/json'][:schema][:$ref]
+          error_ref = ready[:responses][:'503'][:content][:'application/json'][:schema][:$ref]
+
+          expect(success_ref).to eq('#/components/schemas/HealthResponse')
+          expect(error_ref).to eq('#/components/schemas/ErrorResponse')
+        end
+      end
+
+      describe 'chat completions endpoint specification' do
+        let(:chat) { paths['/v1/chat/completions'][:post] }
+
+        it 'has operation ID' do
+          expect(chat[:operationId]).to eq('createChatCompletion')
+        end
+
+        it 'has Chat tag' do
+          expect(chat[:tags]).to include('Chat')
+        end
+
+        it 'requires request body' do
+          expect(chat[:requestBody]).to be_a(Hash)
+          expect(chat[:requestBody][:required]).to be true
+        end
+
+        it 'references ChatCompletionRequest schema for request' do
+          schema_ref = chat[:requestBody][:content][:'application/json'][:schema][:$ref]
+          expect(schema_ref).to eq('#/components/schemas/ChatCompletionRequest')
+        end
+
+        it 'has 200 and 400 responses' do
+          expect(chat[:responses][:'200']).to be_a(Hash)
+          expect(chat[:responses][:'400']).to be_a(Hash)
+        end
+
+        it 'supports both JSON and streaming responses' do
+          response_content = chat[:responses][:'200'][:content]
+          expect(response_content[:'application/json']).to be_a(Hash)
+          expect(response_content[:'text/event-stream']).to be_a(Hash)
+        end
+
+        it 'references ChatCompletionResponse schema for response' do
+          schema_ref = chat[:responses][:'200'][:content][:'application/json'][:schema][:$ref]
+          expect(schema_ref).to eq('#/components/schemas/ChatCompletionResponse')
+        end
+      end
+
+      describe 'models endpoint specification' do
+        let(:models) { paths['/v1/models'][:get] }
+
+        it 'has operation ID' do
+          expect(models[:operationId]).to eq('listModels')
+        end
+
+        it 'has Models tag' do
+          expect(models[:tags]).to include('Models')
+        end
+
+        it 'has 200 response' do
+          expect(models[:responses][:'200']).to be_a(Hash)
+        end
+
+        it 'references ModelList schema' do
+          schema_ref = models[:responses][:'200'][:content][:'application/json'][:schema][:$ref]
+          expect(schema_ref).to eq('#/components/schemas/ModelList')
+        end
+      end
+    end
+
+    describe 'components' do
+      let(:components) { spec[:components] }
+
+      it 'includes components section' do
+        expect(components).to be_a(Hash)
+      end
+
+      it 'includes schemas' do
+        expect(components[:schemas]).to be_a(Hash)
+        expect(components[:schemas]).not_to be_empty
+      end
+
+      it 'includes all required schemas' do
+        expected_schemas = %i[
+          ChatCompletionRequest
+          ChatCompletionResponse
+          ChatMessage
+          ChatChoice
+          ChatUsage
+          ModelList
+          Model
+          HealthResponse
+          ErrorResponse
+        ]
+
+        expected_schemas.each do |schema_name|
+          expect(components[:schemas]).to have_key(schema_name), "Missing schema: #{schema_name}"
+        end
+      end
+
+      describe 'ChatCompletionRequest schema' do
+        let(:schema) { components[:schemas][:ChatCompletionRequest] }
+
+        it 'is an object type' do
+          expect(schema[:type]).to eq('object')
+        end
+
+        it 'requires model and messages' do
+          expect(schema[:required]).to include('model', 'messages')
+        end
+
+        it 'includes standard OpenAI parameters' do
+          expect(schema[:properties][:model]).to be_a(Hash)
+          expect(schema[:properties][:messages]).to be_a(Hash)
+          expect(schema[:properties][:temperature]).to be_a(Hash)
+          expect(schema[:properties][:max_tokens]).to be_a(Hash)
+          expect(schema[:properties][:stream]).to be_a(Hash)
+        end
+
+        it 'includes advanced parameters' do
+          expect(schema[:properties][:top_p]).to be_a(Hash)
+          expect(schema[:properties][:frequency_penalty]).to be_a(Hash)
+          expect(schema[:properties][:presence_penalty]).to be_a(Hash)
+          expect(schema[:properties][:stop]).to be_a(Hash)
+        end
+
+        it 'validates temperature range' do
+          temp = schema[:properties][:temperature]
+          expect(temp[:minimum]).to eq(0.0)
+          expect(temp[:maximum]).to eq(2.0)
+          expect(temp[:default]).to eq(0.7)
+        end
+
+        it 'validates penalty ranges' do
+          freq = schema[:properties][:frequency_penalty]
+          pres = schema[:properties][:presence_penalty]
+
+          expect(freq[:minimum]).to eq(-2.0)
+          expect(freq[:maximum]).to eq(2.0)
+          expect(pres[:minimum]).to eq(-2.0)
+          expect(pres[:maximum]).to eq(2.0)
+        end
+
+        it 'allows stop as string or array' do
+          stop = schema[:properties][:stop]
+          expect(stop[:oneOf]).to be_an(Array)
+          expect(stop[:oneOf].length).to eq(2)
+        end
+      end
+
+      describe 'ChatCompletionResponse schema' do
+        let(:schema) { components[:schemas][:ChatCompletionResponse] }
+
+        it 'requires standard fields' do
+          expect(schema[:required]).to include('id', 'object', 'created', 'model', 'choices')
+        end
+
+        it 'includes all response properties' do
+          expect(schema[:properties][:id]).to be_a(Hash)
+          expect(schema[:properties][:object]).to be_a(Hash)
+          expect(schema[:properties][:created]).to be_a(Hash)
+          expect(schema[:properties][:model]).to be_a(Hash)
+          expect(schema[:properties][:choices]).to be_a(Hash)
+          expect(schema[:properties][:usage]).to be_a(Hash)
+        end
+
+        it 'validates object type as chat.completion' do
+          expect(schema[:properties][:object][:enum]).to eq(['chat.completion'])
+        end
+
+        it 'references ChatChoice for choices' do
+          choices = schema[:properties][:choices]
+          expect(choices[:type]).to eq('array')
+          expect(choices[:items][:$ref]).to eq('#/components/schemas/ChatChoice')
+        end
+
+        it 'references ChatUsage for usage' do
+          expect(schema[:properties][:usage][:$ref]).to eq('#/components/schemas/ChatUsage')
+        end
+      end
+
+      describe 'ChatMessage schema' do
+        let(:schema) { components[:schemas][:ChatMessage] }
+
+        it 'requires role and content' do
+          expect(schema[:required]).to include('role', 'content')
+        end
+
+        it 'validates role enum' do
+          expect(schema[:properties][:role][:enum]).to match_array(%w[system user assistant])
+        end
+
+        it 'includes optional name field' do
+          expect(schema[:properties][:name]).to be_a(Hash)
+        end
+      end
+
+      describe 'ChatChoice schema' do
+        let(:schema) { components[:schemas][:ChatChoice] }
+
+        it 'requires index, message, and finish_reason' do
+          expect(schema[:required]).to include('index', 'message', 'finish_reason')
+        end
+
+        it 'references ChatMessage' do
+          expect(schema[:properties][:message][:$ref]).to eq('#/components/schemas/ChatMessage')
+        end
+
+        it 'validates finish_reason enum' do
+          expect(schema[:properties][:finish_reason][:enum]).to include('stop', 'length')
+        end
+      end
+
+      describe 'ChatUsage schema' do
+        let(:schema) { components[:schemas][:ChatUsage] }
+
+        it 'requires token counts' do
+          expect(schema[:required]).to include('prompt_tokens', 'completion_tokens', 'total_tokens')
+        end
+
+        it 'defines all token fields as integers' do
+          expect(schema[:properties][:prompt_tokens][:type]).to eq('integer')
+          expect(schema[:properties][:completion_tokens][:type]).to eq('integer')
+          expect(schema[:properties][:total_tokens][:type]).to eq('integer')
+        end
+      end
+
+      describe 'ModelList schema' do
+        let(:schema) { components[:schemas][:ModelList] }
+
+        it 'requires object and data' do
+          expect(schema[:required]).to include('object', 'data')
+        end
+
+        it 'validates object type as list' do
+          expect(schema[:properties][:object][:enum]).to eq(['list'])
+        end
+
+        it 'references Model for data items' do
+          data = schema[:properties][:data]
+          expect(data[:type]).to eq('array')
+          expect(data[:items][:$ref]).to eq('#/components/schemas/Model')
+        end
+      end
+
+      describe 'Model schema' do
+        let(:schema) { components[:schemas][:Model] }
+
+        it 'requires id and object' do
+          expect(schema[:required]).to include('id', 'object')
+        end
+
+        it 'validates object type as model' do
+          expect(schema[:properties][:object][:enum]).to eq(['model'])
+        end
+
+        it 'includes optional fields' do
+          expect(schema[:properties][:created]).to be_a(Hash)
+          expect(schema[:properties][:owned_by]).to be_a(Hash)
+        end
+      end
+
+      describe 'HealthResponse schema' do
+        let(:schema) { components[:schemas][:HealthResponse] }
+
+        it 'requires status' do
+          expect(schema[:required]).to include('status')
+        end
+
+        it 'validates status enum' do
+          expect(schema[:properties][:status][:enum]).to match_array(%w[ok ready])
+        end
+
+        it 'includes optional timestamp with date-time format' do
+          timestamp = schema[:properties][:timestamp]
+          expect(timestamp[:type]).to eq('string')
+          expect(timestamp[:format]).to eq('date-time')
+        end
+      end
+
+      describe 'ErrorResponse schema' do
+        let(:schema) { components[:schemas][:ErrorResponse] }
+
+        it 'requires error field' do
+          expect(schema[:required]).to include('error')
+        end
+
+        it 'defines nested error object' do
+          error = schema[:properties][:error]
+          expect(error[:type]).to eq('object')
+          expect(error[:required]).to include('message', 'type')
+        end
+
+        it 'includes error properties' do
+          error_props = schema[:properties][:error][:properties]
+          expect(error_props[:message]).to be_a(Hash)
+          expect(error_props[:type]).to be_a(Hash)
+          expect(error_props[:code]).to be_a(Hash)
+        end
+      end
+    end
+
+    describe 'spec structure' do
+      it 'can be serialized to JSON' do
+        require 'json'
+        expect { JSON.generate(spec) }.not_to raise_error
+      end
+
+      it 'produces valid JSON output' do
+        require 'json'
+        json_str = JSON.generate(spec)
+        parsed = JSON.parse(json_str)
+        expect(parsed).to be_a(Hash)
+        expect(parsed['openapi']).to eq('3.0.3')
+      end
+
+      it 'maintains structure after JSON round-trip' do
+        require 'json'
+        json_str = JSON.generate(spec)
+        parsed = JSON.parse(json_str, symbolize_names: true)
+
+        expect(parsed[:openapi]).to eq('3.0.3')
+        expect(parsed[:info][:title]).to eq('Language Operator Agent API')
+        expect(parsed[:paths]).to have_key(:'/health')
+        expect(parsed[:components][:schemas]).to have_key(:ChatCompletionRequest)
+      end
+    end
+
+    describe 'OpenAPI 3.0 compliance' do
+      it 'includes all required top-level fields' do
+        expect(spec).to have_key(:openapi)
+        expect(spec).to have_key(:info)
+        expect(spec).to have_key(:paths)
+      end
+
+      it 'info section includes required fields' do
+        expect(spec[:info]).to have_key(:title)
+        expect(spec[:info]).to have_key(:version)
+      end
+
+      it 'paths is a non-empty object' do
+        expect(spec[:paths]).to be_a(Hash)
+        expect(spec[:paths]).not_to be_empty
+      end
+
+      it 'each path item contains valid HTTP methods' do
+        spec[:paths].each_value do |operations|
+          expect(operations).to be_a(Hash)
+          operations.each_key do |method|
+            expect(%i[get post put delete patch options head trace]).to include(method)
+          end
+        end
+      end
+
+      it 'each operation has responses' do
+        spec[:paths].each_value do |operations|
+          operations.each do |method, operation|
+            next if method == :parameters
+
+            expect(operation[:responses]).to be_a(Hash),
+                                             "Missing responses for #{method}"
+            expect(operation[:responses]).not_to be_empty
+          end
+        end
+      end
+    end
+  end
 end

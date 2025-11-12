@@ -38,6 +38,25 @@ module LanguageOperator
         }
       end
 
+      # Generate OpenAPI 3.0 specification for agent HTTP endpoints
+      #
+      # Generates an OpenAPI 3.0.3 spec documenting the HTTP API exposed by
+      # reactive agents. This includes chat endpoints, webhooks, and health checks.
+      #
+      # @return [Hash] OpenAPI 3.0.3 compliant specification
+      # @example Generate OpenAPI spec
+      #   spec = LanguageOperator::Dsl::Schema.to_openapi
+      #   File.write('openapi.json', JSON.pretty_generate(spec))
+      def self.to_openapi
+        {
+          openapi: '3.0.3',
+          info: openapi_info,
+          servers: openapi_servers,
+          paths: openapi_paths,
+          components: openapi_components
+        }
+      end
+
       # Returns the schema version
       #
       # The schema version is directly linked to the gem version and follows semantic
@@ -584,6 +603,497 @@ module LanguageOperator
             }
           },
           required: %w[type]
+        }
+      end
+
+      # OpenAPI info section
+      #
+      # @return [Hash] OpenAPI info object
+      def self.openapi_info
+        {
+          title: 'Language Operator Agent API',
+          version: LanguageOperator::VERSION,
+          description: 'HTTP API endpoints exposed by Language Operator reactive agents',
+          contact: {
+            name: 'Language Operator',
+            url: 'https://github.com/language-operator/language-operator-gem'
+          },
+          license: {
+            name: 'FSL-1.1-Apache-2.0',
+            url: 'https://github.com/language-operator/language-operator-gem/blob/main/LICENSE'
+          }
+        }
+      end
+
+      # OpenAPI servers section
+      #
+      # @return [Array<Hash>] OpenAPI server objects
+      def self.openapi_servers
+        [
+          {
+            url: 'http://localhost:8080',
+            description: 'Local development server'
+          }
+        ]
+      end
+
+      # OpenAPI paths section - documents all HTTP endpoints
+      #
+      # @return [Hash] OpenAPI paths object
+      def self.openapi_paths
+        {
+          '/health' => health_endpoint_spec,
+          '/ready' => ready_endpoint_spec,
+          '/v1/chat/completions' => chat_completions_endpoint_spec,
+          '/v1/models' => models_endpoint_spec
+        }
+      end
+
+      # OpenAPI components section - reusable schemas
+      #
+      # @return [Hash] OpenAPI components object
+      def self.openapi_components
+        {
+          schemas: {
+            ChatCompletionRequest: chat_completion_request_schema,
+            ChatCompletionResponse: chat_completion_response_schema,
+            ChatMessage: chat_message_schema,
+            ChatChoice: chat_choice_schema,
+            ChatUsage: chat_usage_schema,
+            ModelList: model_list_schema,
+            Model: model_schema,
+            HealthResponse: health_response_schema,
+            ErrorResponse: error_response_schema
+          }
+        }
+      end
+
+      # Health check endpoint spec
+      #
+      # @return [Hash] OpenAPI path item
+      def self.health_endpoint_spec
+        {
+          get: {
+            summary: 'Health check',
+            description: 'Returns the health status of the agent',
+            operationId: 'getHealth',
+            tags: ['Health'],
+            responses: {
+              '200': {
+                description: 'Agent is healthy',
+                content: {
+                  'application/json': {
+                    schema: {
+                      '$ref': '#/components/schemas/HealthResponse'
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      end
+
+      # Readiness check endpoint spec
+      #
+      # @return [Hash] OpenAPI path item
+      def self.ready_endpoint_spec
+        {
+          get: {
+            summary: 'Readiness check',
+            description: 'Returns whether the agent is ready to accept requests',
+            operationId: 'getReady',
+            tags: ['Health'],
+            responses: {
+              '200': {
+                description: 'Agent is ready',
+                content: {
+                  'application/json': {
+                    schema: {
+                      '$ref': '#/components/schemas/HealthResponse'
+                    }
+                  }
+                }
+              },
+              '503': {
+                description: 'Agent is not ready',
+                content: {
+                  'application/json': {
+                    schema: {
+                      '$ref': '#/components/schemas/ErrorResponse'
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      end
+
+      # Chat completions endpoint spec (OpenAI-compatible)
+      #
+      # @return [Hash] OpenAPI path item
+      def self.chat_completions_endpoint_spec
+        {
+          post: {
+            summary: 'Create chat completion',
+            description: 'Creates a chat completion response (OpenAI-compatible endpoint)',
+            operationId: 'createChatCompletion',
+            tags: ['Chat'],
+            requestBody: {
+              required: true,
+              content: {
+                'application/json': {
+                  schema: {
+                    '$ref': '#/components/schemas/ChatCompletionRequest'
+                  }
+                }
+              }
+            },
+            responses: {
+              '200': {
+                description: 'Successful chat completion response',
+                content: {
+                  'application/json': {
+                    schema: {
+                      '$ref': '#/components/schemas/ChatCompletionResponse'
+                    }
+                  },
+                  'text/event-stream': {
+                    description: 'Server-sent events stream (when stream=true)',
+                    schema: {
+                      type: 'string'
+                    }
+                  }
+                }
+              },
+              '400': {
+                description: 'Invalid request',
+                content: {
+                  'application/json': {
+                    schema: {
+                      '$ref': '#/components/schemas/ErrorResponse'
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      end
+
+      # Models list endpoint spec (OpenAI-compatible)
+      #
+      # @return [Hash] OpenAPI path item
+      def self.models_endpoint_spec
+        {
+          get: {
+            summary: 'List models',
+            description: 'Lists available models (OpenAI-compatible endpoint)',
+            operationId: 'listModels',
+            tags: ['Models'],
+            responses: {
+              '200': {
+                description: 'List of available models',
+                content: {
+                  'application/json': {
+                    schema: {
+                      '$ref': '#/components/schemas/ModelList'
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      end
+
+      # Chat completion request schema
+      #
+      # @return [Hash] OpenAPI schema object
+      def self.chat_completion_request_schema
+        {
+          type: 'object',
+          required: %w[model messages],
+          properties: {
+            model: {
+              type: 'string',
+              description: 'Model name to use for completion'
+            },
+            messages: {
+              type: 'array',
+              description: 'List of messages in the conversation',
+              items: {
+                '$ref': '#/components/schemas/ChatMessage'
+              }
+            },
+            temperature: {
+              type: 'number',
+              description: 'Sampling temperature (0.0-2.0)',
+              minimum: 0.0,
+              maximum: 2.0,
+              default: 0.7
+            },
+            max_tokens: {
+              type: 'integer',
+              description: 'Maximum tokens in response',
+              minimum: 1,
+              default: 2000
+            },
+            stream: {
+              type: 'boolean',
+              description: 'Stream responses as server-sent events',
+              default: false
+            },
+            top_p: {
+              type: 'number',
+              description: 'Nucleus sampling parameter',
+              minimum: 0.0,
+              maximum: 1.0,
+              default: 1.0
+            },
+            frequency_penalty: {
+              type: 'number',
+              description: 'Frequency penalty (-2.0 to 2.0)',
+              minimum: -2.0,
+              maximum: 2.0,
+              default: 0.0
+            },
+            presence_penalty: {
+              type: 'number',
+              description: 'Presence penalty (-2.0 to 2.0)',
+              minimum: -2.0,
+              maximum: 2.0,
+              default: 0.0
+            },
+            stop: {
+              oneOf: [
+                { type: 'string' },
+                {
+                  type: 'array',
+                  items: { type: 'string' }
+                }
+              ],
+              description: 'Stop sequences for generation'
+            }
+          }
+        }
+      end
+
+      # Chat completion response schema
+      #
+      # @return [Hash] OpenAPI schema object
+      def self.chat_completion_response_schema
+        {
+          type: 'object',
+          required: %w[id object created model choices],
+          properties: {
+            id: {
+              type: 'string',
+              description: 'Unique identifier for the completion'
+            },
+            object: {
+              type: 'string',
+              description: 'Object type (always "chat.completion")',
+              enum: ['chat.completion']
+            },
+            created: {
+              type: 'integer',
+              description: 'Unix timestamp of creation'
+            },
+            model: {
+              type: 'string',
+              description: 'Model used for completion'
+            },
+            choices: {
+              type: 'array',
+              description: 'List of completion choices',
+              items: {
+                '$ref': '#/components/schemas/ChatChoice'
+              }
+            },
+            usage: {
+              '$ref': '#/components/schemas/ChatUsage'
+            }
+          }
+        }
+      end
+
+      # Chat message schema
+      #
+      # @return [Hash] OpenAPI schema object
+      def self.chat_message_schema
+        {
+          type: 'object',
+          required: %w[role content],
+          properties: {
+            role: {
+              type: 'string',
+              description: 'Message role',
+              enum: %w[system user assistant]
+            },
+            content: {
+              type: 'string',
+              description: 'Message content'
+            },
+            name: {
+              type: 'string',
+              description: 'Optional name of the message author'
+            }
+          }
+        }
+      end
+
+      # Chat choice schema
+      #
+      # @return [Hash] OpenAPI schema object
+      def self.chat_choice_schema
+        {
+          type: 'object',
+          required: %w[index message finish_reason],
+          properties: {
+            index: {
+              type: 'integer',
+              description: 'Choice index'
+            },
+            message: {
+              '$ref': '#/components/schemas/ChatMessage'
+            },
+            finish_reason: {
+              type: 'string',
+              description: 'Reason for completion finish',
+              enum: %w[stop length content_filter null]
+            }
+          }
+        }
+      end
+
+      # Chat usage schema
+      #
+      # @return [Hash] OpenAPI schema object
+      def self.chat_usage_schema
+        {
+          type: 'object',
+          required: %w[prompt_tokens completion_tokens total_tokens],
+          properties: {
+            prompt_tokens: {
+              type: 'integer',
+              description: 'Tokens in the prompt'
+            },
+            completion_tokens: {
+              type: 'integer',
+              description: 'Tokens in the completion'
+            },
+            total_tokens: {
+              type: 'integer',
+              description: 'Total tokens used'
+            }
+          }
+        }
+      end
+
+      # Model list schema
+      #
+      # @return [Hash] OpenAPI schema object
+      def self.model_list_schema
+        {
+          type: 'object',
+          required: %w[object data],
+          properties: {
+            object: {
+              type: 'string',
+              description: 'Object type (always "list")',
+              enum: ['list']
+            },
+            data: {
+              type: 'array',
+              description: 'List of available models',
+              items: {
+                '$ref': '#/components/schemas/Model'
+              }
+            }
+          }
+        }
+      end
+
+      # Model schema
+      #
+      # @return [Hash] OpenAPI schema object
+      def self.model_schema
+        {
+          type: 'object',
+          required: %w[id object],
+          properties: {
+            id: {
+              type: 'string',
+              description: 'Model identifier'
+            },
+            object: {
+              type: 'string',
+              description: 'Object type (always "model")',
+              enum: ['model']
+            },
+            created: {
+              type: 'integer',
+              description: 'Unix timestamp of model creation'
+            },
+            owned_by: {
+              type: 'string',
+              description: 'Organization that owns the model'
+            }
+          }
+        }
+      end
+
+      # Health response schema
+      #
+      # @return [Hash] OpenAPI schema object
+      def self.health_response_schema
+        {
+          type: 'object',
+          required: %w[status],
+          properties: {
+            status: {
+              type: 'string',
+              description: 'Health status',
+              enum: %w[ok ready]
+            },
+            timestamp: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Timestamp of health check'
+            }
+          }
+        }
+      end
+
+      # Error response schema
+      #
+      # @return [Hash] OpenAPI schema object
+      def self.error_response_schema
+        {
+          type: 'object',
+          required: %w[error],
+          properties: {
+            error: {
+              type: 'object',
+              required: %w[message type],
+              properties: {
+                message: {
+                  type: 'string',
+                  description: 'Error message'
+                },
+                type: {
+                  type: 'string',
+                  description: 'Error type'
+                },
+                code: {
+                  type: 'string',
+                  description: 'Error code'
+                }
+              }
+            }
+          }
         }
       end
     end
