@@ -4,6 +4,7 @@ Complete reference guide for the Language Operator agent DSL.
 
 ## Table of Contents
 
+- [Schema Version](#schema-version)
 - [Agent Definition](#agent-definition)
 - [Execution Modes](#execution-modes)
 - [Schedule Configuration](#schedule-configuration)
@@ -13,6 +14,18 @@ Complete reference guide for the Language Operator agent DSL.
 - [Constraints](#constraints)
 - [Output Configuration](#output-configuration)
 - [Complete Examples](#complete-examples)
+
+## Schema Version
+
+The Language Operator DSL schema is versioned using semantic versioning. The schema version is identical to the gem version.
+
+**Access schema version:**
+
+```ruby
+LanguageOperator::Dsl::Schema.version  # => "0.1.30"
+```
+
+For detailed information about schema versioning policy, version semantics, and compatibility, see [Schema Versioning Policy](./SCHEMA_VERSION.md).
 
 ## Agent Definition
 

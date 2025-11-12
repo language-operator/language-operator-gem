@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Schema Version Method**: Added `LanguageOperator::Dsl::Schema.version` method that returns the current schema version (linked to gem version)
+- **Schema Versioning Documentation**: Added comprehensive `docs/dsl/SCHEMA_VERSION.md` documenting versioning policy, semantic version semantics for schema changes, compatibility rules, and deprecation policy
+- Schema version method includes YARD documentation with examples
+- Tests added for schema version access and validation
+
 ### Changed
 - **GitHub Migration**: Migrated project from self-hosted Forgejo to GitHub
   - Repository now hosted at: https://github.com/language-operator/language-operator-gem

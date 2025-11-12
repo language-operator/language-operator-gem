@@ -3,6 +3,31 @@
 require 'spec_helper'
 
 RSpec.describe LanguageOperator::Dsl::Schema do
+  describe '.version' do
+    it 'returns the gem version' do
+      expect(described_class.version).to eq(LanguageOperator::VERSION)
+    end
+
+    it 'returns a string' do
+      expect(described_class.version).to be_a(String)
+    end
+
+    it 'returns a valid semantic version format' do
+      expect(described_class.version).to match(/^\d+\.\d+\.\d+/)
+    end
+
+    it 'matches version in to_json_schema output' do
+      schema = described_class.to_json_schema
+      expect(described_class.version).to eq(schema[:version])
+    end
+
+    it 'is accessible for version compatibility checks' do
+      version = described_class.version
+      # Should be parseable by Gem::Version
+      expect { Gem::Version.new(version) }.not_to raise_error
+    end
+  end
+
   describe '.to_json_schema' do
     let(:schema) { described_class.to_json_schema }
 

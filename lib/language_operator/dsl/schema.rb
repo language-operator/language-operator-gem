@@ -38,6 +38,22 @@ module LanguageOperator
         }
       end
 
+      # Returns the schema version
+      #
+      # The schema version is directly linked to the gem version and follows semantic
+      # versioning. Schema changes follow these rules:
+      # - MAJOR: Breaking changes to DSL structure or behavior
+      # - MINOR: New features, backward-compatible additions
+      # - PATCH: Bug fixes, documentation improvements
+      #
+      # @return [String] Current schema version (e.g., "0.1.30")
+      # @example
+      #   LanguageOperator::Dsl::Schema.version
+      #   # => "0.1.30"
+      def self.version
+        LanguageOperator::VERSION
+      end
+
       # Returns array of safe agent DSL methods allowed in agent definitions
       #
       # Reads from Agent::Safety::ASTValidator::SAFE_AGENT_METHODS constant.
