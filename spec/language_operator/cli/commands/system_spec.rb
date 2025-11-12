@@ -140,6 +140,195 @@ RSpec.describe LanguageOperator::CLI::Commands::System do
     end
   end
 
+  describe '#synthesis_template' do
+    context 'with default options (agent template, template format)' do
+      it 'outputs agent synthesis template' do
+        output = capture_stdout { command.invoke(:synthesis_template, [], {}) }
+        expect(output).to include('You are generating Ruby DSL code')
+        expect(output).to include('{{.AgentName}}')
+        expect(output).to include('{{.Instructions}}')
+      end
+
+      it 'includes required placeholders' do
+        output = capture_stdout { command.invoke(:synthesis_template, [], {}) }
+        expect(output).to include('{{.ToolsList}}')
+        expect(output).to include('{{.ModelsList}}')
+        expect(output).to include('{{.TemporalIntent}}')
+      end
+    end
+
+    context 'with persona type' do
+      it 'outputs persona distillation template' do
+        output = capture_stdout { command.invoke(:synthesis_template, [], type: 'persona') }
+        expect(output).to include('Distill this persona')
+        expect(output).to include('{{.PersonaName}}')
+        expect(output).to include('{{.PersonaDescription}}')
+      end
+
+      it 'includes persona-specific placeholders' do
+        output = capture_stdout { command.invoke(:synthesis_template, [], type: 'persona') }
+        expect(output).to include('{{.PersonaSystemPrompt}}')
+        expect(output).to include('{{.AgentInstructions}}')
+        expect(output).to include('{{.AgentTools}}')
+      end
+    end
+
+    context 'with json format' do
+      it 'outputs valid JSON' do
+        output = capture_stdout { command.invoke(:synthesis_template, [], format: 'json') }
+        expect { JSON.parse(output) }.not_to raise_error
+      end
+
+      it 'includes version and template type' do
+        output = capture_stdout { command.invoke(:synthesis_template, [], format: 'json') }
+        data = JSON.parse(output)
+        expect(data['version']).to eq(LanguageOperator::VERSION)
+        expect(data['template_type']).to eq('agent')
+      end
+
+      it 'includes template content' do
+        output = capture_stdout { command.invoke(:synthesis_template, [], format: 'json') }
+        data = JSON.parse(output)
+        expect(data['template']).to be_a(String)
+        expect(data['template']).to include('{{.AgentName}}')
+      end
+
+      it 'pretty-prints the JSON' do
+        output = capture_stdout { command.invoke(:synthesis_template, [], format: 'json') }
+        expect(output).to include("\n")
+        expect(output).to match(/\s{2}"/)
+      end
+    end
+
+    context 'with json format and --with-schema' do
+      it 'includes DSL schema' do
+        output = capture_stdout do
+          command.invoke(:synthesis_template, [], format: 'json', with_schema: true)
+        end
+        data = JSON.parse(output)
+        expect(data['schema']).to be_a(Hash)
+        expect(data['schema']['$schema']).to eq('http://json-schema.org/draft-07/schema#')
+      end
+
+      it 'includes safe methods' do
+        output = capture_stdout do
+          command.invoke(:synthesis_template, [], format: 'json', with_schema: true)
+        end
+        data = JSON.parse(output)
+        expect(data['safe_agent_methods']).to be_an(Array)
+        expect(data['safe_tool_methods']).to be_an(Array)
+        expect(data['safe_helper_methods']).to be_an(Array)
+      end
+    end
+
+    context 'with yaml format' do
+      it 'outputs valid YAML' do
+        output = capture_stdout { command.invoke(:synthesis_template, [], format: 'yaml') }
+        expect { YAML.safe_load(output) }.not_to raise_error
+      end
+
+      it 'includes version and template type' do
+        output = capture_stdout { command.invoke(:synthesis_template, [], format: 'yaml') }
+        data = YAML.safe_load(output)
+        expect(data['version']).to eq(LanguageOperator::VERSION)
+        expect(data['template_type']).to eq('agent')
+      end
+
+      it 'includes template content' do
+        output = capture_stdout { command.invoke(:synthesis_template, [], format: 'yaml') }
+        data = YAML.safe_load(output)
+        expect(data['template']).to be_a(String)
+        expect(data['template']).to include('{{.AgentName}}')
+      end
+    end
+
+    context 'with yaml format and --with-schema' do
+      it 'includes DSL schema' do
+        output = capture_stdout do
+          command.invoke(:synthesis_template, [], format: 'yaml', with_schema: true)
+        end
+        data = YAML.safe_load(output, permitted_classes: [Symbol])
+        expect(data['schema']).to be_a(Hash)
+        expect(data['schema']['$schema']).to eq('http://json-schema.org/draft-07/schema#')
+      end
+
+      it 'includes safe methods' do
+        output = capture_stdout do
+          command.invoke(:synthesis_template, [], format: 'yaml', with_schema: true)
+        end
+        data = YAML.safe_load(output, permitted_classes: [Symbol])
+        expect(data['safe_agent_methods']).to be_an(Array)
+        expect(data['safe_tool_methods']).to be_an(Array)
+        expect(data['safe_helper_methods']).to be_an(Array)
+      end
+    end
+
+    context 'with --validate flag' do
+      it 'validates agent template successfully' do
+        expect do
+          capture_stdout { command.invoke(:synthesis_template, [], validate: true) }
+        end.not_to raise_error
+      end
+
+      it 'validates persona template successfully' do
+        expect do
+          capture_stdout do
+            command.invoke(:synthesis_template, [], type: 'persona', validate: true)
+          end
+        end.not_to raise_error
+      end
+
+      it 'outputs success message for valid template' do
+        output = capture_stdout { command.invoke(:synthesis_template, [], validate: true) }
+        expect(output).to include('validation passed')
+      end
+    end
+
+    context 'with invalid template type' do
+      it 'exits with error status 1' do
+        expect do
+          command.invoke(:synthesis_template, [], type: 'invalid')
+        end.to raise_error(SystemExit) { |error|
+          expect(error.status).to eq(1)
+        }
+      end
+    end
+
+    context 'with invalid format' do
+      it 'exits with error status 1' do
+        expect do
+          command.invoke(:synthesis_template, [], format: 'invalid')
+        end.to raise_error(SystemExit) { |error|
+          expect(error.status).to eq(1)
+        }
+      end
+    end
+
+    context 'with case-insensitive format' do
+      it 'accepts JSON in uppercase' do
+        output = capture_stdout { command.invoke(:synthesis_template, [], format: 'JSON') }
+        expect { JSON.parse(output) }.not_to raise_error
+      end
+
+      it 'accepts YAML in mixed case' do
+        output = capture_stdout { command.invoke(:synthesis_template, [], format: 'YaML') }
+        expect { YAML.safe_load(output) }.not_to raise_error
+      end
+    end
+
+    context 'with case-insensitive type' do
+      it 'accepts AGENT in uppercase' do
+        output = capture_stdout { command.invoke(:synthesis_template, [], type: 'AGENT') }
+        expect(output).to include('{{.AgentName}}')
+      end
+
+      it 'accepts Persona in mixed case' do
+        output = capture_stdout { command.invoke(:synthesis_template, [], type: 'Persona') }
+        expect(output).to include('{{.PersonaName}}')
+      end
+    end
+  end
+
   # Helper methods for capturing stdout and stderr
   def capture_stdout(&block)
     original_stdout = $stdout
