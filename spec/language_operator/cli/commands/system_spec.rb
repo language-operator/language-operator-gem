@@ -309,7 +309,7 @@ RSpec.describe LanguageOperator::CLI::Commands::System do
           ```
         TEMPLATE
 
-        result = command.send(:validate_template, template, 'agent')
+        result = command.send(:validate_template_content, template, 'agent')
         expect(result[:valid]).to be false
         expect(result[:errors].any? { |e| e.include?('system') }).to be true
       end
@@ -332,7 +332,7 @@ RSpec.describe LanguageOperator::CLI::Commands::System do
           ```
         TEMPLATE
 
-        result = command.send(:validate_template, template, 'agent')
+        result = command.send(:validate_template_content, template, 'agent')
         expect(result[:valid]).to be false
         expect(result[:errors].any? { |e| e.downcase.include?('syntax') || e.include?('@@') }).to be true
       end
