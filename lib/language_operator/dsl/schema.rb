@@ -38,6 +38,69 @@ module LanguageOperator
         }
       end
 
+      # Returns array of safe agent DSL methods allowed in agent definitions
+      #
+      # Reads from Agent::Safety::ASTValidator::SAFE_AGENT_METHODS constant.
+      # These methods are validated as safe for use in synthesized agent code.
+      #
+      # Includes methods for:
+      # - Agent metadata (description, persona, objectives)
+      # - Execution modes (mode, schedule)
+      # - Workflows (workflow, step, depends_on, prompt)
+      # - Constraints (budget, max_requests, rate_limit, content_filter)
+      # - Output destinations (output)
+      # - Endpoints (webhook, as_mcp_server, as_chat_endpoint)
+      #
+      # @return [Array<String>] Sorted array of safe agent method names
+      # @example
+      #   LanguageOperator::Dsl::Schema.safe_agent_methods
+      #   # => ["agent", "as_chat_endpoint", "as_mcp_server", "budget", ...]
+      def self.safe_agent_methods
+        require_relative '../agent/safety/ast_validator'
+        Agent::Safety::ASTValidator::SAFE_AGENT_METHODS.sort
+      end
+
+      # Returns array of safe tool DSL methods allowed in tool definitions
+      #
+      # Reads from Agent::Safety::ASTValidator::SAFE_TOOL_METHODS constant.
+      # These methods are validated as safe for use in synthesized tool code.
+      #
+      # Includes methods for:
+      # - Tool definition (tool, description)
+      # - Parameters (parameter, type, required, default)
+      # - Execution (execute)
+      #
+      # @return [Array<String>] Sorted array of safe tool method names
+      # @example
+      #   LanguageOperator::Dsl::Schema.safe_tool_methods
+      #   # => ["default", "description", "execute", "parameter", "required", "tool", "type"]
+      def self.safe_tool_methods
+        require_relative '../agent/safety/ast_validator'
+        Agent::Safety::ASTValidator::SAFE_TOOL_METHODS.sort
+      end
+
+      # Returns array of safe helper methods available in execute blocks
+      #
+      # Reads from Agent::Safety::ASTValidator::SAFE_HELPER_METHODS constant.
+      # These helper methods are validated as safe for use in tool execute blocks.
+      #
+      # Includes helpers for:
+      # - HTTP requests (HTTP.*)
+      # - Shell commands (Shell.run)
+      # - Validation (validate_url, validate_phone, validate_email)
+      # - Environment variables (env_required, env_get)
+      # - Utilities (truncate, parse_csv)
+      # - Response formatting (error, success)
+      #
+      # @return [Array<String>] Sorted array of safe helper method names
+      # @example
+      #   LanguageOperator::Dsl::Schema.safe_helper_methods
+      #   # => ["HTTP", "Shell", "env_get", "env_required", "error", ...]
+      def self.safe_helper_methods
+        require_relative '../agent/safety/ast_validator'
+        Agent::Safety::ASTValidator::SAFE_HELPER_METHODS.sort
+      end
+
       # Agent top-level properties
       #
       # @return [Hash] Schema properties for agent definition

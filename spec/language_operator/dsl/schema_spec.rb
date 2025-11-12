@@ -447,4 +447,146 @@ RSpec.describe LanguageOperator::Dsl::Schema do
       expect('tool123').to match(pattern)
     end
   end
+
+  describe 'safe methods extraction' do
+    describe '.safe_agent_methods' do
+      it 'returns an array' do
+        expect(described_class.safe_agent_methods).to be_an(Array)
+      end
+
+      it 'returns an array of strings' do
+        expect(described_class.safe_agent_methods).to all(be_a(String))
+      end
+
+      it 'returns sorted array' do
+        methods = described_class.safe_agent_methods
+        expect(methods).to eq(methods.sort)
+      end
+
+      it 'is not empty' do
+        expect(described_class.safe_agent_methods).not_to be_empty
+      end
+
+      it 'matches constants from ASTValidator' do
+        require_relative '../../../lib/language_operator/agent/safety/ast_validator'
+        expected = LanguageOperator::Agent::Safety::ASTValidator::SAFE_AGENT_METHODS.sort
+        expect(described_class.safe_agent_methods).to eq(expected)
+      end
+
+      it 'includes agent DSL methods' do
+        methods = described_class.safe_agent_methods
+        expect(methods).to include('agent', 'description', 'persona', 'objectives')
+      end
+
+      it 'includes workflow methods' do
+        methods = described_class.safe_agent_methods
+        expect(methods).to include('workflow', 'step', 'depends_on', 'prompt')
+      end
+
+      it 'includes constraint methods' do
+        methods = described_class.safe_agent_methods
+        expect(methods).to include('budget', 'constraints', 'max_requests', 'rate_limit')
+      end
+
+      it 'includes endpoint methods' do
+        methods = described_class.safe_agent_methods
+        expect(methods).to include('webhook', 'as_mcp_server', 'as_chat_endpoint')
+      end
+    end
+
+    describe '.safe_tool_methods' do
+      it 'returns an array' do
+        expect(described_class.safe_tool_methods).to be_an(Array)
+      end
+
+      it 'returns an array of strings' do
+        expect(described_class.safe_tool_methods).to all(be_a(String))
+      end
+
+      it 'returns sorted array' do
+        methods = described_class.safe_tool_methods
+        expect(methods).to eq(methods.sort)
+      end
+
+      it 'is not empty' do
+        expect(described_class.safe_tool_methods).not_to be_empty
+      end
+
+      it 'matches constants from ASTValidator' do
+        require_relative '../../../lib/language_operator/agent/safety/ast_validator'
+        expected = LanguageOperator::Agent::Safety::ASTValidator::SAFE_TOOL_METHODS.sort
+        expect(described_class.safe_tool_methods).to eq(expected)
+      end
+
+      it 'includes tool definition methods' do
+        methods = described_class.safe_tool_methods
+        expect(methods).to include('tool', 'description', 'parameter')
+      end
+
+      it 'includes parameter methods' do
+        methods = described_class.safe_tool_methods
+        expect(methods).to include('type', 'required', 'default')
+      end
+
+      it 'includes execution method' do
+        methods = described_class.safe_tool_methods
+        expect(methods).to include('execute')
+      end
+    end
+
+    describe '.safe_helper_methods' do
+      it 'returns an array' do
+        expect(described_class.safe_helper_methods).to be_an(Array)
+      end
+
+      it 'returns an array of strings' do
+        expect(described_class.safe_helper_methods).to all(be_a(String))
+      end
+
+      it 'returns sorted array' do
+        methods = described_class.safe_helper_methods
+        expect(methods).to eq(methods.sort)
+      end
+
+      it 'is not empty' do
+        expect(described_class.safe_helper_methods).not_to be_empty
+      end
+
+      it 'matches constants from ASTValidator' do
+        require_relative '../../../lib/language_operator/agent/safety/ast_validator'
+        expected = LanguageOperator::Agent::Safety::ASTValidator::SAFE_HELPER_METHODS.sort
+        expect(described_class.safe_helper_methods).to eq(expected)
+      end
+
+      it 'includes HTTP helper' do
+        methods = described_class.safe_helper_methods
+        expect(methods).to include('HTTP')
+      end
+
+      it 'includes Shell helper' do
+        methods = described_class.safe_helper_methods
+        expect(methods).to include('Shell')
+      end
+
+      it 'includes validation helpers' do
+        methods = described_class.safe_helper_methods
+        expect(methods).to include('validate_url', 'validate_phone', 'validate_email')
+      end
+
+      it 'includes environment helpers' do
+        methods = described_class.safe_helper_methods
+        expect(methods).to include('env_required', 'env_get')
+      end
+
+      it 'includes utility helpers' do
+        methods = described_class.safe_helper_methods
+        expect(methods).to include('truncate', 'parse_csv')
+      end
+
+      it 'includes response helpers' do
+        methods = described_class.safe_helper_methods
+        expect(methods).to include('error', 'success')
+      end
+    end
+  end
 end
