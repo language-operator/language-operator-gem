@@ -144,9 +144,26 @@ module LanguageOperator
               models: models.count,
               status: status
             }
-          rescue StandardError
+          rescue K8s::Error::NotFound => e
+            # Cluster exists in local config but not in Kubernetes
+            name_display = cluster[:name]
+            name_display += ' *' if cluster[:name] == current
+
             {
-              name: cluster[:name],
+              name: name_display,
+              namespace: cluster[:namespace],
+              agents: '-',
+              tools: '-',
+              models: '-',
+              status: 'Not Found'
+            }
+          rescue StandardError => e
+            # Other errors (connection issues, auth problems, etc.)
+            name_display = cluster[:name]
+            name_display += ' *' if cluster[:name] == current
+
+            {
+              name: name_display,
               namespace: cluster[:namespace],
               agents: '?',
               tools: '?',
@@ -161,6 +178,23 @@ module LanguageOperator
             puts "\nCurrent cluster: #{current} (*)"
           else
             puts "\nNo cluster selected. Use 'aictl use <cluster>' to select one."
+          end
+
+          # Show helpful message if any clusters are not found
+          not_found_clusters = table_data.select { |c| c[:status] == 'Not Found' }
+          if not_found_clusters.any?
+            puts
+            Formatters::ProgressFormatter.warn('Some clusters exist in local config but not in Kubernetes')
+            puts
+            puts 'Clusters with "Not Found" status are defined in ~/.aictl/config.yaml'
+            puts 'but the corresponding LanguageCluster resource does not exist in Kubernetes.'
+            puts
+            puts 'To fix this:'
+            not_found_clusters.each do |cluster|
+              cluster_name = cluster[:name].gsub(' *', '')
+              puts "  • Remove from config:  aictl cluster delete #{cluster_name}"
+              puts "  • Or recreate:         aictl cluster create #{cluster_name}"
+            end
           end
         rescue StandardError => e
           Formatters::ProgressFormatter.error("Failed to list clusters: #{e.message}")
