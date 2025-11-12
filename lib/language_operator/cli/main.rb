@@ -11,6 +11,7 @@ require_relative 'commands/tool'
 require_relative 'commands/model'
 require_relative 'commands/quickstart'
 require_relative 'commands/install'
+require_relative 'commands/system'
 require_relative 'formatters/progress_formatter'
 require_relative '../config/cluster_config'
 require_relative '../kubernetes/client'
@@ -87,6 +88,9 @@ module LanguageOperator
 
       desc 'model SUBCOMMAND ...ARGS', 'Manage language models'
       subcommand 'model', Commands::Model
+
+      desc 'system SUBCOMMAND ...ARGS', 'System commands for schema and metadata'
+      subcommand 'system', Commands::System
 
       desc 'quickstart', 'Interactive setup wizard for first-time users'
       def quickstart
