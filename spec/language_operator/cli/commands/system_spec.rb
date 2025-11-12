@@ -282,6 +282,60 @@ RSpec.describe LanguageOperator::CLI::Commands::System do
         output = capture_stdout { command.invoke(:synthesis_template, [], validate: true) }
         expect(output).to include('validation passed')
       end
+
+      it 'validates Ruby code blocks in template' do
+        # This tests that the validation actually checks Ruby code
+        # The bundled templates should pass validation
+        output = capture_stdout { command.invoke(:synthesis_template, [], validate: true) }
+        expect(output).to include('validation passed')
+        expect(output).not_to include('dangerous method')
+      end
+
+      it 'detects dangerous methods in code blocks' do
+        # Test validation directly with dangerous code
+        template = <<~TEMPLATE
+          Test template with code:
+          {{.Instructions}}
+          {{.ToolsList}}
+          {{.ModelsList}}
+          {{.AgentName}}
+          {{.TemporalIntent}}
+          ```ruby
+          require 'language_operator'
+          agent "test" do
+            description "Test"
+            system("rm -rf /")  # Dangerous!
+          end
+          ```
+        TEMPLATE
+
+        result = command.send(:validate_template, template, 'agent')
+        expect(result[:valid]).to be false
+        expect(result[:errors].any? { |e| e.include?('system') }).to be true
+      end
+
+      it 'detects syntax errors in code blocks' do
+        # Test validation directly with syntax errors
+        template = <<~TEMPLATE
+          Test template with invalid syntax:
+          {{.Instructions}}
+          {{.ToolsList}}
+          {{.ModelsList}}
+          {{.AgentName}}
+          {{.TemporalIntent}}
+          ```ruby
+          require 'language_operator'
+          agent "test" do
+            description "Test"
+            @@  # Syntax error
+          end
+          ```
+        TEMPLATE
+
+        result = command.send(:validate_template, template, 'agent')
+        expect(result[:valid]).to be false
+        expect(result[:errors].any? { |e| e.downcase.include?('syntax') || e.include?('@@') }).to be true
+      end
     end
 
     context 'with invalid template type' do
@@ -326,6 +380,137 @@ RSpec.describe LanguageOperator::CLI::Commands::System do
         output = capture_stdout { command.invoke(:synthesis_template, [], type: 'Persona') }
         expect(output).to include('{{.PersonaName}}')
       end
+    end
+  end
+
+  describe '#extract_code_examples' do
+    it 'extracts Ruby code blocks from template' do
+      template = <<~TEMPLATE
+        Some text
+        ```ruby
+        puts "hello"
+        ```
+        More text
+      TEMPLATE
+
+      examples = command.send(:extract_code_examples, template)
+      expect(examples.length).to eq(1)
+      expect(examples[0][:code]).to include('puts "hello"')
+      expect(examples[0][:start_line]).to eq(3) # idx=0: "Some text", idx=1: "```ruby", idx=2 (line 3): code
+    end
+
+    it 'extracts multiple code blocks' do
+      template = <<~TEMPLATE
+        First block:
+        ```ruby
+        agent "test1"
+        ```
+        Second block:
+        ```ruby
+        agent "test2"
+        ```
+      TEMPLATE
+
+      examples = command.send(:extract_code_examples, template)
+      expect(examples.length).to eq(2)
+      expect(examples[0][:code]).to include('test1')
+      expect(examples[1][:code]).to include('test2')
+    end
+
+    it 'returns empty array when no code blocks' do
+      template = 'No code blocks here'
+      examples = command.send(:extract_code_examples, template)
+      expect(examples).to be_empty
+    end
+
+    it 'handles empty code blocks' do
+      template = <<~TEMPLATE
+        Empty block:
+        ```ruby
+        ```
+      TEMPLATE
+
+      examples = command.send(:extract_code_examples, template)
+      expect(examples).to be_empty
+    end
+  end
+
+  describe '#extract_method_calls' do
+    it 'extracts method calls from Ruby code' do
+      template = <<~TEMPLATE
+        ```ruby
+        agent "test" do
+          description "Test agent"
+          mode :autonomous
+        end
+        ```
+      TEMPLATE
+
+      methods = command.send(:extract_method_calls, template)
+      expect(methods).to include('agent')
+      expect(methods).to include('description')
+      expect(methods).to include('mode')
+    end
+
+    it 'returns empty array when no code blocks' do
+      template = 'No code here'
+      methods = command.send(:extract_method_calls, template)
+      expect(methods).to be_empty
+    end
+
+    it 'handles syntax errors gracefully' do
+      template = <<~TEMPLATE
+        ```ruby
+        this is not valid ruby!!!
+        ```
+      TEMPLATE
+
+      methods = command.send(:extract_method_calls, template)
+      expect(methods).to be_empty
+    end
+  end
+
+  describe '#validate_code_against_schema' do
+    it 'validates safe Ruby code' do
+      code = <<~RUBY
+        require 'language_operator'
+        agent "test" do
+          description "Test"
+        end
+      RUBY
+
+      result = command.send(:validate_code_against_schema, code)
+      expect(result[:valid]).to be true
+      expect(result[:errors]).to be_empty
+    end
+
+    it 'detects dangerous method calls' do
+      code = <<~RUBY
+        system("rm -rf /")
+      RUBY
+
+      result = command.send(:validate_code_against_schema, code)
+      expect(result[:valid]).to be false
+      expect(result[:errors]).not_to be_empty
+      expect(result[:errors][0][:message]).to include('system')
+    end
+
+    it 'detects syntax errors' do
+      code = '@@' # Invalid syntax
+      result = command.send(:validate_code_against_schema, code)
+      expect(result[:valid]).to be false
+      expect(result[:errors]).not_to be_empty
+      expect(result[:errors][0][:type]).to eq(:syntax_error)
+    end
+
+    it 'validates code with allowed requires' do
+      code = <<~RUBY
+        require 'language_operator'
+        agent "test"
+      RUBY
+
+      result = command.send(:validate_code_against_schema, code)
+      expect(result[:valid]).to be true
     end
   end
 
