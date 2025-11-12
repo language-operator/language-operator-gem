@@ -70,15 +70,15 @@ module LanguageOperator
             @__executor__.log_call(@__context__, method_name, args)
 
             # Special handling for require - allow only 'language_operator'
-            if method_name == :require || method_name == :require_relative
+            if %i[require require_relative].include?(method_name)
               required_gem = args.first.to_s
-              if required_gem == 'language_operator'
-                # Allow require 'language_operator'
-                return ::Kernel.require(required_gem)
-              else
-                ::Kernel.raise ::LanguageOperator::Agent::Safety::SafeExecutor::SecurityError,
-                               "Require '#{required_gem}' is not allowed. Only 'require \"language_operator\"' is permitted."
-              end
+              return ::Kernel.require(required_gem) if required_gem == 'language_operator'
+
+              # Allow require 'language_operator'
+
+              ::Kernel.raise ::LanguageOperator::Agent::Safety::SafeExecutor::SecurityError,
+                             "Require '#{required_gem}' is not allowed. Only 'require \"language_operator\"' is permitted."
+
             end
 
             # Check if method is safe

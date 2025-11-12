@@ -121,6 +121,7 @@ module LanguageOperator
           end
 
           # Build table data
+          # rubocop:disable Metrics/BlockLength
           table_data = clusters.map do |cluster|
             k8s = Helpers::ClusterValidator.kubernetes_client(cluster[:name])
 
@@ -144,7 +145,7 @@ module LanguageOperator
               models: models.count,
               status: status
             }
-          rescue K8s::Error::NotFound => e
+          rescue K8s::Error::NotFound
             # Cluster exists in local config but not in Kubernetes
             name_display = cluster[:name]
             name_display += ' *' if cluster[:name] == current
@@ -157,7 +158,7 @@ module LanguageOperator
               models: '-',
               status: 'Not Found'
             }
-          rescue StandardError => e
+          rescue StandardError
             # Other errors (connection issues, auth problems, etc.)
             name_display = cluster[:name]
             name_display += ' *' if cluster[:name] == current
@@ -171,6 +172,7 @@ module LanguageOperator
               status: 'Error'
             }
           end
+          # rubocop:enable Metrics/BlockLength
 
           Formatters::TableFormatter.clusters(table_data)
 
