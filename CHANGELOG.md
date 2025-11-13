@@ -10,8 +10,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Schema Version Method**: Added `LanguageOperator::Dsl::Schema.version` method that returns the current schema version (linked to gem version)
 - **Schema Versioning Documentation**: Added comprehensive `docs/dsl/SCHEMA_VERSION.md` documenting versioning policy, semantic version semantics for schema changes, compatibility rules, and deprecation policy
+- **Schema Export CLI Commands**: New `aictl system schema` command for exporting DSL schema
+  - Export as JSON Schema v7 (default): `aictl system schema`
+  - Export as YAML: `aictl system schema --format yaml`
+  - Export as OpenAPI 3.0.3 spec: `aictl system schema --format openapi`
+  - Show version only: `aictl system schema --version`
+- **Synthesis Template Management**: New `aictl system synthesis-template` command for managing code generation templates
+  - Export agent synthesis template: `aictl system synthesis-template`
+  - Export persona distillation template: `aictl system synthesis-template --type persona`
+  - Export with JSON/YAML metadata: `aictl system synthesis-template --format json --with-schema`
+  - Validate template syntax: `aictl system synthesis-template --validate`
+- **Template Validation**: New `aictl system validate-template` command for validating synthesis templates
+  - Validate custom templates: `aictl system validate-template --template /path/to/template.tmpl`
+  - Validate bundled templates: `aictl system validate-template --type agent`
+  - AST-based validation against DSL schema
+  - Detailed violation reporting with line numbers
+- **Synthesis Testing**: New `aictl system test-synthesis` command for testing agent code generation
+  - Test synthesis from natural language: `aictl system test-synthesis --instructions "Monitor GitHub issues"`
+  - Dry-run mode to preview prompts: `--dry-run`
+  - Automatic temporal intent detection (scheduled vs autonomous)
+  - LLM-powered code generation with validation
+- **Schema Artifacts**: Auto-generated schema artifacts stored in `lib/language_operator/templates/schema/`
+  - `agent_dsl_schema.json` - Complete JSON Schema v7 specification
+  - `agent_dsl_openapi.yaml` - OpenAPI 3.0.3 API documentation
+  - `CHANGELOG.md` - Schema version history
+- **Safe Methods API**: New public methods on `LanguageOperator::Dsl::Schema`
+  - `Schema.safe_agent_methods` - Returns array of safe agent DSL methods
+  - `Schema.safe_tool_methods` - Returns array of safe tool DSL methods
+  - `Schema.safe_helper_methods` - Returns array of safe helper methods
 - Schema version method includes YARD documentation with examples
 - Tests added for schema version access and validation
+- Integration tests for all new CLI commands
 
 ### Changed
 - **GitHub Migration**: Migrated project from self-hosted Forgejo to GitHub
