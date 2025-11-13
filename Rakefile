@@ -32,3 +32,32 @@ task :console do
   ARGV.clear
   IRB.start
 end
+
+namespace :schema do
+  desc 'Generate schema artifacts (JSON Schema and OpenAPI)'
+  task :generate do
+    require 'json'
+    require 'yaml'
+    require_relative 'lib/language_operator/dsl/schema'
+
+    schema_dir = File.join(__dir__, 'lib', 'language_operator', 'templates', 'schema')
+    FileUtils.mkdir_p(schema_dir)
+
+    # Generate JSON Schema
+    json_schema_path = File.join(schema_dir, 'agent_dsl_schema.json')
+    puts "Generating JSON Schema: #{json_schema_path}"
+    schema = LanguageOperator::Dsl::Schema.to_json_schema
+    File.write(json_schema_path, JSON.pretty_generate(schema))
+    puts "✅ Generated #{json_schema_path}"
+
+    # Generate OpenAPI spec
+    openapi_path = File.join(schema_dir, 'agent_dsl_openapi.yaml')
+    puts "Generating OpenAPI spec: #{openapi_path}"
+    openapi = LanguageOperator::Dsl::Schema.to_openapi
+    File.write(openapi_path, YAML.dump(openapi))
+    puts "✅ Generated #{openapi_path}"
+
+    puts "\nSchema artifacts generated successfully!"
+    puts "Version: #{LanguageOperator::Dsl::Schema.version}"
+  end
+end

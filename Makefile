@@ -1,4 +1,4 @@
-.PHONY: help build test install console docs clean version-bump lint
+.PHONY: help build test install console docs clean version-bump lint schema
 
 .DEFAULT_GOAL := help
 
@@ -8,7 +8,12 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-build: ## Build the gem
+schema: ## Generate schema artifacts (JSON Schema and OpenAPI)
+	@echo "Generating schema artifacts..."
+	@bundle exec rake schema:generate
+	@echo "✅ Schema artifacts generated"
+
+build: schema ## Build the gem
 	@echo "Building language-operator gem..."
 	@gem build language-operator.gemspec
 	@echo "✅ Gem built successfully"

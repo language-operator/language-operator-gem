@@ -1,0 +1,452 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/language-operator/language-operator-gem/schema/agent-dsl.json",
+  "title": "Language Operator Agent DSL",
+  "description": "Schema for defining autonomous AI agents using the Language Operator DSL",
+  "version": "0.1.30",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unique agent identifier (lowercase, alphanumeric, hyphens)",
+      "pattern": "^[a-z0-9-]+$",
+      "minLength": 1,
+      "maxLength": 63
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of agent purpose"
+    },
+    "persona": {
+      "type": "string",
+      "description": "System prompt or persona defining agent behavior and expertise"
+    },
+    "schedule": {
+      "type": "string",
+      "description": "Cron expression for scheduled execution (sets mode to :scheduled)",
+      "pattern": "^\\s*(\\S+\\s+){4}\\S+\\s*$"
+    },
+    "mode": {
+      "type": "string",
+      "description": "Execution mode for the agent",
+      "enum": [
+        "autonomous",
+        "scheduled",
+        "reactive"
+      ]
+    },
+    "objectives": {
+      "type": "array",
+      "description": "List of goals the agent should achieve",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 0
+    },
+    "workflow": {
+      "$ref": "#/definitions/WorkflowDefinition"
+    },
+    "constraints": {
+      "$ref": "#/definitions/ConstraintsDefinition"
+    },
+    "output": {
+      "$ref": "#/definitions/OutputDefinition"
+    },
+    "webhooks": {
+      "type": "array",
+      "description": "Webhook endpoints for reactive agents",
+      "items": {
+        "$ref": "#/definitions/WebhookDefinition"
+      }
+    },
+    "mcp_server": {
+      "$ref": "#/definitions/McpServerDefinition"
+    },
+    "chat_endpoint": {
+      "$ref": "#/definitions/ChatEndpointDefinition"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "definitions": {
+    "WorkflowDefinition": {
+      "type": "object",
+      "description": "Multi-step workflow with dependencies",
+      "properties": {
+        "steps": {
+          "type": "array",
+          "description": "Ordered list of workflow steps",
+          "items": {
+            "$ref": "#/definitions/StepDefinition"
+          }
+        }
+      }
+    },
+    "StepDefinition": {
+      "type": "object",
+      "description": "Individual workflow step",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Step identifier (symbol or string)"
+        },
+        "tool": {
+          "type": "string",
+          "description": "Tool name to execute in this step"
+        },
+        "params": {
+          "type": "object",
+          "description": "Parameters to pass to the tool",
+          "additionalProperties": true
+        },
+        "depends_on": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ],
+          "description": "Step dependencies (must complete before this step)"
+        },
+        "prompt": {
+          "type": "string",
+          "description": "LLM prompt template for this step"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "ConstraintsDefinition": {
+      "type": "object",
+      "description": "Execution constraints and limits",
+      "properties": {
+        "max_iterations": {
+          "type": "integer",
+          "description": "Maximum number of execution iterations",
+          "minimum": 1
+        },
+        "timeout": {
+          "type": "string",
+          "description": "Execution timeout (e.g., \"30s\", \"5m\", \"1h\")",
+          "pattern": "^\\d+[smh]$"
+        },
+        "memory": {
+          "type": "string",
+          "description": "Memory limit (e.g., \"512Mi\", \"1Gi\")"
+        },
+        "rate_limit": {
+          "type": "integer",
+          "description": "Maximum requests per time period",
+          "minimum": 1
+        },
+        "daily_budget": {
+          "type": "number",
+          "description": "Maximum daily cost in USD",
+          "minimum": 0
+        },
+        "hourly_budget": {
+          "type": "number",
+          "description": "Maximum hourly cost in USD",
+          "minimum": 0
+        },
+        "token_budget": {
+          "type": "integer",
+          "description": "Maximum total tokens allowed",
+          "minimum": 1
+        },
+        "requests_per_minute": {
+          "type": "integer",
+          "description": "Maximum requests per minute",
+          "minimum": 1
+        },
+        "requests_per_hour": {
+          "type": "integer",
+          "description": "Maximum requests per hour",
+          "minimum": 1
+        },
+        "requests_per_day": {
+          "type": "integer",
+          "description": "Maximum requests per day",
+          "minimum": 1
+        },
+        "blocked_patterns": {
+          "type": "array",
+          "description": "Content patterns to block",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blocked_topics": {
+          "type": "array",
+          "description": "Topics to avoid",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "OutputDefinition": {
+      "type": "object",
+      "description": "Output destination configuration",
+      "properties": {
+        "workspace": {
+          "type": "string",
+          "description": "Workspace directory path for file outputs"
+        },
+        "slack": {
+          "type": "object",
+          "description": "Slack integration configuration",
+          "properties": {
+            "channel": {
+              "type": "string",
+              "description": "Slack channel name or ID"
+            }
+          },
+          "required": [
+            "channel"
+          ]
+        },
+        "email": {
+          "type": "object",
+          "description": "Email notification configuration",
+          "properties": {
+            "to": {
+              "type": "string",
+              "description": "Email recipient address",
+              "format": "email"
+            }
+          },
+          "required": [
+            "to"
+          ]
+        }
+      }
+    },
+    "WebhookDefinition": {
+      "type": "object",
+      "description": "Webhook endpoint configuration",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "URL path for webhook endpoint",
+          "pattern": "^/"
+        },
+        "method": {
+          "type": "string",
+          "description": "HTTP method",
+          "enum": [
+            "get",
+            "post",
+            "put",
+            "delete",
+            "patch"
+          ],
+          "default": "post"
+        },
+        "authentication": {
+          "$ref": "#/definitions/WebhookAuthentication"
+        },
+        "validations": {
+          "type": "array",
+          "description": "Request validation rules",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "headers",
+                  "content_type",
+                  "custom"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "required": [
+        "path"
+      ]
+    },
+    "WebhookAuthentication": {
+      "type": "object",
+      "description": "Webhook authentication configuration",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Authentication type",
+          "enum": [
+            "hmac",
+            "api_key",
+            "bearer",
+            "custom"
+          ]
+        },
+        "secret": {
+          "type": "string",
+          "description": "Secret key for authentication"
+        },
+        "header": {
+          "type": "string",
+          "description": "Header name containing signature/token"
+        },
+        "algorithm": {
+          "type": "string",
+          "description": "HMAC algorithm",
+          "enum": [
+            "sha1",
+            "sha256",
+            "sha512"
+          ]
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Signature prefix (e.g., \"sha256=\")"
+        }
+      }
+    },
+    "McpServerDefinition": {
+      "type": "object",
+      "description": "MCP (Model Context Protocol) server configuration",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "MCP server name"
+        },
+        "tools": {
+          "type": "object",
+          "description": "Tools exposed via MCP",
+          "additionalProperties": {
+            "$ref": "#/definitions/ToolDefinition"
+          }
+        }
+      }
+    },
+    "ChatEndpointDefinition": {
+      "type": "object",
+      "description": "OpenAI-compatible chat endpoint configuration",
+      "properties": {
+        "system_prompt": {
+          "type": "string",
+          "description": "System prompt for chat mode"
+        },
+        "temperature": {
+          "type": "number",
+          "description": "Sampling temperature (0.0-2.0)",
+          "minimum": 0.0,
+          "maximum": 2.0,
+          "default": 0.7
+        },
+        "max_tokens": {
+          "type": "integer",
+          "description": "Maximum tokens in response",
+          "minimum": 1,
+          "default": 2000
+        },
+        "model_name": {
+          "type": "string",
+          "description": "Model name exposed in API"
+        },
+        "top_p": {
+          "type": "number",
+          "description": "Nucleus sampling parameter (0.0-1.0)",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "default": 1.0
+        },
+        "frequency_penalty": {
+          "type": "number",
+          "description": "Frequency penalty (-2.0 to 2.0)",
+          "minimum": -2.0,
+          "maximum": 2.0,
+          "default": 0.0
+        },
+        "presence_penalty": {
+          "type": "number",
+          "description": "Presence penalty (-2.0 to 2.0)",
+          "minimum": -2.0,
+          "maximum": 2.0,
+          "default": 0.0
+        },
+        "stop_sequences": {
+          "type": "array",
+          "description": "Sequences that stop generation",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ToolDefinition": {
+      "type": "object",
+      "description": "MCP tool definition",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Tool name (lowercase, alphanumeric, underscores)",
+          "pattern": "^[a-z0-9_]+$"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable tool description"
+        },
+        "parameters": {
+          "type": "object",
+          "description": "Tool parameters",
+          "additionalProperties": {
+            "$ref": "#/definitions/ParameterDefinition"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "description"
+      ]
+    },
+    "ParameterDefinition": {
+      "type": "object",
+      "description": "Tool parameter definition",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Parameter type",
+          "enum": [
+            "string",
+            "number",
+            "integer",
+            "boolean",
+            "array",
+            "object"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Parameter description"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether parameter is required",
+          "default": false
+        },
+        "default": {
+          "description": "Default value if not provided"
+        },
+        "enum": {
+          "type": "array",
+          "description": "Allowed values",
+          "items": {}
+        }
+      },
+      "required": [
+        "type"
+      ]
+    }
+  }
+}

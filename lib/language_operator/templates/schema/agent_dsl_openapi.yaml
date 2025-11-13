@@ -1,0 +1,306 @@
+---
+:openapi: 3.0.3
+:info:
+  :title: Language Operator Agent API
+  :version: 0.1.30
+  :description: HTTP API endpoints exposed by Language Operator reactive agents
+  :contact:
+    :name: Language Operator
+    :url: https://github.com/language-operator/language-operator-gem
+  :license:
+    :name: FSL-1.1-Apache-2.0
+    :url: https://github.com/language-operator/language-operator-gem/blob/main/LICENSE
+:servers:
+- :url: http://localhost:8080
+  :description: Local development server
+:paths:
+  "/health":
+    :get:
+      :summary: Health check
+      :description: Returns the health status of the agent
+      :operationId: getHealth
+      :tags:
+      - Health
+      :responses:
+        :200:
+          :description: Agent is healthy
+          :content:
+            :application/json:
+              :schema:
+                :$ref: "#/components/schemas/HealthResponse"
+  "/ready":
+    :get:
+      :summary: Readiness check
+      :description: Returns whether the agent is ready to accept requests
+      :operationId: getReady
+      :tags:
+      - Health
+      :responses:
+        :200:
+          :description: Agent is ready
+          :content:
+            :application/json:
+              :schema:
+                :$ref: "#/components/schemas/HealthResponse"
+        :503:
+          :description: Agent is not ready
+          :content:
+            :application/json:
+              :schema:
+                :$ref: "#/components/schemas/ErrorResponse"
+  "/v1/chat/completions":
+    :post:
+      :summary: Create chat completion
+      :description: Creates a chat completion response (OpenAI-compatible endpoint)
+      :operationId: createChatCompletion
+      :tags:
+      - Chat
+      :requestBody:
+        :required: true
+        :content:
+          :application/json:
+            :schema:
+              :$ref: "#/components/schemas/ChatCompletionRequest"
+      :responses:
+        :200:
+          :description: Successful chat completion response
+          :content:
+            :application/json:
+              :schema:
+                :$ref: "#/components/schemas/ChatCompletionResponse"
+            :text/event-stream:
+              :description: Server-sent events stream (when stream=true)
+              :schema:
+                :type: string
+        :400:
+          :description: Invalid request
+          :content:
+            :application/json:
+              :schema:
+                :$ref: "#/components/schemas/ErrorResponse"
+  "/v1/models":
+    :get:
+      :summary: List models
+      :description: Lists available models (OpenAI-compatible endpoint)
+      :operationId: listModels
+      :tags:
+      - Models
+      :responses:
+        :200:
+          :description: List of available models
+          :content:
+            :application/json:
+              :schema:
+                :$ref: "#/components/schemas/ModelList"
+:components:
+  :schemas:
+    :ChatCompletionRequest:
+      :type: object
+      :required:
+      - model
+      - messages
+      :properties:
+        :model:
+          :type: string
+          :description: Model name to use for completion
+        :messages:
+          :type: array
+          :description: List of messages in the conversation
+          :items:
+            :$ref: "#/components/schemas/ChatMessage"
+        :temperature:
+          :type: number
+          :description: Sampling temperature (0.0-2.0)
+          :minimum: 0.0
+          :maximum: 2.0
+          :default: 0.7
+        :max_tokens:
+          :type: integer
+          :description: Maximum tokens in response
+          :minimum: 1
+          :default: 2000
+        :stream:
+          :type: boolean
+          :description: Stream responses as server-sent events
+          :default: false
+        :top_p:
+          :type: number
+          :description: Nucleus sampling parameter
+          :minimum: 0.0
+          :maximum: 1.0
+          :default: 1.0
+        :frequency_penalty:
+          :type: number
+          :description: Frequency penalty (-2.0 to 2.0)
+          :minimum: -2.0
+          :maximum: 2.0
+          :default: 0.0
+        :presence_penalty:
+          :type: number
+          :description: Presence penalty (-2.0 to 2.0)
+          :minimum: -2.0
+          :maximum: 2.0
+          :default: 0.0
+        :stop:
+          :oneOf:
+          - :type: string
+          - :type: array
+            :items:
+              :type: string
+          :description: Stop sequences for generation
+    :ChatCompletionResponse:
+      :type: object
+      :required:
+      - id
+      - object
+      - created
+      - model
+      - choices
+      :properties:
+        :id:
+          :type: string
+          :description: Unique identifier for the completion
+        :object:
+          :type: string
+          :description: Object type (always "chat.completion")
+          :enum:
+          - chat.completion
+        :created:
+          :type: integer
+          :description: Unix timestamp of creation
+        :model:
+          :type: string
+          :description: Model used for completion
+        :choices:
+          :type: array
+          :description: List of completion choices
+          :items:
+            :$ref: "#/components/schemas/ChatChoice"
+        :usage:
+          :$ref: "#/components/schemas/ChatUsage"
+    :ChatMessage:
+      :type: object
+      :required:
+      - role
+      - content
+      :properties:
+        :role:
+          :type: string
+          :description: Message role
+          :enum:
+          - system
+          - user
+          - assistant
+        :content:
+          :type: string
+          :description: Message content
+        :name:
+          :type: string
+          :description: Optional name of the message author
+    :ChatChoice:
+      :type: object
+      :required:
+      - index
+      - message
+      - finish_reason
+      :properties:
+        :index:
+          :type: integer
+          :description: Choice index
+        :message:
+          :$ref: "#/components/schemas/ChatMessage"
+        :finish_reason:
+          :type: string
+          :description: Reason for completion finish
+          :enum:
+          - stop
+          - length
+          - content_filter
+          - 'null'
+    :ChatUsage:
+      :type: object
+      :required:
+      - prompt_tokens
+      - completion_tokens
+      - total_tokens
+      :properties:
+        :prompt_tokens:
+          :type: integer
+          :description: Tokens in the prompt
+        :completion_tokens:
+          :type: integer
+          :description: Tokens in the completion
+        :total_tokens:
+          :type: integer
+          :description: Total tokens used
+    :ModelList:
+      :type: object
+      :required:
+      - object
+      - data
+      :properties:
+        :object:
+          :type: string
+          :description: Object type (always "list")
+          :enum:
+          - list
+        :data:
+          :type: array
+          :description: List of available models
+          :items:
+            :$ref: "#/components/schemas/Model"
+    :Model:
+      :type: object
+      :required:
+      - id
+      - object
+      :properties:
+        :id:
+          :type: string
+          :description: Model identifier
+        :object:
+          :type: string
+          :description: Object type (always "model")
+          :enum:
+          - model
+        :created:
+          :type: integer
+          :description: Unix timestamp of model creation
+        :owned_by:
+          :type: string
+          :description: Organization that owns the model
+    :HealthResponse:
+      :type: object
+      :required:
+      - status
+      :properties:
+        :status:
+          :type: string
+          :description: Health status
+          :enum:
+          - ok
+          - ready
+        :timestamp:
+          :type: string
+          :format: date-time
+          :description: Timestamp of health check
+    :ErrorResponse:
+      :type: object
+      :required:
+      - error
+      :properties:
+        :error:
+          :type: object
+          :required:
+          - message
+          - type
+          :properties:
+            :message:
+              :type: string
+              :description: Error message
+            :type:
+              :type: string
+              :description: Error type
+            :code:
+              :type: string
+              :description: Error code

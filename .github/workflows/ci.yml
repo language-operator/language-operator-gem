@@ -28,6 +28,9 @@ jobs:
           ruby-version: '3.4'
           bundler-cache: true
 
+      - name: Generate schema artifacts
+        run: make schema
+
       - name: Run tests
         run: make test
 
@@ -60,6 +63,9 @@ jobs:
         with:
           ruby-version: '3.4'
           bundler-cache: true
+
+      - name: Generate schema artifacts
+        run: make schema
 
       - name: Build gem
         run: make build
