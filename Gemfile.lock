@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    language-operator (0.1.30)
+    language-operator (0.1.31)
       k8s-ruby (~> 0.17)
       mcp (~> 0.4)
       opentelemetry-exporter-otlp (~> 0.27)
