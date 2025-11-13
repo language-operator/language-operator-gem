@@ -514,6 +514,532 @@ RSpec.describe LanguageOperator::CLI::Commands::System do
     end
   end
 
+  describe '#validate_template' do
+    context 'with default bundled template' do
+      it 'validates successfully' do
+        output = capture_stdout { command.invoke(:validate_template, [], {}) }
+        expect(output).to include('Validating template')
+        expect(output).to include('All examples are valid')
+      end
+
+      it 'finds code examples' do
+        output = capture_stdout { command.invoke(:validate_template, [], {}) }
+        expect(output).to match(/Found \d+ code example/)
+      end
+
+      it 'exits with status 0 for valid template' do
+        expect do
+          capture_stdout { command.invoke(:validate_template, [], {}) }
+        end.not_to raise_error
+      end
+    end
+
+    context 'with bundled persona template' do
+      it 'validates successfully' do
+        output = capture_stdout do
+          command.invoke(:validate_template, [], type: 'persona')
+        end
+        expect(output).to include('Validating template')
+        expect(output).to include('bundled persona template')
+      end
+    end
+
+    context 'with custom template file' do
+      let(:valid_template_path) { '/tmp/valid_template_test.tmpl' }
+      let(:valid_template) do
+        <<~TEMPLATE
+          Test template
+          ```ruby
+          require 'language_operator'
+
+          agent "test-agent" do
+            description "Test agent"
+            mode :autonomous
+          end
+          ```
+        TEMPLATE
+      end
+
+      before do
+        File.write(valid_template_path, valid_template)
+      end
+
+      after do
+        FileUtils.rm_f(valid_template_path)
+      end
+
+      it 'validates custom template successfully' do
+        output = capture_stdout do
+          command.invoke(:validate_template, [], template: valid_template_path)
+        end
+        expect(output).to include('Validating template')
+        expect(output).to include('valid_template_test.tmpl')
+        expect(output).to include('All examples are valid')
+      end
+    end
+
+    context 'with verbose flag' do
+      let(:template_path) { '/tmp/template_with_issues.tmpl' }
+      let(:template_with_error) do
+        <<~TEMPLATE
+          Template with dangerous code
+          ```ruby
+          require 'language_operator'
+
+          agent "test" do
+            description "Test"
+            system("echo hello")
+          end
+          ```
+        TEMPLATE
+      end
+
+      before do
+        File.write(template_path, template_with_error)
+      end
+
+      after do
+        FileUtils.rm_f(template_path)
+      end
+
+      it 'shows detailed violation information' do
+        expect do
+          capture_stdout do
+            command.invoke(:validate_template, [], template: template_path, verbose: true)
+          end
+        end.to raise_error(SystemExit)
+      end
+    end
+
+    context 'error handling' do
+      it 'exits with status 1 when file not found' do
+        expect do
+          command.invoke(:validate_template, [], template: '/nonexistent/file.tmpl')
+        end.to raise_error(SystemExit) { |error|
+          expect(error.status).to eq(1)
+        }
+      end
+
+      it 'shows error message for missing file' do
+        output = capture_stdout do
+          expect do
+            command.invoke(:validate_template, [], template: '/nonexistent/file.tmpl')
+          end.to raise_error(SystemExit)
+        end
+        expect(output).to include('not found')
+      end
+
+      it 'exits with status 1 for invalid template type' do
+        expect do
+          command.invoke(:validate_template, [], type: 'invalid')
+        end.to raise_error(SystemExit) { |error|
+          expect(error.status).to eq(1)
+        }
+      end
+
+      it 'shows error message for invalid type' do
+        output = capture_stdout do
+          expect do
+            command.invoke(:validate_template, [], type: 'invalid')
+          end.to raise_error(SystemExit)
+        end
+        expect(output).to include('Invalid template type')
+      end
+    end
+
+    context 'with template containing no code blocks' do
+      let(:template_path) { '/tmp/no_code_template.tmpl' }
+      let(:template_no_code) { 'Just plain text, no code blocks here' }
+
+      before do
+        File.write(template_path, template_no_code)
+      end
+
+      after do
+        FileUtils.rm_f(template_path)
+      end
+
+      it 'exits with status 1' do
+        expect do
+          capture_stdout do
+            command.invoke(:validate_template, [], template: template_path)
+          end
+        end.to raise_error(SystemExit) { |error|
+          expect(error.status).to eq(1)
+        }
+      end
+
+      it 'shows warning about no code examples' do
+        output = capture_stdout do
+          expect do
+            command.invoke(:validate_template, [], template: template_path)
+          end.to raise_error(SystemExit)
+        end
+        expect(output).to include('No Ruby code examples found')
+      end
+    end
+
+    context 'with template containing validation errors' do
+      let(:template_path) { '/tmp/invalid_template.tmpl' }
+      let(:invalid_template) do
+        <<~TEMPLATE
+          Template with errors
+          ```ruby
+          require 'language_operator'
+
+          agent "test" do
+            system("dangerous")
+          end
+          ```
+        TEMPLATE
+      end
+
+      before do
+        File.write(template_path, invalid_template)
+      end
+
+      after do
+        FileUtils.rm_f(template_path)
+      end
+
+      it 'exits with status 1' do
+        expect do
+          capture_stdout do
+            command.invoke(:validate_template, [], template: template_path)
+          end
+        end.to raise_error(SystemExit) { |error|
+          expect(error.status).to eq(1)
+        }
+      end
+
+      it 'shows validation errors' do
+        output = capture_stdout do
+          expect do
+            command.invoke(:validate_template, [], template: template_path)
+          end.to raise_error(SystemExit)
+        end
+        expect(output).to include('Validation failed')
+        expect(output).to include('system')
+      end
+
+      it 'reports line numbers for violations' do
+        output = capture_stdout do
+          expect do
+            command.invoke(:validate_template, [], template: template_path)
+          end.to raise_error(SystemExit)
+        end
+        expect(output).to match(/Line \d+/)
+      end
+    end
+  end
+
+  describe '#test_synthesis (full command)' do
+    before do
+      # Mock the bundled template loading
+      allow(command).to receive(:load_bundled_template).and_return(
+        'Test synthesis template with {{.Instructions}} and {{.AgentName}}'
+      )
+    end
+
+    context 'with --dry-run flag' do
+      it 'shows synthesis prompt without calling LLM' do
+        output = capture_stdout do
+          command.invoke(:test_synthesis, [], instructions: 'Test instructions', dry_run: true)
+        end
+        expect(output).to include('Synthesis Prompt Preview')
+        expect(output).to include('Test instructions')
+        expect(output).to include('test-agent') # default agent name
+      end
+
+      it 'does not call LLM API' do
+        expect(command).not_to receive(:call_llm_for_synthesis)
+        capture_stdout do
+          command.invoke(:test_synthesis, [], instructions: 'Test', dry_run: true)
+        end
+      end
+
+      it 'includes temporal intent in prompt' do
+        output = capture_stdout do
+          command.invoke(:test_synthesis, [], instructions: 'Run daily reports', dry_run: true)
+        end
+        expect(output).to include('scheduled')
+      end
+    end
+
+    context 'with custom options' do
+      it 'uses custom agent name' do
+        output = capture_stdout do
+          command.invoke(
+            :test_synthesis, [],
+            instructions: 'Test', agent_name: 'my-custom-agent', dry_run: true
+          )
+        end
+        expect(output).to include('my-custom-agent')
+      end
+
+      it 'includes custom tools list' do
+        output = capture_stdout do
+          command.invoke(
+            :test_synthesis, [],
+            instructions: 'Test', tools: 'github,slack', dry_run: true
+          )
+        end
+        expect(output).to include('github')
+        expect(output).to include('slack')
+      end
+
+      it 'includes custom models list' do
+        output = capture_stdout do
+          command.invoke(
+            :test_synthesis, [],
+            instructions: 'Test', models: 'gpt-4,claude-3', dry_run: true
+          )
+        end
+        expect(output).to include('gpt-4')
+        expect(output).to include('claude-3')
+      end
+    end
+
+    context 'error handling' do
+      it 'requires --instructions parameter' do
+        # Thor will raise an error for missing required option
+        expect do
+          command.invoke(:test_synthesis, [], {})
+        end.to raise_error(Thor::RequiredArgumentMissingError)
+      end
+
+      it 'exits with error when no API keys available' do
+        # Temporarily clear API keys
+        allow(ENV).to receive(:[]).and_call_original
+        allow(ENV).to receive(:[]).with('ANTHROPIC_API_KEY').and_return(nil)
+        allow(ENV).to receive(:[]).with('OPENAI_API_KEY').and_return(nil)
+
+        expect do
+          command.invoke(:test_synthesis, [], instructions: 'Test')
+        end.to raise_error(SystemExit) { |error|
+          expect(error.status).to eq(1)
+        }
+      end
+
+      it 'shows error message when no API keys' do
+        allow(ENV).to receive(:[]).and_call_original
+        allow(ENV).to receive(:[]).with('ANTHROPIC_API_KEY').and_return(nil)
+        allow(ENV).to receive(:[]).with('OPENAI_API_KEY').and_return(nil)
+
+        output = capture_stdout do
+          expect do
+            command.invoke(:test_synthesis, [], instructions: 'Test')
+          end.to raise_error(SystemExit)
+        end
+        expect(output).to include('No LLM credentials found')
+      end
+    end
+
+    context 'with mocked LLM response' do
+      let(:mock_llm_response) do
+        <<~RESPONSE
+          Here's the generated code:
+          ```ruby
+          require 'language_operator'
+
+          agent "test-agent" do
+            description "Generated test agent"
+            mode :autonomous
+          end
+          ```
+        RESPONSE
+      end
+
+      before do
+        # Mock LLM API call
+        allow(command).to receive(:call_llm_for_synthesis).and_return(mock_llm_response)
+        # Mock API key availability
+        allow(ENV).to receive(:[]).and_call_original
+        allow(ENV).to receive(:[]).with('ANTHROPIC_API_KEY').and_return('test-key')
+      end
+
+      it 'generates and displays code' do
+        output = capture_stdout do
+          command.invoke(:test_synthesis, [], instructions: 'Test instructions')
+        end
+        expect(output).to include('Generated Code:')
+        expect(output).to include('agent "test-agent"')
+      end
+
+      it 'validates generated code' do
+        output = capture_stdout do
+          command.invoke(:test_synthesis, [], instructions: 'Test instructions')
+        end
+        expect(output).to include('Validating generated code')
+        expect(output).to include('Code is valid')
+      end
+
+      it 'extracts Ruby code from LLM response' do
+        output = capture_stdout do
+          command.invoke(:test_synthesis, [], instructions: 'Test instructions')
+        end
+        expect(output).to include('require \'language_operator\'')
+        expect(output).not_to include('Here\'s the generated code:')
+      end
+    end
+
+    context 'with LLM response containing no code blocks' do
+      before do
+        allow(command).to receive(:call_llm_for_synthesis).and_return('Just text, no code')
+        allow(ENV).to receive(:[]).and_call_original
+        allow(ENV).to receive(:[]).with('ANTHROPIC_API_KEY').and_return('test-key')
+      end
+
+      it 'exits with error status 1' do
+        expect do
+          capture_stdout do
+            command.invoke(:test_synthesis, [], instructions: 'Test')
+          end
+        end.to raise_error(SystemExit) { |error|
+          expect(error.status).to eq(1)
+        }
+      end
+
+      it 'shows error message' do
+        output = capture_stdout do
+          expect do
+            command.invoke(:test_synthesis, [], instructions: 'Test')
+          end.to raise_error(SystemExit)
+        end
+        expect(output).to include('Failed to extract Ruby code')
+      end
+
+      it 'shows LLM response' do
+        output = capture_stdout do
+          expect do
+            command.invoke(:test_synthesis, [], instructions: 'Test')
+          end.to raise_error(SystemExit)
+        end
+        expect(output).to include('LLM Response:')
+        expect(output).to include('Just text, no code')
+      end
+    end
+
+    context 'with invalid generated code' do
+      let(:invalid_code_response) do
+        <<~RESPONSE
+          ```ruby
+          require 'language_operator'
+
+          agent "test" do
+            system("dangerous command")
+          end
+          ```
+        RESPONSE
+      end
+
+      before do
+        allow(command).to receive(:call_llm_for_synthesis).and_return(invalid_code_response)
+        allow(ENV).to receive(:[]).and_call_original
+        allow(ENV).to receive(:[]).with('ANTHROPIC_API_KEY').and_return('test-key')
+      end
+
+      it 'reports validation failure' do
+        output = capture_stdout do
+          command.invoke(:test_synthesis, [], instructions: 'Test')
+        end
+        expect(output).to include('Code validation failed')
+      end
+
+      it 'shows validation errors' do
+        output = capture_stdout do
+          command.invoke(:test_synthesis, [], instructions: 'Test')
+        end
+        expect(output).to include('system')
+      end
+    end
+  end
+
+  describe '#fetch_from_operator' do
+    context 'when kubectl is available and ConfigMap exists' do
+      it 'fetches agent template from operator' do
+        allow(command).to receive(:`).with(
+          'kubectl get configmap agent-synthesis-template -n language-operator-system ' \
+          "-o jsonpath='{.data.template}' 2>/dev/null"
+        ).and_return('Agent template content from operator')
+
+        result = command.send(:fetch_from_operator, 'agent')
+        expect(result).to eq('Agent template content from operator')
+      end
+
+      it 'fetches persona template from operator' do
+        allow(command).to receive(:`).with(
+          'kubectl get configmap persona-distillation-template -n language-operator-system ' \
+          "-o jsonpath='{.data.template}' 2>/dev/null"
+        ).and_return('Persona template content')
+
+        result = command.send(:fetch_from_operator, 'persona')
+        expect(result).to eq('Persona template content')
+      end
+    end
+
+    context 'when kubectl fails or ConfigMap does not exist' do
+      it 'returns nil for agent template' do
+        allow(command).to receive(:`).with(
+          'kubectl get configmap agent-synthesis-template -n language-operator-system ' \
+          "-o jsonpath='{.data.template}' 2>/dev/null"
+        ).and_return('')
+
+        result = command.send(:fetch_from_operator, 'agent')
+        expect(result).to be_nil
+      end
+
+      it 'returns nil for persona template' do
+        allow(command).to receive(:`).with(
+          'kubectl get configmap persona-distillation-template -n language-operator-system ' \
+          "-o jsonpath='{.data.template}' 2>/dev/null"
+        ).and_return('')
+
+        result = command.send(:fetch_from_operator, 'persona')
+        expect(result).to be_nil
+      end
+
+      it 'handles exceptions gracefully' do
+        allow(command).to receive(:`).and_raise(StandardError.new('kubectl not found'))
+
+        result = command.send(:fetch_from_operator, 'agent')
+        expect(result).to be_nil
+      end
+    end
+  end
+
+  describe '#load_template' do
+    context 'when operator template is available' do
+      it 'uses operator template instead of bundled' do
+        allow(command).to receive(:fetch_from_operator).with('agent').and_return('Operator template')
+        allow(command).to receive(:load_bundled_template).and_return('Bundled template')
+
+        result = command.send(:load_template, 'agent')
+        expect(result).to eq('Operator template')
+      end
+    end
+
+    context 'when operator template is not available' do
+      it 'falls back to bundled template' do
+        allow(command).to receive(:fetch_from_operator).with('agent').and_return(nil)
+        allow(command).to receive(:load_bundled_template).with('agent').and_return('Bundled template')
+
+        result = command.send(:load_template, 'agent')
+        expect(result).to eq('Bundled template')
+      end
+    end
+
+    context 'for persona templates' do
+      it 'tries operator first, falls back to bundled' do
+        allow(command).to receive(:fetch_from_operator).with('persona').and_return(nil)
+        allow(command).to receive(:load_bundled_template).with('persona').and_return('Bundled persona')
+
+        result = command.send(:load_template, 'persona')
+        expect(result).to eq('Bundled persona')
+      end
+    end
+  end
+
   # Helper methods for capturing stdout and stderr
   def capture_stdout(&block)
     original_stdout = $stdout
