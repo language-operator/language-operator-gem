@@ -5,10 +5,12 @@ require_relative '../formatters/progress_formatter'
 require_relative '../formatters/table_formatter'
 require_relative '../formatters/value_formatter'
 require_relative '../formatters/log_formatter'
+require_relative '../formatters/status_formatter'
 require_relative '../helpers/cluster_validator'
 require_relative '../helpers/cluster_context'
 require_relative '../helpers/user_prompts'
 require_relative '../helpers/editor_helper'
+require_relative '../helpers/pastel_helper'
 require_relative '../errors/handler'
 require_relative '../../config/cluster_config'
 require_relative '../../kubernetes/client'
@@ -20,6 +22,7 @@ module LanguageOperator
       # Agent management commands
       class Agent < Thor
         include Helpers::ClusterValidator
+        include Helpers::PastelHelper
 
         desc 'create [DESCRIPTION]', 'Create a new agent with natural language description'
         long_desc <<-DESC
@@ -70,9 +73,9 @@ module LanguageOperator
             cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
           end
 
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
+          ctx = Helpers::ClusterContext.from_options(options.merge(cluster: cluster))
 
-          Formatters::ProgressFormatter.info("Creating agent in cluster '#{cluster}'")
+          Formatters::ProgressFormatter.info("Creating agent in cluster '#{ctx.name}'")
           puts
 
           # Generate agent name from description if not provided
@@ -81,18 +84,17 @@ module LanguageOperator
           # Get models: use specified models, or default to all available models in cluster
           models = options[:models]
           if models.nil? || models.empty?
-            k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
-            available_models = k8s.list_resources('LanguageModel', namespace: cluster_config[:namespace])
+            available_models = ctx.client.list_resources('LanguageModel', namespace: ctx.namespace)
             models = available_models.map { |m| m.dig('metadata', 'name') }
 
-            Errors::Handler.handle_no_models_available(cluster: cluster) if models.empty?
+            Errors::Handler.handle_no_models_available(cluster: ctx.name) if models.empty?
           end
 
           # Build LanguageAgent resource
           agent_resource = Kubernetes::ResourceBuilder.language_agent(
             agent_name,
             instructions: description,
-            cluster: cluster_config[:namespace],
+            cluster: ctx.namespace,
             persona: options[:persona],
             tools: options[:tools] || [],
             models: models
@@ -100,29 +102,26 @@ module LanguageOperator
 
           # Dry-run mode: preview without applying
           if options[:dry_run]
-            display_dry_run_preview(agent_resource, cluster, description)
+            display_dry_run_preview(agent_resource, ctx.name, description)
             return
           end
 
-          # Connect to Kubernetes
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
-
           # Apply resource to cluster
           Formatters::ProgressFormatter.with_spinner("Creating agent '#{agent_name}'") do
-            k8s.apply_resource(agent_resource)
+            ctx.client.apply_resource(agent_resource)
           end
 
           # Watch synthesis status
-          synthesis_result = watch_synthesis_status(k8s, agent_name, cluster_config[:namespace])
+          synthesis_result = watch_synthesis_status(ctx.client, agent_name, ctx.namespace)
 
           # Exit if synthesis failed
           exit 1 unless synthesis_result[:success]
 
           # Fetch the updated agent to get complete details
-          agent = k8s.get_resource('LanguageAgent', agent_name, cluster_config[:namespace])
+          agent = ctx.client.get_resource('LanguageAgent', agent_name, ctx.namespace)
 
           # Display enhanced success output
-          display_agent_created(agent, cluster, description, synthesis_result)
+          display_agent_created(agent, ctx.name, description, synthesis_result)
         rescue StandardError => e
           Formatters::ProgressFormatter.error("Failed to create agent: #{e.message}")
           raise if ENV['DEBUG']
@@ -137,8 +136,8 @@ module LanguageOperator
           if options[:all_clusters]
             list_all_clusters
           else
-            cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-            list_cluster_agents(cluster)
+            ctx = Helpers::ClusterContext.from_options(options)
+            list_cluster_agents(ctx.name)
           end
         rescue StandardError => e
           Formatters::ProgressFormatter.error("Failed to list agents: #{e.message}")
@@ -150,16 +149,13 @@ module LanguageOperator
         desc 'inspect NAME', 'Show detailed agent information'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def inspect(name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
+          ctx = Helpers::ClusterContext.from_options(options)
 
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
-
-          agent = k8s.get_resource('LanguageAgent', name, cluster_config[:namespace])
+          agent = ctx.client.get_resource('LanguageAgent', name, ctx.namespace)
 
           puts "Agent: #{name}"
-          puts "  Cluster:   #{cluster}"
-          puts "  Namespace: #{cluster_config[:namespace]}"
+          puts "  Cluster:   #{ctx.name}"
+          puts "  Namespace: #{ctx.namespace}"
           puts
 
           # Status
@@ -235,7 +231,7 @@ module LanguageOperator
           # Recent events (if available)
           # This would require querying events, which we can add later
         rescue K8s::Error::NotFound
-          handle_agent_not_found(name, cluster, k8s, cluster_config)
+          handle_agent_not_found(name, ctx)
         rescue StandardError => e
           Formatters::ProgressFormatter.error("Failed to inspect agent: #{e.message}")
           raise if ENV['DEBUG']
@@ -293,25 +289,22 @@ module LanguageOperator
         option :follow, type: :boolean, aliases: '-f', default: false, desc: 'Follow logs'
         option :tail, type: :numeric, default: 100, desc: 'Number of lines to show from the end'
         def logs(name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+          ctx = Helpers::ClusterContext.from_options(options)
 
           # Get agent to determine the pod name
           begin
-            agent = k8s.get_resource('LanguageAgent', name, cluster_config[:namespace])
+            agent = ctx.client.get_resource('LanguageAgent', name, ctx.namespace)
           rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{cluster}'")
+            Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{ctx.name}'")
             exit 1
           end
 
           mode = agent.dig('spec', 'mode') || 'autonomous'
 
           # Build kubectl command for log streaming
-          kubeconfig_arg = cluster_config[:kubeconfig] ? "--kubeconfig=#{cluster_config[:kubeconfig]}" : ''
-          context_arg = cluster_config[:context] ? "--context=#{cluster_config[:context]}" : ''
-          namespace_arg = "-n #{cluster_config[:namespace]}"
+          kubeconfig_arg = ctx.config[:kubeconfig] ? "--kubeconfig=#{ctx.config[:kubeconfig]}" : ''
+          context_arg = ctx.config[:context] ? "--context=#{ctx.config[:context]}" : ''
+          namespace_arg = "-n #{ctx.namespace}"
           tail_arg = "--tail=#{options[:tail]}"
           follow_arg = options[:follow] ? '-f' : ''
 
@@ -368,15 +361,12 @@ module LanguageOperator
         def code(name)
           require_relative '../formatters/code_formatter'
 
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+          ctx = Helpers::ClusterContext.from_options(options)
 
           # Get the code ConfigMap for this agent
           configmap_name = "#{name}-code"
           begin
-            configmap = k8s.get_resource('ConfigMap', configmap_name, cluster_config[:namespace])
+            configmap = ctx.client.get_resource('ConfigMap', configmap_name, ctx.namespace)
           rescue K8s::Error::NotFound
             Formatters::ProgressFormatter.error("Synthesized code not found for agent '#{name}'")
             puts
@@ -415,16 +405,13 @@ module LanguageOperator
         desc 'edit NAME', 'Edit agent instructions'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def edit(name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+          ctx = Helpers::ClusterContext.from_options(options)
 
           # Get current agent
           begin
-            agent = k8s.get_resource('LanguageAgent', name, cluster_config[:namespace])
+            agent = ctx.client.get_resource('LanguageAgent', name, ctx.namespace)
           rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{cluster}'")
+            Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{ctx.name}'")
             exit 1
           end
 
@@ -466,16 +453,13 @@ module LanguageOperator
         desc 'pause NAME', 'Pause scheduled agent execution'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def pause(name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+          ctx = Helpers::ClusterContext.from_options(options)
 
           # Get agent
           begin
-            agent = k8s.get_resource('LanguageAgent', name, cluster_config[:namespace])
+            agent = ctx.client.get_resource('LanguageAgent', name, ctx.namespace)
           rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{cluster}'")
+            Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{ctx.name}'")
             exit 1
           end
 
@@ -491,12 +475,12 @@ module LanguageOperator
           # Suspend the CronJob by setting spec.suspend = true
           # This is done by patching the underlying CronJob resource
           cronjob_name = name
-          namespace = cluster_config[:namespace]
+          namespace = ctx.namespace
 
           Formatters::ProgressFormatter.with_spinner("Pausing agent '#{name}'") do
             # Use kubectl to patch the cronjob
-            kubeconfig_arg = cluster_config[:kubeconfig] ? "--kubeconfig=#{cluster_config[:kubeconfig]}" : ''
-            context_arg = cluster_config[:context] ? "--context=#{cluster_config[:context]}" : ''
+            kubeconfig_arg = ctx.config[:kubeconfig] ? "--kubeconfig=#{ctx.config[:kubeconfig]}" : ''
+            context_arg = ctx.config[:context] ? "--context=#{ctx.config[:context]}" : ''
 
             cmd = "kubectl #{kubeconfig_arg} #{context_arg} -n #{namespace} patch cronjob #{cronjob_name} -p '{\"spec\":{\"suspend\":true}}'"
             system(cmd)
@@ -518,16 +502,13 @@ module LanguageOperator
         desc 'resume NAME', 'Resume paused agent'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def resume(name)
-          cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-
-          k8s = Helpers::ClusterValidator.kubernetes_client(options[:cluster])
+          ctx = Helpers::ClusterContext.from_options(options)
 
           # Get agent
           begin
-            agent = k8s.get_resource('LanguageAgent', name, cluster_config[:namespace])
+            agent = ctx.client.get_resource('LanguageAgent', name, ctx.namespace)
           rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{cluster}'")
+            Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{ctx.name}'")
             exit 1
           end
 
@@ -541,12 +522,12 @@ module LanguageOperator
 
           # Resume the CronJob by setting spec.suspend = false
           cronjob_name = name
-          namespace = cluster_config[:namespace]
+          namespace = ctx.namespace
 
           Formatters::ProgressFormatter.with_spinner("Resuming agent '#{name}'") do
             # Use kubectl to patch the cronjob
-            kubeconfig_arg = cluster_config[:kubeconfig] ? "--kubeconfig=#{cluster_config[:kubeconfig]}" : ''
-            context_arg = cluster_config[:context] ? "--context=#{cluster_config[:context]}" : ''
+            kubeconfig_arg = ctx.config[:kubeconfig] ? "--kubeconfig=#{ctx.config[:kubeconfig]}" : ''
+            context_arg = ctx.config[:context] ? "--context=#{ctx.config[:context]}" : ''
 
             cmd = "kubectl #{kubeconfig_arg} #{context_arg} -n #{namespace} patch cronjob #{cronjob_name} -p '{\"spec\":{\"suspend\":false}}'"
             system(cmd)
@@ -620,24 +601,21 @@ module LanguageOperator
 
         private
 
-        def handle_agent_not_found(name, cluster, k8s, cluster_config)
+        def handle_agent_not_found(name, ctx)
           # Get available agents for fuzzy matching
-          agents = k8s.list_resources('LanguageAgent', namespace: cluster_config[:namespace])
+          agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
           available_names = agents.map { |a| a.dig('metadata', 'name') }
 
           error = K8s::Error::NotFound.new(404, 'Not Found', 'LanguageAgent')
           Errors::Handler.handle_not_found(error,
                                            resource_type: 'LanguageAgent',
                                            resource_name: name,
-                                           cluster: cluster,
+                                           cluster: ctx.name,
                                            available_resources: available_names)
         end
 
         def display_agent_created(agent, cluster, _description, synthesis_result)
-          require 'pastel'
           require_relative '../formatters/code_formatter'
-
-          pastel = Pastel.new
           agent_name = agent.dig('metadata', 'name')
 
           puts
@@ -646,10 +624,9 @@ module LanguageOperator
 
           # Get synthesized code if available
           begin
-            cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
-            k8s = Helpers::ClusterValidator.kubernetes_client(cluster)
+            ctx = Helpers::ClusterContext.from_options(cluster: cluster)
             configmap_name = "#{agent_name}-code"
-            configmap = k8s.get_resource('ConfigMap', configmap_name, cluster_config[:namespace])
+            configmap = ctx.client.get_resource('ConfigMap', configmap_name, ctx.namespace)
             code_content = configmap.dig('data', 'agent.rb')
 
             if code_content
@@ -833,21 +810,7 @@ module LanguageOperator
         end
 
         def format_status(status)
-          require 'pastel'
-          pastel = Pastel.new
-
-          case status.downcase
-          when 'ready', 'running', 'active'
-            "#{pastel.green('●')} #{status}"
-          when 'pending', 'creating', 'synthesizing'
-            "#{pastel.yellow('●')} #{status}"
-          when 'failed', 'error'
-            "#{pastel.red('●')} #{status}"
-          when 'paused', 'stopped'
-            "#{pastel.dim('●')} #{status}"
-          else
-            "#{pastel.dim('●')} #{status}"
-          end
+          Formatters::StatusFormatter.format(status)
         end
 
         def generate_agent_name(description)
@@ -941,13 +904,11 @@ module LanguageOperator
         end
 
         def list_cluster_agents(cluster)
-          cluster_config = Helpers::ClusterValidator.get_cluster_config(cluster)
+          ctx = Helpers::ClusterContext.from_options(cluster: cluster)
 
           Formatters::ProgressFormatter.info("Agents in cluster '#{cluster}'")
 
-          k8s = Helpers::ClusterValidator.kubernetes_client(cluster)
-
-          agents = k8s.list_resources('LanguageAgent', namespace: cluster_config[:namespace])
+          agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
 
           table_data = agents.map do |agent|
             {
@@ -982,9 +943,9 @@ module LanguageOperator
           all_agents = []
 
           clusters.each do |cluster|
-            k8s = Helpers::ClusterValidator.kubernetes_client(cluster[:name])
+            ctx = Helpers::ClusterContext.from_options(cluster: cluster[:name])
 
-            agents = k8s.list_resources('LanguageAgent', namespace: cluster[:namespace])
+            agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
 
             agents.each do |agent|
               all_agents << {
@@ -1060,8 +1021,6 @@ module LanguageOperator
         end
 
         def list_workspace_files(ctx, agent_name)
-          require 'pastel'
-          pastel = Pastel.new
 
           pod_name = get_agent_pod(ctx, agent_name)
 
@@ -1149,8 +1108,6 @@ module LanguageOperator
         end
 
         def view_workspace_file(ctx, agent_name, file_path)
-          require 'pastel'
-          pastel = Pastel.new
 
           pod_name = get_agent_pod(ctx, agent_name)
 
@@ -1192,8 +1149,6 @@ module LanguageOperator
         end
 
         def clean_workspace(ctx, agent_name)
-          require 'pastel'
-          pastel = Pastel.new
 
           pod_name = get_agent_pod(ctx, agent_name)
 

@@ -3,6 +3,8 @@
 require 'thor'
 require_relative '../formatters/progress_formatter'
 require_relative '../formatters/table_formatter'
+require_relative '../formatters/status_formatter'
+require_relative '../helpers/pastel_helper'
 require_relative '../../config/cluster_config'
 require_relative '../../kubernetes/client'
 require_relative '../helpers/cluster_validator'
@@ -12,12 +14,11 @@ module LanguageOperator
     module Commands
       # System status and overview command
       class Status < Thor
+        include Helpers::PastelHelper
         desc 'overview', 'Show system status and overview'
         def overview
           current_cluster = Config::ClusterConfig.current_cluster
           clusters = Config::ClusterConfig.list_clusters
-
-          pastel = Pastel.new
 
           # Current cluster context
           if current_cluster
@@ -124,22 +125,7 @@ module LanguageOperator
         private
 
         def format_status(status)
-          require 'pastel'
-          pastel = Pastel.new
-
-          status_str = status.to_s
-          case status_str.downcase
-          when 'ready', 'running', 'active'
-            "#{pastel.green('●')} #{status_str}"
-          when 'pending', 'creating', 'synthesizing'
-            "#{pastel.yellow('●')} #{status_str}"
-          when 'failed', 'error'
-            "#{pastel.red('●')} #{status_str}"
-          when 'paused', 'stopped'
-            "#{pastel.dim('●')} #{status_str}"
-          else
-            "#{pastel.dim('●')} #{status_str}"
-          end
+          Formatters::StatusFormatter.format(status)
         end
 
         def categorize_by_status(resources)

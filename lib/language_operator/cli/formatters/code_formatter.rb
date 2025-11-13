@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require 'rouge'
-require 'pastel'
+require_relative '../helpers/pastel_helper'
 
 module LanguageOperator
   module CLI
@@ -9,6 +9,7 @@ module LanguageOperator
       # Formatter for displaying syntax-highlighted code in the terminal
       class CodeFormatter
         class << self
+          include Helpers::PastelHelper
           # Display Ruby code with syntax highlighting
           #
           # @param code_content [String] The Ruby code to display
@@ -67,12 +68,6 @@ module LanguageOperator
 
             puts highlighted
             puts
-          end
-
-          private
-
-          def pastel
-            @pastel ||= Pastel.new
           end
         end
       end

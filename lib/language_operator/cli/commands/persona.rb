@@ -2,7 +2,6 @@
 
 require 'thor'
 require 'yaml'
-require 'pastel'
 require_relative '../formatters/progress_formatter'
 require_relative '../formatters/table_formatter'
 require_relative '../helpers/cluster_validator'
@@ -10,6 +9,7 @@ require_relative '../helpers/cluster_context'
 require_relative '../helpers/user_prompts'
 require_relative '../helpers/resource_dependency_checker'
 require_relative '../helpers/editor_helper'
+require_relative '../helpers/pastel_helper'
 require_relative '../../config/cluster_config'
 require_relative '../../kubernetes/client'
 require_relative '../../kubernetes/resource_builder'
@@ -20,6 +20,7 @@ module LanguageOperator
       # Persona management commands
       class Persona < Thor
         include Helpers::ClusterValidator
+        include Helpers::PastelHelper
 
         desc 'list', 'List all personas in current cluster'
         option :cluster, type: :string, desc: 'Override current cluster context'
@@ -385,10 +386,6 @@ module LanguageOperator
 
         def edit_in_editor(content, filename_prefix)
           Helpers::EditorHelper.edit_content(content, filename_prefix, '.txt')
-        end
-
-        def pastel
-          @pastel ||= Pastel.new
         end
       end
     end

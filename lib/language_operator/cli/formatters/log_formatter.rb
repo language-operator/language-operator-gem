@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'pastel'
+require_relative '../helpers/pastel_helper'
 require 'json'
 require 'time'
 
@@ -10,6 +10,7 @@ module LanguageOperator
       # Formatter for displaying agent execution logs with color and icons
       class LogFormatter
         class << self
+          include Helpers::PastelHelper
           # Format a single log line from kubectl output
           #
           # @param line [String] Raw log line from kubectl (with [pod/container] prefix)
@@ -32,10 +33,6 @@ module LanguageOperator
           end
 
           private
-
-          def pastel
-            @pastel ||= Pastel.new
-          end
 
           # Parse the kubectl prefix from the log line
           # Returns [prefix, content] or [nil, original_line]

@@ -6,12 +6,12 @@ Adopt the [ruby-engineer](../../../requirements/personas/ruby-engineer.md) perso
 
 ## Inputs
 
-- id int -- A forgejo issue index ID.
+- id int -- A GitHub issue index ID.
 
 ## Background
 
 This is a early-phase project that works exclusively in main.
-Issues are found using the Forgejo MCP tools for this project:
+Issues are found using the `gh` command for this project:
 - Owner: language-operator
 - Repository: language-operator-gem
 

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require 'tty-spinner'
-require 'pastel'
+require_relative '../helpers/pastel_helper'
 
 module LanguageOperator
   module CLI
@@ -9,6 +9,7 @@ module LanguageOperator
       # Beautiful progress output for CLI operations
       class ProgressFormatter
         class << self
+          include Helpers::PastelHelper
           def with_spinner(message, success_msg: nil, &block)
             spinner = TTY::Spinner.new("[:spinner] #{message}...", format: :dots, success_mark: pastel.green('✔'))
             spinner.auto_spin
@@ -39,12 +40,6 @@ module LanguageOperator
 
           def warn(message)
             puts "[#{pastel.yellow('⚠')}] #{message}"
-          end
-
-          private
-
-          def pastel
-            @pastel ||= Pastel.new
           end
         end
       end

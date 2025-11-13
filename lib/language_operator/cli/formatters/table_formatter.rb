@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
 require 'tty-table'
-require 'pastel'
+require_relative '../helpers/pastel_helper'
+require_relative 'status_formatter'
 
 module LanguageOperator
   module CLI
@@ -9,6 +10,7 @@ module LanguageOperator
       # Table output for CLI list commands
       class TableFormatter
         class << self
+          include Helpers::PastelHelper
           def clusters(clusters)
             return ProgressFormatter.info('No clusters found') if clusters.empty?
 
@@ -20,7 +22,7 @@ module LanguageOperator
                 cluster[:agents] || 0,
                 cluster[:tools] || 0,
                 cluster[:models] || 0,
-                status_indicator(cluster[:status])
+                StatusFormatter.format(cluster[:status] || 'Unknown')
               ]
             end
 
@@ -36,7 +38,7 @@ module LanguageOperator
               [
                 agent[:name],
                 agent[:mode],
-                status_indicator(agent[:status]),
+                StatusFormatter.format(agent[:status]),
                 agent[:next_run] || 'N/A',
                 agent[:executions] || 0
               ]
@@ -58,7 +60,7 @@ module LanguageOperator
                   cluster_name,
                   agent[:name],
                   agent[:mode],
-                  status_indicator(agent[:status]),
+                  StatusFormatter.format(agent[:status]),
                   agent[:next_run] || 'N/A',
                   agent[:executions] || 0
                 ]
@@ -77,7 +79,7 @@ module LanguageOperator
               [
                 tool[:name],
                 tool[:type],
-                status_indicator(tool[:status]),
+                StatusFormatter.format(tool[:status]),
                 tool[:agents_using] || 0
               ]
             end
@@ -112,7 +114,7 @@ module LanguageOperator
                 model[:name],
                 model[:provider],
                 model[:model],
-                status_indicator(model[:status])
+                StatusFormatter.format(model[:status])
               ]
             end
 
@@ -133,7 +135,7 @@ module LanguageOperator
                 cluster[:agents] || 0,
                 cluster[:tools] || 0,
                 cluster[:models] || 0,
-                status_indicator(cluster[:status])
+                StatusFormatter.format(cluster[:status] || 'Unknown')
               ]
             end
 
@@ -148,29 +150,10 @@ module LanguageOperator
 
           private
 
-          def status_indicator(status)
-            case status&.downcase
-            when 'ready', 'running', 'active'
-              "#{pastel.green('●')} #{status}"
-            when 'pending', 'creating', 'synthesizing'
-              "#{pastel.yellow('●')} #{status}"
-            when 'failed', 'error'
-              "#{pastel.red('●')} #{status}"
-            when 'paused', 'stopped'
-              "#{pastel.dim('●')} #{status}"
-            else
-              "#{pastel.dim('●')} #{status || 'Unknown'}"
-            end
-          end
-
           def truncate(text, length)
             return text if text.nil? || text.length <= length
 
             "#{text[0...(length - 3)]}..."
-          end
-
-          def pastel
-            @pastel ||= Pastel.new
           end
         end
       end
