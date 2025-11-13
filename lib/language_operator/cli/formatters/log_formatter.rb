@@ -11,6 +11,7 @@ module LanguageOperator
       class LogFormatter
         class << self
           include Helpers::PastelHelper
+
           # Format a single log line from kubectl output
           #
           # @param line [String] Raw log line from kubectl (with [pod/container] prefix)

@@ -10,6 +10,7 @@ module LanguageOperator
       class CodeFormatter
         class << self
           include Helpers::PastelHelper
+
           # Display Ruby code with syntax highlighting
           #
           # @param code_content [String] The Ruby code to display

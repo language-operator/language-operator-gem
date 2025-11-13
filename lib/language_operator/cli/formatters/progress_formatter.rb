@@ -10,6 +10,7 @@ module LanguageOperator
       class ProgressFormatter
         class << self
           include Helpers::PastelHelper
+
           def with_spinner(message, success_msg: nil, &block)
             spinner = TTY::Spinner.new("[:spinner] #{message}...", format: :dots, success_mark: pastel.green('✔'))
             spinner.auto_spin

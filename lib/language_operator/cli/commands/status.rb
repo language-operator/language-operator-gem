@@ -15,6 +15,7 @@ module LanguageOperator
       # System status and overview command
       class Status < Thor
         include Helpers::PastelHelper
+
         desc 'overview', 'Show system status and overview'
         def overview
           current_cluster = Config::ClusterConfig.current_cluster

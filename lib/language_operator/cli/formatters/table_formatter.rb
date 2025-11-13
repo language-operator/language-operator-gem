@@ -11,6 +11,7 @@ module LanguageOperator
       class TableFormatter
         class << self
           include Helpers::PastelHelper
+
           def clusters(clusters)
             return ProgressFormatter.info('No clusters found') if clusters.empty?
 

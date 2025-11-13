@@ -1021,7 +1021,6 @@ module LanguageOperator
         end
 
         def list_workspace_files(ctx, agent_name)
-
           pod_name = get_agent_pod(ctx, agent_name)
 
           # Check if workspace directory exists
@@ -1108,7 +1107,6 @@ module LanguageOperator
         end
 
         def view_workspace_file(ctx, agent_name, file_path)
-
           pod_name = get_agent_pod(ctx, agent_name)
 
           # Check if file exists
@@ -1149,7 +1147,6 @@ module LanguageOperator
         end
 
         def clean_workspace(ctx, agent_name)
-
           pod_name = get_agent_pod(ctx, agent_name)
 
           # Get current workspace usage
