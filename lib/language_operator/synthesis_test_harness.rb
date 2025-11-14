@@ -19,7 +19,7 @@ module LanguageOperator
 
     def initialize(model: nil)
       @model = model || detect_default_model
-      @synthesis_endpoint = ENV['SYNTHESIS_ENDPOINT']
+      @synthesis_endpoint = ENV.fetch('SYNTHESIS_ENDPOINT', nil)
       @synthesis_api_key = ENV['SYNTHESIS_API_KEY'] || 'dummy'
       @template_path = File.join(__dir__, 'templates', 'examples', 'agent_synthesis.tmpl')
       load_template
@@ -54,24 +54,18 @@ module LanguageOperator
     private
 
     def load_template
-      unless File.exist?(@template_path)
-        raise "Synthesis template not found at: #{@template_path}"
-      end
+      raise "Synthesis template not found at: #{@template_path}" unless File.exist?(@template_path)
 
       @template_content = File.read(@template_path)
     end
 
     def load_agent_spec(yaml_path)
-      unless File.exist?(yaml_path)
-        raise "Agent YAML file not found: #{yaml_path}"
-      end
+      raise "Agent YAML file not found: #{yaml_path}" unless File.exist?(yaml_path)
 
       yaml_content = File.read(yaml_path)
       full_spec = YAML.safe_load(yaml_content, permitted_classes: [Symbol])
 
-      unless full_spec['kind'] == 'LanguageAgent'
-        raise "Invalid kind: expected LanguageAgent, got #{full_spec['kind']}"
-      end
+      raise "Invalid kind: expected LanguageAgent, got #{full_spec['kind']}" unless full_spec['kind'] == 'LanguageAgent'
 
       # Extract agent name from metadata and merge into spec
       agent_spec = full_spec['spec'].dup
@@ -81,11 +75,11 @@ module LanguageOperator
     end
 
     def build_synthesis_request(agent_spec)
-      # Note: agent_spec is the 'spec' section from the YAML
+      # NOTE: agent_spec is the 'spec' section from the YAML
       # The agent name comes from metadata.name, which we need to extract from the full YAML
       {
         instructions: agent_spec['instructions'],
-        agent_name: agent_spec['agentName'] || 'test-agent',  # Will be overridden by metadata.name
+        agent_name: agent_spec['agentName'] || 'test-agent', # Will be overridden by metadata.name
         tools: agent_spec['toolRefs'] || [],
         models: agent_spec['modelRefs'] || [],
         persona: agent_spec['personaRefs']&.first || nil
@@ -104,9 +98,7 @@ module LanguageOperator
 
       # Build persona section
       persona_section = ''
-      if request[:persona]
-        persona_section = "  persona <<~PERSONA\n    #{request[:persona]}\n  PERSONA\n"
-      end
+      persona_section = "  persona <<~PERSONA\n    #{request[:persona]}\n  PERSONA\n" if request[:persona]
 
       # Build schedule section
       schedule_section = ''
@@ -130,7 +122,7 @@ module LanguageOperator
 
       # Handle conditional sections (simple implementation for {{if .ErrorContext}})
       rendered.gsub!(/\{\{if \.ErrorContext\}\}.*?\{\{else\}\}/m, '')
-      rendered.gsub!(/\{\{end\}\}/, '')
+      rendered.gsub!('{{end}}', '')
 
       # Replace variables
       rendered.gsub!('{{.Instructions}}', request[:instructions])
@@ -156,7 +148,7 @@ module LanguageOperator
       return :oneshot if oneshot_keywords.any? { |keyword| lower.include?(keyword) }
 
       # Schedule indicators
-      schedule_keywords = ['every', 'daily', 'hourly', 'weekly', 'monthly', 'cron', 'schedule', 'periodically']
+      schedule_keywords = %w[every daily hourly weekly monthly cron schedule periodically]
       return :scheduled if schedule_keywords.any? { |keyword| lower.include?(keyword) }
 
       # Default to continuous
@@ -200,18 +192,16 @@ module LanguageOperator
 
     def call_llm(prompt, model:)
       # Priority 1: Use SYNTHESIS_ENDPOINT if configured (OpenAI-compatible)
-      if @synthesis_endpoint
-        return call_openai_compatible(prompt, model)
-      end
+      return call_openai_compatible(prompt, model) if @synthesis_endpoint
 
       # Priority 2: Detect provider from model name
       provider, api_key = detect_provider(model)
 
       unless api_key
-        raise "No API key found. Set either:\n" \
-              "  SYNTHESIS_ENDPOINT (for local/OpenAI-compatible)\n" \
-              "  ANTHROPIC_API_KEY (for Claude)\n" \
-              "  OPENAI_API_KEY (for GPT)"
+        raise "No API key found. Set either:\n  " \
+              "SYNTHESIS_ENDPOINT (for local/OpenAI-compatible)\n  " \
+              "ANTHROPIC_API_KEY (for Claude)\n  " \
+              'OPENAI_API_KEY (for GPT)'
       end
 
       # Configure RubyLLM for the provider
@@ -247,7 +237,7 @@ module LanguageOperator
       RubyLLM.configure do |config|
         config.openai_api_key = @synthesis_api_key
         config.openai_api_base = @synthesis_endpoint
-        config.openai_use_system_role = true  # Better compatibility with local models
+        config.openai_use_system_role = true # Better compatibility with local models
       end
 
       # Create chat with OpenAI provider (will use configured endpoint)
@@ -272,12 +262,12 @@ module LanguageOperator
 
     def detect_provider(model)
       if model.start_with?('claude')
-        [:anthropic, ENV['ANTHROPIC_API_KEY']]
+        [:anthropic, ENV.fetch('ANTHROPIC_API_KEY', nil)]
       elsif model.start_with?('gpt')
-        [:openai, ENV['OPENAI_API_KEY']]
+        [:openai, ENV.fetch('OPENAI_API_KEY', nil)]
       else
         # Default to Anthropic
-        [:anthropic, ENV['ANTHROPIC_API_KEY']]
+        [:anthropic, ENV.fetch('ANTHROPIC_API_KEY', nil)]
       end
     end
 
@@ -315,7 +305,7 @@ module LanguageOperator
 
     def validate_code(code)
       # Basic checks
-      raise "Empty code generated" if code.strip.empty?
+      raise 'Empty code generated' if code.strip.empty?
       raise "Code does not contain 'agent' definition" unless code.include?('agent ')
       raise "Code does not require 'language_operator'" unless code.match?(/require ['"]language_operator['"]/)
 

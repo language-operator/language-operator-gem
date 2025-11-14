@@ -29,6 +29,7 @@ module LanguageOperator
     def self.logger
       @logger
     end
+
     # Run the default agent based on environment configuration
     #
     # @param config_path [String] Path to configuration file

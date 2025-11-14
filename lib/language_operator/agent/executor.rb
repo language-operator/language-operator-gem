@@ -112,7 +112,7 @@ module LanguageOperator
           end
 
           # Log the actual LLM response content (strip [THINK] blocks)
-          cleaned_response = result_text.gsub(/\[THINK\].*?\[\/THINK\]/m, '').strip
+          cleaned_response = result_text.gsub(%r{\[THINK\].*?\[/THINK\]}m, '').strip
           response_preview = cleaned_response.length > 500 ? "#{cleaned_response[0..500]}..." : cleaned_response
           puts "\e[1;35m·\e[0m #{response_preview}" unless response_preview.empty?
 
@@ -239,7 +239,7 @@ module LanguageOperator
 
         # Log the full response received
         result_text = result.is_a?(String) ? result : result.content
-        cleaned_response = result_text.gsub(/\[THINK\].*?\[\/THINK\]/m, '').strip
+        cleaned_response = result_text.gsub(%r{\[THINK\].*?\[/THINK\]}m, '').strip
         puts "\e[1;35m·\e[0m \e[1mLLM Response:\e[0m"
         puts cleaned_response
         puts

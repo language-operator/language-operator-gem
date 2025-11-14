@@ -184,8 +184,8 @@ module LanguageOperator
           puts "DEBUG: Block arity = #{@execute_block.arity.inspect}"
           puts "DEBUG: Block class = #{@execute_block.class}"
           # Support both arity-0 (no params) and arity-2 (results, context) blocks
-          if @execute_block.arity == 0 || @execute_block.arity == -1
-            puts "DEBUG: Calling with no params"
+          if [0, -1].include?(@execute_block.arity)
+            puts 'DEBUG: Calling with no params'
             @execute_block.call
           else
             puts "DEBUG: Calling with 2 params (arity=#{@execute_block.arity})"
