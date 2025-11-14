@@ -12,6 +12,32 @@ The schema version is tied directly to the gem version and follows [Semantic Ver
 
 ## Version History
 
+### 0.1.34 (2025-11-14)
+
+**DSL v1: Task/Main Primitives Added**
+
+This release adds support for the new DSL v1 pattern with task/main primitives while maintaining backward compatibility with the workflow/step pattern.
+
+**New Features:**
+- Added `task()` DSL method to AgentDefinition for defining organic functions
+- Task definitions support neural (instructions), symbolic (code block), and hybrid implementations
+- Tasks stored in `@tasks` hash on AgentDefinition
+- Full input/output schema validation via TaskDefinition
+
+**Improvements:**
+- Added deprecation warning to `workflow()` method
+- Updated schema to include task definitions
+- Added comprehensive test coverage for task registration
+
+**Deprecated:**
+- `workflow` and `step` pattern (use `task` and `main` instead)
+- Migration guide available in requirements/proposals/dsl-v1.md
+
+**Backward Compatibility:**
+- Existing workflow-based agents continue to work
+- Both task and workflow can coexist in same agent during migration
+- No breaking changes to existing code
+
 ### 0.1.30 (2025-11-12)
 
 **Initial schema artifact generation**

@@ -2,6 +2,7 @@
 
 require_relative 'workflow_definition'
 require_relative 'main_definition'
+require_relative 'task_definition'
 require_relative 'webhook_definition'
 require_relative 'mcp_server_definition'
 require_relative 'chat_endpoint_definition'
@@ -48,7 +49,7 @@ module LanguageOperator
     class AgentDefinition
       include LanguageOperator::Loggable
 
-      attr_reader :name, :description, :persona, :schedule, :objectives, :workflow, :main,
+      attr_reader :name, :description, :persona, :schedule, :objectives, :workflow, :main, :tasks,
                   :constraints, :output_config, :execution_mode, :webhooks, :mcp_server, :chat_endpoint
 
       def initialize(name)
@@ -59,6 +60,7 @@ module LanguageOperator
         @objectives = []
         @workflow = nil
         @main = nil
+        @tasks = {}
         @constraints = {}
         @output_config = {}
         @execution_mode = :autonomous
@@ -120,12 +122,18 @@ module LanguageOperator
         @objectives << text
       end
 
-      # Define workflow with steps (deprecated - use main instead)
+      # Define workflow with steps (deprecated - use task/main instead)
       #
+      # @deprecated Use {#task} and {#main} instead (DSL v1)
       # @yield Workflow definition block
       # @return [WorkflowDefinition] Current workflow
       def workflow(&block)
         return @workflow if block.nil?
+
+        logger.warn('DEPRECATED: workflow/step pattern is deprecated. ' \
+                    'Please migrate to task/main pattern. ' \
+                    'See requirements/proposals/dsl-v1.md for migration guide.',
+                    agent: @name)
 
         @workflow = WorkflowDefinition.new
         @workflow.instance_eval(&block) if block
@@ -151,6 +159,76 @@ module LanguageOperator
         @main = MainDefinition.new
         @main.execute(&block) if block
         @main
+      end
+
+      # Define a task (organic function) - DSL v1
+      #
+      # Tasks are the core primitive of DSL v1, representing organic functions with
+      # stable input/output contracts. Tasks can be neural (instructions-based),
+      # symbolic (code-based), or hybrid (both).
+      #
+      # @param name [Symbol] Task name
+      # @param options [Hash] Task configuration
+      # @option options [Hash] :inputs Input schema (param => type)
+      # @option options [Hash] :outputs Output schema (field => type)
+      # @option options [String] :instructions Natural language instructions (neural)
+      # @yield [inputs] Symbolic implementation block (optional)
+      # @yieldparam inputs [Hash] Validated input parameters
+      # @yieldreturn [Hash] Output matching outputs schema
+      # @return [TaskDefinition] The task definition
+      #
+      # @example Neural task
+      #   task :analyze_data,
+      #     instructions: "Analyze the data for anomalies",
+      #     inputs: { data: 'array' },
+      #     outputs: { issues: 'array', summary: 'string' }
+      #
+      # @example Symbolic task
+      #   task :calculate_total,
+      #     inputs: { items: 'array' },
+      #     outputs: { total: 'number' }
+      #   do |inputs|
+      #     { total: inputs[:items].sum { |i| i['amount'] } }
+      #   end
+      #
+      # @example Hybrid task
+      #   task :fetch_user,
+      #     instructions: "Fetch user from database",
+      #     inputs: { user_id: 'integer' },
+      #     outputs: { user: 'hash' }
+      #   do |inputs|
+      #     execute_tool('database', 'get_user', id: inputs[:user_id])
+      #   end
+      def task(name, **options, &block)
+        # Create task definition
+        task_def = TaskDefinition.new(name)
+
+        # Configure from options (keyword arguments)
+        task_def.inputs(options[:inputs]) if options[:inputs]
+        task_def.outputs(options[:outputs]) if options[:outputs]
+        task_def.instructions(options[:instructions]) if options[:instructions]
+
+        # Symbolic implementation (if block provided)
+        task_def.execute(&block) if block
+
+        # Store in tasks collection
+        @tasks[name] = task_def
+
+        task_type = if task_def.neural? && task_def.symbolic?
+                      'hybrid'
+                    elsif task_def.neural?
+                      'neural'
+                    else
+                      'symbolic'
+                    end
+
+        logger.debug('Task defined',
+                     name: name,
+                     type: task_type,
+                     inputs: options[:inputs]&.keys || [],
+                     outputs: options[:outputs]&.keys || [])
+
+        task_def
       end
 
       # Define constraints (max_iterations, timeout, etc.)
