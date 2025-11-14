@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative '../loggable'
+require_relative '../type_coercion'
 
 module LanguageOperator
   module Dsl
@@ -275,72 +276,10 @@ module LanguageOperator
       # @return [Object] Coerced value
       # @raise [ArgumentError] If coercion fails
       def coerce_value(value, type, context)
-        case type
-        when 'integer'
-          coerce_to_integer(value, context)
-        when 'number'
-          coerce_to_number(value, context)
-        when 'string'
-          value.to_s
-        when 'boolean'
-          coerce_to_boolean(value, context)
-        when 'array'
-          raise ArgumentError, "Expected array for #{context}, got #{value.class}" unless value.is_a?(Array)
-
-          value
-        when 'hash'
-          raise ArgumentError, "Expected hash for #{context}, got #{value.class}" unless value.is_a?(Hash)
-
-          value
-        when 'any'
-          value
-        else
-          raise ArgumentError, "Unknown type '#{type}' for #{context}"
-        end
-      end
-
-      # Coerce to integer
-      #
-      # @param value [Object] Value to coerce
-      # @param context [String] Context for error messages
-      # @return [Integer] Coerced integer
-      # @raise [ArgumentError] If coercion fails
-      def coerce_to_integer(value, context)
-        return value if value.is_a?(Integer)
-
-        Integer(value)
-      rescue ArgumentError, TypeError => e
-        raise ArgumentError, "Cannot coerce #{value.inspect} to integer for #{context}: #{e.message}"
-      end
-
-      # Coerce to number (float)
-      #
-      # @param value [Object] Value to coerce
-      # @param context [String] Context for error messages
-      # @return [Numeric] Coerced number
-      # @raise [ArgumentError] If coercion fails
-      def coerce_to_number(value, context)
-        return value if value.is_a?(Numeric)
-
-        Float(value)
-      rescue ArgumentError, TypeError => e
-        raise ArgumentError, "Cannot coerce #{value.inspect} to number for #{context}: #{e.message}"
-      end
-
-      # Coerce to boolean
-      #
-      # @param value [Object] Value to coerce
-      # @param context [String] Context for error messages
-      # @return [Boolean] Coerced boolean
-      # @raise [ArgumentError] If coercion fails
-      def coerce_to_boolean(value, context)
-        return value if value.is_a?(TrueClass) || value.is_a?(FalseClass)
-
-        str = value.to_s.downcase
-        return true if %w[true 1 yes t y].include?(str)
-        return false if %w[false 0 no f n].include?(str)
-
-        raise ArgumentError, "Cannot coerce #{value.inspect} to boolean for #{context}"
+        TypeCoercion.coerce(value, type)
+      rescue ArgumentError => e
+        # Re-raise with context added
+        raise ArgumentError, "#{e.message} for #{context}"
       end
 
       # Convert schema hash to JSON Schema format
