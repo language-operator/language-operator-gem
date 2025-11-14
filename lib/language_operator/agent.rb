@@ -23,6 +23,12 @@ module LanguageOperator
   #   agent = LanguageOperator::Agent::Base.new(config)
   #   agent.execute_goal("Summarize daily news")
   module Agent
+    # Module-level logger for Agent framework
+    @logger = LanguageOperator::Logger.new(component: 'Agent')
+
+    def self.logger
+      @logger
+    end
     # Run the default agent based on environment configuration
     #
     # @param config_path [String] Path to configuration file
@@ -53,9 +59,8 @@ module LanguageOperator
       if agent_code_path && File.exist?(agent_code_path)
         load_synthesized_agent(agent, agent_code_path, agent_name)
       else
-        LanguageOperator::Logger.info('No synthesized code found, running in standard mode',
-                                      component: 'Agent',
-                                      agent_code_path: agent_code_path)
+        logger.info('No synthesized code found, running in standard mode',
+                    agent_code_path: agent_code_path)
         agent.run
       end
     end
@@ -67,10 +72,9 @@ module LanguageOperator
     # @param agent_name [String] Name of agent definition
     # @return [void]
     def self.load_synthesized_agent(agent, code_path, agent_name)
-      LanguageOperator::Logger.info('DSL code loading',
-                                    component: 'Agent',
-                                    path: code_path,
-                                    agent_name: agent_name)
+      logger.info('DSL code loading',
+                  path: code_path,
+                  agent_name: agent_name)
 
       # Load synthesized DSL code
       LanguageOperator::Dsl.load_agent_file(code_path)
@@ -79,10 +83,9 @@ module LanguageOperator
       agent_def = LanguageOperator::Dsl.agent_registry.get(agent_name) if agent_name
 
       if agent_def
-        LanguageOperator::Logger.info('Agent definition loaded',
-                                      component: 'Agent',
-                                      agent_name: agent_name,
-                                      has_workflow: !agent_def.workflow.nil?)
+        logger.info('Agent definition loaded',
+                    agent_name: agent_name,
+                    has_workflow: !agent_def.workflow.nil?)
         run_with_definition(agent, agent_def)
       else
         log_definition_not_found(agent_name)
@@ -98,11 +101,10 @@ module LanguageOperator
     # @param agent_name [String] Name of agent
     # @return [void]
     def self.log_definition_not_found(agent_name)
-      LanguageOperator::Logger.warn('Agent definition not found in registry',
-                                    component: 'Agent',
-                                    agent_name: agent_name,
-                                    available: LanguageOperator::Dsl.agent_registry.all.map(&:name))
-      LanguageOperator::Logger.info('Falling back to autonomous mode', component: 'Agent')
+      logger.warn('Agent definition not found in registry',
+                  agent_name: agent_name,
+                  available: LanguageOperator::Dsl.agent_registry.all.map(&:name))
+      logger.info('Falling back to autonomous mode')
     end
 
     # Log agent code loading error
@@ -110,11 +112,10 @@ module LanguageOperator
     # @param error [StandardError] The error
     # @return [void]
     def self.log_load_error(error)
-      LanguageOperator::Logger.error('Failed to load agent code',
-                                     component: 'Agent',
-                                     error: error.message,
-                                     backtrace: error.backtrace[0..3])
-      LanguageOperator::Logger.info('Falling back to autonomous mode', component: 'Agent')
+      logger.error('Failed to load agent code',
+                   error: error.message,
+                   backtrace: error.backtrace[0..3])
+      logger.info('Falling back to autonomous mode')
     end
 
     # Run agent with a loaded definition

@@ -180,7 +180,17 @@ module LanguageOperator
         if @execute_block
           # Custom execution logic
           logger.debug('Executing custom logic', step: @name)
-          @execute_block.call(results, context)
+          # Debug: log block arity
+          puts "DEBUG: Block arity = #{@execute_block.arity.inspect}"
+          puts "DEBUG: Block class = #{@execute_block.class}"
+          # Support both arity-0 (no params) and arity-2 (results, context) blocks
+          if @execute_block.arity == 0 || @execute_block.arity == -1
+            puts "DEBUG: Calling with no params"
+            @execute_block.call
+          else
+            puts "DEBUG: Calling with 2 params (arity=#{@execute_block.arity})"
+            @execute_block.call(results, context)
+          end
         elsif @tool_name
           # Tool execution
           params = interpolate_params(@tool_params, results)
@@ -204,8 +214,6 @@ module LanguageOperator
           nil
         end
       end
-
-      alias execute execute_step
 
       private
 

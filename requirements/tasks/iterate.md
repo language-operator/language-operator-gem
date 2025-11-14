@@ -8,18 +8,19 @@ Adopt the [ruby-engineer](../../../requirements/personas/ruby-engineer.md) perso
 
 - id int -- A GitHub issue index ID.
 
-## Background
+## Prerequisites
 
-This is a early-phase project that works exclusively in main.
-Issues are found using the `gh` command for this project:
-- Owner: language-operator
-- Repository: language-operator-gem
+Please read the following files to understand this feature and system:
+
+* [dsl-v1](../../../requirements/features/dsl-v1.md) feature.  
+* [ARCHITECTURE.md](../../../ARCHITECTURE.md)
+* The persona file you were instructed to assume.
 
 ## Instructions
 
 Follow these directions closely:
 
-1. Use the ForgeJo tool to find the top issue for this repository.
+1. Use the `gh` tool to find the top issue for this repository (language-operator/language-operator-gem).
 2. Investigate if it's valid, or a mis-use of the intended feature.
 3. **CRITICAL:** Switch to plan mode, and propose an implementation plan.  Await my feedback.
 4. Add your implementation plan as a comment on the issue.
