@@ -75,6 +75,11 @@ This is attempt {{.AttemptNumber}} of {{.MaxAttempts}}. The user is counting on 
 
 **Detected Temporal Intent:** {{.TemporalIntent}}
 
+**Runtime Context:**
+- All agent messages and output are automatically logged to stdout
+- Agents have access to a workspace directory for file operations
+- LLM responses are captured and available in agent execution context
+
 Generate Ruby DSL code using this exact format (wrapped in triple-backticks with ruby):
 
 ```ruby
@@ -89,11 +94,22 @@ agent "{{.AgentName}}" do
     "Second objective"
   ]
 
-  # Define workflow if instructions mention specific steps
-  # workflow do
-  #   step :step_name, tool: "tool_name", params: {key: "value"}
-  #   step :another_step, depends_on: :step_name
-  # end
+  # REQUIRED: Define workflow with at least one step
+  workflow do
+    # Use tools when available
+    step :step_name, tool: "tool_name", params: {key: "value"}
+
+    # Or use execute blocks for custom Ruby code (simple logging, calculations, etc.)
+    step :custom_step do
+      execute do
+        puts "Custom output from Ruby code"
+        { result: "done" }
+      end
+    end
+
+    # Chain steps with dependencies if needed
+    step :another_step, depends_on: :step_name
+  end
 
 {{.ConstraintsSection}}
 
@@ -108,8 +124,10 @@ end
 1. Generate ONLY the Ruby code within triple-backticks, no explanations before or after
 {{.ScheduleRules}}
 5. Break down instructions into clear, actionable objectives
-6. Create workflow steps if instructions describe a process
-7. Use available tools in workflow steps
-8. Use the agent name: "{{.AgentName}}"
+6. REQUIRED: Always include a workflow block with at least one step (even for simple single-action agents)
+7. For simple tasks (logging, calculations), use a single step with an execute block containing Ruby code
+8. For complex tasks, use multiple steps with tools or execute blocks
+9. Use available tools in workflow steps when tools are provided
+10. Use the agent name: "{{.AgentName}}"
 
 Generate the code now:

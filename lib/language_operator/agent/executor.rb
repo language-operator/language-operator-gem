@@ -90,7 +90,7 @@ module LanguageOperator
             )
           end
 
-          logger.info('🤖 LLM request')
+          logger.info('LLM request')
           result = logger.timed('LLM response received') do
             @agent.send_message(task)
           end
@@ -110,12 +110,14 @@ module LanguageOperator
               tokens: metrics[:totalTokens]
             )
           end
-          logger.info('✓ Iteration completed',
-                      iteration: @iteration_count,
-                      response_length: result_text.length,
-                      total_tokens: metrics[:totalTokens],
-                      estimated_cost: "$#{metrics[:estimatedCost]}")
-          logger.debug('Response preview', response: result_text[0..200])
+
+          # Log the actual LLM response content (strip [THINK] blocks)
+          cleaned_response = result_text.gsub(/\[THINK\].*?\[\/THINK\]/m, '').strip
+          response_preview = cleaned_response.length > 500 ? "#{cleaned_response[0..500]}..." : cleaned_response
+          puts "\e[1;35m·\e[0m #{response_preview}" unless response_preview.empty?
+
+          # Log iteration completion with green dot
+          puts "\e[1;32m·\e[0m Iteration completed (iteration=#{@iteration_count}, response_length=#{result_text.length}, total_tokens=#{metrics[:totalTokens]}, estimated_cost=$#{metrics[:estimatedCost]})"
 
           result
         rescue StandardError => e
@@ -130,7 +132,7 @@ module LanguageOperator
       def run_loop
         start_time = Time.now
 
-        logger.info('▶ Starting execution')
+        logger.info('Starting execution')
         logger.info('Configuration',
                     workspace: @agent.workspace_path,
                     mcp_servers: @agent.servers_info.length,
@@ -152,7 +154,9 @@ module LanguageOperator
                        ENV['AGENT_INSTRUCTIONS'] ||
                        'Monitor workspace and respond to changes'
 
-        logger.info('Instructions', instructions: instructions[0..200])
+        # Log instructions with bold white formatting
+        instructions_preview = instructions[0..200]
+        puts "\e[1;37m·\e[0m \e[1;37m#{instructions_preview}\e[0m"
         logger.info('Starting autonomous execution loop')
 
         loop do
@@ -188,7 +192,7 @@ module LanguageOperator
         # Log execution summary
         total_duration = Time.now - start_time
         metrics = @metrics_tracker.cumulative_stats
-        logger.info('✅ Execution complete',
+        logger.info('Execution complete',
                     iterations: @iteration_count,
                     duration_s: total_duration.round(2),
                     total_requests: metrics[:requestCount],
@@ -210,18 +214,22 @@ module LanguageOperator
       def execute_workflow(agent_def)
         start_time = Time.now
 
-        logger.info("▶ Starting workflow execution: #{agent_def.name}")
+        logger.info("Starting workflow execution: #{agent_def.name}")
 
         # Log persona if defined
-        logger.info("👤 Loading persona: #{agent_def.persona}") if agent_def.persona
+        puts "\e[1;35m·\e[0m Loading persona: #{agent_def.persona}" if agent_def.persona
 
         # Build orchestration prompt from agent definition
         prompt = build_workflow_prompt(agent_def)
-        logger.debug('Workflow prompt', prompt: prompt[0..300])
+
+        # Log the full prompt being sent
+        puts "\e[1;34m·\e[0m \e[1mPrompt sent to LLM:\e[0m"
+        puts prompt
+        puts
 
         # Register workflow steps as tools (placeholder - will implement after tool converter)
         # For now, just execute with instructions
-        result = logger.timed('🤖 LLM request') do
+        result = logger.timed('LLM request') do
           @agent.send_message(prompt)
         end
 
@@ -229,13 +237,20 @@ module LanguageOperator
         model_id = @agent.config.dig('llm', 'model')
         @metrics_tracker.record_request(result, model_id) if model_id
 
+        # Log the full response received
+        result_text = result.is_a?(String) ? result : result.content
+        cleaned_response = result_text.gsub(/\[THINK\].*?\[\/THINK\]/m, '').strip
+        puts "\e[1;35m·\e[0m \e[1mLLM Response:\e[0m"
+        puts cleaned_response
+        puts
+
         # Write output if configured
         write_output(agent_def, result) if agent_def.output_config && result
 
         # Log execution summary
         total_duration = Time.now - start_time
         metrics = @metrics_tracker.cumulative_stats
-        logger.info('✅ Workflow execution completed',
+        logger.info('Workflow execution completed',
                     duration_s: total_duration.round(2),
                     total_tokens: metrics[:totalTokens],
                     estimated_cost: "$#{metrics[:estimatedCost]}")
@@ -302,10 +317,10 @@ module LanguageOperator
             fallback_path = File.join(@agent.workspace_path, 'output.txt')
             begin
               File.write(fallback_path, content)
-              logger.warn("⚠️  Could not write to #{workspace_path}, wrote to output.txt instead")
+              logger.warn("Could not write to #{workspace_path}, wrote to output.txt instead")
             rescue StandardError => e2
-              logger.warn("⚠️  Could not write output to workspace: #{e2.message}")
-              logger.info("📄 Output (first 500 chars): #{content[0..500]}")
+              logger.warn("Could not write output to workspace: #{e2.message}")
+              logger.info("Output (first 500 chars): #{content[0..500]}")
             end
           end
         end
