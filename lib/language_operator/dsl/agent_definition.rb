@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'workflow_definition'
+require_relative 'main_definition'
 require_relative 'webhook_definition'
 require_relative 'mcp_server_definition'
 require_relative 'chat_endpoint_definition'
@@ -47,7 +48,7 @@ module LanguageOperator
     class AgentDefinition
       include LanguageOperator::Loggable
 
-      attr_reader :name, :description, :persona, :schedule, :objectives, :workflow,
+      attr_reader :name, :description, :persona, :schedule, :objectives, :workflow, :main,
                   :constraints, :output_config, :execution_mode, :webhooks, :mcp_server, :chat_endpoint
 
       def initialize(name)
@@ -57,6 +58,7 @@ module LanguageOperator
         @schedule = nil
         @objectives = []
         @workflow = nil
+        @main = nil
         @constraints = {}
         @output_config = {}
         @execution_mode = :autonomous
@@ -118,7 +120,7 @@ module LanguageOperator
         @objectives << text
       end
 
-      # Define workflow with steps
+      # Define workflow with steps (deprecated - use main instead)
       #
       # @yield Workflow definition block
       # @return [WorkflowDefinition] Current workflow
@@ -128,6 +130,27 @@ module LanguageOperator
         @workflow = WorkflowDefinition.new
         @workflow.instance_eval(&block) if block
         @workflow
+      end
+
+      # Define main execution block (DSL v1)
+      #
+      # The main block is the imperative entry point for agent execution.
+      # It receives agent inputs and returns agent outputs. Use execute_task()
+      # to call organic functions (tasks) defined with the task directive.
+      #
+      # @yield Main execution block
+      # @return [MainDefinition] Current main definition
+      # @example
+      #   main do |inputs|
+      #     result = execute_task(:fetch_data, inputs: inputs)
+      #     execute_task(:process_data, inputs: result)
+      #   end
+      def main(&block)
+        return @main if block.nil?
+
+        @main = MainDefinition.new
+        @main.execute(&block) if block
+        @main
       end
 
       # Define constraints (max_iterations, timeout, etc.)
