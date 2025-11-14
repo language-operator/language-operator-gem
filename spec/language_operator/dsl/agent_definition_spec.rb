@@ -171,7 +171,7 @@ RSpec.describe LanguageOperator::Dsl::AgentDefinition do
         agent: agent_name
       )
 
-      agent.workflow {}
+      agent.workflow { nil } # Empty workflow for deprecation test
     end
   end
 
@@ -183,7 +183,7 @@ RSpec.describe LanguageOperator::Dsl::AgentDefinition do
         { result: 'done' }
       end
 
-      agent.workflow {}
+      agent.workflow { nil } # Empty workflow for compatibility test
 
       expect(agent.tasks.size).to eq(1)
       expect(agent.workflow).to be_a(LanguageOperator::Dsl::WorkflowDefinition)
@@ -191,7 +191,7 @@ RSpec.describe LanguageOperator::Dsl::AgentDefinition do
 
     it 'allows both main and workflow in the same agent' do
       agent.main { |inputs| inputs }
-      agent.workflow {}
+      agent.workflow { nil } # Empty workflow for compatibility test
 
       expect(agent.main).to be_a(LanguageOperator::Dsl::MainDefinition)
       expect(agent.workflow).to be_a(LanguageOperator::Dsl::WorkflowDefinition)
