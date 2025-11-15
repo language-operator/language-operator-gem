@@ -174,9 +174,24 @@ module LanguageOperator
             },
             minItems: 0
           },
-          workflow: {
-            '$ref': '#/definitions/WorkflowDefinition'
+          # DSL v1 (task/main model)
+          tasks: {
+            type: 'array',
+            description: 'Task definitions (organic functions with stable contracts)',
+            items: {
+              '$ref': '#/definitions/TaskDefinition'
+            }
           },
+          main: {
+            '$ref': '#/definitions/MainDefinition',
+            description: 'Main execution block (imperative entry point)'
+          },
+          # DSL v0 (workflow/step model - deprecated)
+          workflow: {
+            '$ref': '#/definitions/WorkflowDefinition',
+            description: 'Multi-step workflow (deprecated - use tasks and main instead)'
+          },
+          # Common properties
           constraints: {
             '$ref': '#/definitions/ConstraintsDefinition'
           },
@@ -204,8 +219,14 @@ module LanguageOperator
       # @return [Hash] Schema definitions for nested types
       def self.all_definitions
         {
+          # DSL v1 (task/main model)
+          TaskDefinition: task_definition_schema,
+          MainDefinition: main_definition_schema,
+          TypeSchema: type_schema_definition,
+          # DSL v0 (workflow/step model - deprecated but kept for migration)
           WorkflowDefinition: workflow_definition_schema,
           StepDefinition: step_definition_schema,
+          # Common definitions
           ConstraintsDefinition: constraints_definition_schema,
           OutputDefinition: output_definition_schema,
           WebhookDefinition: webhook_definition_schema,
@@ -236,13 +257,13 @@ module LanguageOperator
         }
       end
 
-      # Step definition schema
+      # Step definition schema (DSL v0 - deprecated)
       #
       # @return [Hash] Schema for workflow steps
       def self.step_definition_schema
         {
           type: 'object',
-          description: 'Individual workflow step',
+          description: 'Individual workflow step (deprecated - use TaskDefinition instead)',
           properties: {
             name: {
               type: 'string',
@@ -273,6 +294,92 @@ module LanguageOperator
             }
           },
           required: %w[name]
+        }
+      end
+
+      # Task definition schema (DSL v1)
+      #
+      # @return [Hash] Schema for task definitions (organic functions)
+      def self.task_definition_schema
+        {
+          type: 'object',
+          description: 'Organic function with stable contract (inputs/outputs) and evolving implementation',
+          properties: {
+            name: {
+              type: 'string',
+              description: 'Task identifier (symbol)',
+              pattern: '^[a-z_][a-z0-9_]*$'
+            },
+            inputs: {
+              '$ref': '#/definitions/TypeSchema',
+              description: 'Input contract (parameter types)'
+            },
+            outputs: {
+              '$ref': '#/definitions/TypeSchema',
+              description: 'Output contract (return value types)'
+            },
+            instructions: {
+              type: 'string',
+              description: 'Natural language instructions for neural implementation (optional)'
+            },
+            implementation_type: {
+              type: 'string',
+              description: 'Implementation approach',
+              enum: %w[neural symbolic hybrid undefined]
+            }
+          },
+          required: %w[name inputs outputs]
+        }
+      end
+
+      # Main definition schema (DSL v1)
+      #
+      # @return [Hash] Schema for main execution block
+      def self.main_definition_schema
+        {
+          type: 'object',
+          description: 'Imperative entry point for agent execution',
+          properties: {
+            type: {
+              type: 'string',
+              description: 'Block type',
+              enum: ['main']
+            },
+            description: {
+              type: 'string',
+              description: 'Main block executes tasks using execute_task() with Ruby control flow'
+            }
+          },
+          additionalProperties: false
+        }
+      end
+
+      # Type schema definition (DSL v1)
+      #
+      # @return [Hash] Schema for type schemas used in task inputs/outputs
+      def self.type_schema_definition
+        {
+          type: 'object',
+          description: 'Type schema for task contract validation',
+          patternProperties: {
+            '^[a-z_][a-z0-9_]*$': {
+              type: 'string',
+              description: 'Parameter type',
+              enum: %w[string integer number boolean array hash any]
+            }
+          },
+          additionalProperties: false,
+          examples: [
+            {
+              user_id: 'integer',
+              name: 'string',
+              active: 'boolean'
+            },
+            {
+              data: 'array',
+              metadata: 'hash'
+            }
+          ]
         }
       end
 

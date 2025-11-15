@@ -126,6 +126,24 @@ RSpec.describe LanguageOperator::Dsl::Schema do
         expect(properties[:chat_endpoint]).to be_a(Hash)
         expect(properties[:chat_endpoint][:$ref]).to eq('#/definitions/ChatEndpointDefinition')
       end
+
+      # DSL v1 properties
+      it 'includes tasks property as array (DSL v1)' do
+        expect(properties[:tasks]).to be_a(Hash)
+        expect(properties[:tasks][:type]).to eq('array')
+        expect(properties[:tasks][:items][:$ref]).to eq('#/definitions/TaskDefinition')
+        expect(properties[:tasks][:description]).to include('organic functions')
+      end
+
+      it 'includes main property with reference (DSL v1)' do
+        expect(properties[:main]).to be_a(Hash)
+        expect(properties[:main][:$ref]).to eq('#/definitions/MainDefinition')
+        expect(properties[:main][:description]).to include('imperative entry point')
+      end
+
+      it 'marks workflow as deprecated' do
+        expect(properties[:workflow][:description]).to include('deprecated')
+      end
     end
 
     describe 'definitions' do
@@ -133,6 +151,9 @@ RSpec.describe LanguageOperator::Dsl::Schema do
 
       it 'includes all expected definitions' do
         expected_definitions = %i[
+          TaskDefinition
+          MainDefinition
+          TypeSchema
           WorkflowDefinition
           StepDefinition
           ConstraintsDefinition
@@ -147,6 +168,100 @@ RSpec.describe LanguageOperator::Dsl::Schema do
 
         expected_definitions.each do |def_name|
           expect(definitions).to have_key(def_name), "Missing definition: #{def_name}"
+        end
+      end
+
+      # DSL v1 definitions
+      describe 'TaskDefinition' do
+        let(:task_def) { definitions[:TaskDefinition] }
+
+        it 'is an object type' do
+          expect(task_def[:type]).to eq('object')
+          expect(task_def[:description]).to include('Organic function')
+        end
+
+        it 'requires name, inputs, and outputs' do
+          expect(task_def[:required]).to include('name', 'inputs', 'outputs')
+        end
+
+        it 'includes task properties' do
+          expect(task_def[:properties][:name]).to be_a(Hash)
+          expect(task_def[:properties][:inputs]).to be_a(Hash)
+          expect(task_def[:properties][:outputs]).to be_a(Hash)
+          expect(task_def[:properties][:instructions]).to be_a(Hash)
+          expect(task_def[:properties][:implementation_type]).to be_a(Hash)
+        end
+
+        it 'validates task name pattern' do
+          expect(task_def[:properties][:name][:pattern]).to eq('^[a-z_][a-z0-9_]*$')
+        end
+
+        it 'references TypeSchema for inputs and outputs' do
+          expect(task_def[:properties][:inputs][:$ref]).to eq('#/definitions/TypeSchema')
+          expect(task_def[:properties][:outputs][:$ref]).to eq('#/definitions/TypeSchema')
+        end
+
+        it 'includes implementation_type enum' do
+          impl_type = task_def[:properties][:implementation_type]
+          expect(impl_type[:enum]).to match_array(%w[neural symbolic hybrid undefined])
+        end
+
+        it 'marks instructions as optional' do
+          expect(task_def[:required]).not_to include('instructions')
+        end
+      end
+
+      describe 'MainDefinition' do
+        let(:main_def) { definitions[:MainDefinition] }
+
+        it 'is an object type' do
+          expect(main_def[:type]).to eq('object')
+          expect(main_def[:description]).to include('Imperative entry point')
+        end
+
+        it 'includes main properties' do
+          expect(main_def[:properties][:type]).to be_a(Hash)
+          expect(main_def[:properties][:description]).to be_a(Hash)
+        end
+
+        it 'validates type as main' do
+          expect(main_def[:properties][:type][:enum]).to eq(['main'])
+        end
+
+        it 'disallows additional properties' do
+          expect(main_def[:additionalProperties]).to eq(false)
+        end
+      end
+
+      describe 'TypeSchema' do
+        let(:type_schema) { definitions[:TypeSchema] }
+
+        it 'is an object type' do
+          expect(type_schema[:type]).to eq('object')
+          expect(type_schema[:description]).to include('Type schema')
+        end
+
+        it 'uses pattern properties for parameter names' do
+          expect(type_schema[:patternProperties]).to be_a(Hash)
+          # Pattern is stored as a symbol key
+          pattern_key = type_schema[:patternProperties].keys.first
+          expect(pattern_key.to_s).to eq('^[a-z_][a-z0-9_]*$')
+        end
+
+        it 'validates type values as enum' do
+          # Get the first (and only) pattern property
+          pattern_prop = type_schema[:patternProperties].values.first
+          expect(pattern_prop[:enum]).to match_array(%w[string integer number boolean array hash any])
+        end
+
+        it 'disallows additional properties' do
+          expect(type_schema[:additionalProperties]).to eq(false)
+        end
+
+        it 'includes examples' do
+          expect(type_schema[:examples]).to be_an(Array)
+          expect(type_schema[:examples].length).to be > 0
+          expect(type_schema[:examples].first).to be_a(Hash)
         end
       end
 
@@ -503,9 +618,9 @@ RSpec.describe LanguageOperator::Dsl::Schema do
         expect(methods).to include('agent', 'description', 'persona', 'objectives')
       end
 
-      it 'includes workflow methods' do
+      it 'includes DSL v1 methods (task/main)' do
         methods = described_class.safe_agent_methods
-        expect(methods).to include('workflow', 'step', 'depends_on', 'prompt')
+        expect(methods).to include('task', 'main', 'execute_task', 'inputs', 'outputs', 'instructions')
       end
 
       it 'includes constraint methods' do
