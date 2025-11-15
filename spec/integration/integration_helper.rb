@@ -324,30 +324,50 @@ RSpec.configure do |config|
   config.include Integration::Performance, type: :integration
 
   config.before(:each, type: :integration) do
-    # If using real local SYNTHESIS model, unmock RubyLLM and allow HTTP
-    if ENV['SYNTHESIS_ENDPOINT']
+    # If using real LLM (not mocked), unmock RubyLLM and allow HTTP
+    unless Integration::Config.mock_llm_responses?
       RSpec::Mocks.space.reset_all
       allow(RubyLLM).to receive(:configure).and_call_original
       allow(RubyLLM::MCP).to receive(:configure).and_call_original
-      
+
       # Allow HTTP connections to local model and cloud APIs
       allowed_hosts = []
-      
+
       # Add local synthesis endpoint if available
       if ENV['SYNTHESIS_ENDPOINT']
         synthesis_host = URI(ENV['SYNTHESIS_ENDPOINT']).host
         synthesis_port = URI(ENV['SYNTHESIS_ENDPOINT']).port
         allowed_hosts << "#{synthesis_host}:#{synthesis_port}"
       end
-      
+
       # Add Anthropic API if using Claude
       if ENV['ANTHROPIC_API_KEY']
         allowed_hosts << 'api.anthropic.com:443'
       end
-      
-      WebMock.disable_net_connect!(allow: allowed_hosts)
+
+      # Add OpenAI API if using OpenAI
+      if ENV['OPENAI_API_KEY']
+        allowed_hosts << 'api.openai.com:443'
+      end
+
+      WebMock.disable_net_connect!(allow: allowed_hosts) if allowed_hosts.any?
+    else
+      # When mocking, we still need to unmock RubyLLM to allow test configuration
+      RSpec::Mocks.space.reset_all
+
+      # Create a proper mock that responds to all configuration methods
+      mock_config = double('RubyLLM::Config',
+                           openai_api_key: nil,
+                           openai_api_key=: nil,
+                           anthropic_api_key=: nil,
+                           anthropic_api_key=: nil,
+                           request_timeout: nil,
+                           request_timeout=: nil,
+                           respond_to?: true)
+      allow(RubyLLM).to receive(:configure).and_yield(mock_config)
+      allow(RubyLLM::MCP).to receive(:configure).and_yield(double(request_timeout: nil, respond_to?: true))
     end
-    
+
     setup_llm_mocks
   end
 
