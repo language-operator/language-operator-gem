@@ -1,10 +1,29 @@
 # frozen_string_literal: true
 
+require 'timeout'
+require 'socket'
 require_relative '../loggable'
 require_relative 'instrumentation'
 
 module LanguageOperator
   module Agent
+    # Custom error classes for task execution
+    class TaskExecutionError < StandardError
+      attr_reader :task_name, :original_error
+
+      def initialize(task_name, message, original_error = nil)
+        @task_name = task_name
+        @original_error = original_error
+        super("Task '#{task_name}' execution failed: #{message}")
+      end
+    end
+
+    class TaskValidationError < TaskExecutionError
+    end
+
+    class TaskTimeoutError < TaskExecutionError
+    end
+
     # Task Executor for DSL v1 organic functions
     #
     # Executes both neural (LLM-based) and symbolic (code-based) tasks.
@@ -24,81 +43,96 @@ module LanguageOperator
       include LanguageOperator::Loggable
       include Instrumentation
 
-      attr_reader :agent, :tasks
+      # Error types that should be retried
+      RETRYABLE_ERRORS = [
+        Timeout::Error,
+        Errno::ECONNREFUSED,
+        Errno::ECONNRESET,
+        Errno::ETIMEDOUT,
+        SocketError
+      ].freeze
+
+      # Error categories for logging and operator integration
+      ERROR_CATEGORIES = {
+        validation: 'VALIDATION',
+        execution: 'EXECUTION',
+        timeout: 'TIMEOUT',
+        network: 'NETWORK',
+        system: 'SYSTEM'
+      }.freeze
+
+      attr_reader :agent, :tasks, :config
 
       # Initialize the task executor
       #
       # @param agent [LanguageOperator::Agent::Base] The agent instance (provides LLM client, tools)
       # @param tasks [Hash<Symbol, TaskDefinition>] Registry of task definitions
-      def initialize(agent, tasks = {})
+      # @param config [Hash] Execution configuration
+      def initialize(agent, tasks = {}, config = {})
         @agent = agent
         @tasks = tasks
-        logger.debug('TaskExecutor initialized', task_count: @tasks.size)
+        @config = default_config.merge(config)
+        logger.debug('TaskExecutor initialized', 
+                     task_count: @tasks.size, 
+                     timeout: @config[:timeout],
+                     max_retries: @config[:max_retries])
       end
 
       # Execute a task by name with given inputs
       #
       # This is the main entry point called from MainDefinition blocks.
       # Routes to neural or symbolic execution based on task implementation.
+      # Includes timeout, retry logic, and comprehensive error handling.
       #
       # @param task_name [Symbol] Name of the task to execute
       # @param inputs [Hash] Input parameters for the task
+      # @param timeout [Numeric] Override timeout for this task (seconds)
+      # @param max_retries [Integer] Override max retries for this task
       # @return [Hash] Validated output from the task
       # @raise [ArgumentError] If task not found or inputs invalid
-      # @raise [RuntimeError] If task execution fails
-      def execute_task(task_name, inputs: {})
+      # @raise [TaskExecutionError] If task execution fails after retries
+      def execute_task(task_name, inputs: {}, timeout: nil, max_retries: nil)
+        execution_start = Time.now
+        timeout ||= @config[:timeout]
+        max_retries ||= @config[:max_retries]
+
         with_span('task_executor.execute_task', attributes: {
                     'task.name' => task_name.to_s,
-                    'task.inputs' => inputs.keys.map(&:to_s).join(',')
+                    'task.inputs' => inputs.keys.map(&:to_s).join(','),
+                    'task.timeout' => timeout,
+                    'task.max_retries' => max_retries
                   }) do
+          
           # Find task definition
           task = @tasks[task_name.to_sym]
           raise ArgumentError, "Task not found: #{task_name}. Available tasks: #{@tasks.keys.join(', ')}" unless task
 
-          task_type = if task.neural? && task.symbolic?
-                        'hybrid'
-                      elsif task.neural?
-                        'neural'
-                      elsif task.symbolic?
-                        'symbolic'
-                      else
-                        'undefined'
-                      end
-          logger.info('Executing task', task: task_name, type: task_type)
+          task_type = determine_task_type(task)
+          logger.info('Executing task', 
+                     task: task_name, 
+                     type: task_type, 
+                     timeout: timeout,
+                     max_retries: max_retries)
 
-          # Task validation and execution happens in TaskDefinition#call
-          # which handles input validation, type coercion, and output validation
-          if task.neural?
-            # Neural execution: LLM with tool access
-            execute_neural(task, inputs)
-          else
-            # Symbolic execution: Direct Ruby code
-            # Pass self as context so symbolic tasks can call execute_task, execute_tool, etc.
-            task.call(inputs, self)
-          end
+          # Execute with retry logic
+          execute_with_retry(task, task_name, inputs, timeout, max_retries, execution_start)
         end
       rescue ArgumentError => e
-        # Re-raise validation errors with clear context for re-synthesis
-        logger.error('Task execution failed - validation error',
-                     task: task_name,
-                     error: e.message)
-        raise
-      rescue StandardError => e
-        # Fail fast on execution errors (critical for operator re-synthesis)
-        logger.error('Task execution failed',
-                     task: task_name,
-                     error: e.class.name,
-                     message: e.message,
-                     backtrace: e.backtrace&.first(3))
-        raise "Task '#{task_name}' execution failed: #{e.message}"
+        # Validation errors should not be retried - re-raise immediately
+        log_task_error(task_name, e, :validation, execution_start)
+        raise TaskValidationError.new(task_name, e.message, e)
+      rescue => e
+        # Catch any unexpected errors that escaped retry logic
+        log_task_error(task_name, e, :system, execution_start)
+        raise create_appropriate_error(task_name, e)
       end
 
       # Execute a neural task (instructions-based, LLM-driven)
       #
       # @param task [TaskDefinition] The task definition
-      # @param inputs [Hash] Input parameters (already validated by task.call)
+      # @param inputs [Hash] Input parameters
       # @return [Hash] Validated outputs
-      # @raise [RuntimeError] If LLM execution fails or output validation fails
+      # @raise [StandardError] If LLM execution fails or output validation fails
       def execute_neural(task, inputs)
         # Validate inputs first
         validated_inputs = task.validate_inputs(inputs)
@@ -120,17 +154,10 @@ module LanguageOperator
                      response_length: response_text.length)
 
         # Parse response and extract outputs
-        # For now, assume LLM returns valid JSON matching output schema
-        # TODO: More sophisticated parsing/extraction
         outputs = parse_neural_response(response_text, task)
 
         # Validate outputs against schema
         task.validate_outputs(outputs)
-      rescue StandardError => e
-        logger.error('Neural task execution failed',
-                     task: task.name,
-                     error: e.message)
-        raise "Neural task '#{task.name}' failed: #{e.message}"
       end
 
       # Helper method for symbolic tasks to execute tools
@@ -271,6 +298,211 @@ module LanguageOperator
                      response: response_text[0..200],
                      error: e.message)
         raise "Neural task '#{task.name}' returned invalid JSON: #{e.message}"
+      end
+
+      # Default configuration for task execution
+      #
+      # @return [Hash] Default configuration
+      def default_config
+        {
+          timeout: 30.0,           # Default timeout in seconds
+          max_retries: 3,          # Default max retry attempts
+          retry_delay_base: 1.0,   # Base delay for exponential backoff
+          retry_delay_max: 10.0    # Maximum delay between retries
+        }
+      end
+
+      # Determine task type for logging and telemetry
+      #
+      # @param task [TaskDefinition] The task definition
+      # @return [String] Task type
+      def determine_task_type(task)
+        if task.neural? && task.symbolic?
+          'hybrid'
+        elsif task.neural?
+          'neural'
+        elsif task.symbolic?
+          'symbolic'
+        else
+          'undefined'
+        end
+      end
+
+      # Execute task with retry logic and timeout
+      #
+      # @param task [TaskDefinition] The task definition
+      # @param task_name [Symbol] Name of the task
+      # @param inputs [Hash] Input parameters
+      # @param timeout [Numeric] Timeout in seconds
+      # @param max_retries [Integer] Maximum retry attempts
+      # @param execution_start [Time] When execution started
+      # @return [Hash] Task outputs
+      def execute_with_retry(task, task_name, inputs, timeout, max_retries, execution_start)
+        attempt = 0
+        last_error = nil
+
+        while attempt <= max_retries
+          begin
+            return execute_single_attempt(task, task_name, inputs, timeout, attempt, execution_start)
+          rescue => e
+            last_error = e
+            attempt += 1
+
+            # Don't retry validation errors or non-retryable errors
+            unless retryable_error?(e) && attempt <= max_retries
+              # Re-raise ArgumentError so it gets caught by the ArgumentError rescue block
+              raise e if e.is_a?(ArgumentError)
+              
+              log_task_error(task_name, e, categorize_error(e), execution_start, attempt - 1)
+              raise create_appropriate_error(task_name, e)
+            end
+
+            # Calculate delay for exponential backoff
+            delay = calculate_retry_delay(attempt - 1)
+            logger.warn('Task execution failed, retrying',
+                       task: task_name,
+                       attempt: attempt,
+                       max_retries: max_retries,
+                       error: e.class.name,
+                       message: e.message,
+                       retry_delay: delay)
+
+            sleep(delay) if delay > 0
+          end
+        end
+
+        # If we get here, we've exhausted all retries
+        log_task_error(task_name, last_error, categorize_error(last_error), execution_start, max_retries)
+        raise create_appropriate_error(task_name, last_error)
+      end
+
+      # Execute a single attempt of a task with timeout
+      #
+      # @param task [TaskDefinition] The task definition
+      # @param task_name [Symbol] Name of the task
+      # @param inputs [Hash] Input parameters
+      # @param timeout [Numeric] Timeout in seconds
+      # @param attempt [Integer] Current attempt number
+      # @param execution_start [Time] When execution started
+      # @return [Hash] Task outputs
+      def execute_single_attempt(task, task_name, inputs, timeout, attempt, execution_start)
+        attempt_start = Time.now
+        
+        result = if timeout > 0
+          Timeout.timeout(timeout) do
+            execute_task_implementation(task, inputs)
+          end
+        else
+          execute_task_implementation(task, inputs)
+        end
+
+        execution_time = Time.now - attempt_start
+        logger.debug('Task execution completed',
+                    task: task_name,
+                    attempt: attempt + 1,
+                    execution_time: execution_time.round(3))
+
+        result
+      rescue Timeout::Error => e
+        execution_time = Time.now - attempt_start
+        logger.warn('Task execution timed out',
+                   task: task_name,
+                   attempt: attempt + 1,
+                   timeout: timeout,
+                   execution_time: execution_time.round(3))
+        raise TaskTimeoutError.new(task_name, "timed out after #{timeout}s", e)
+      end
+
+      # Execute the actual task implementation (neural or symbolic)
+      #
+      # @param task [TaskDefinition] The task definition
+      # @param inputs [Hash] Input parameters
+      # @return [Hash] Task outputs
+      def execute_task_implementation(task, inputs)
+        if task.neural?
+          # Neural execution: LLM with tool access
+          execute_neural(task, inputs)
+        else
+          # Symbolic execution: Direct Ruby code
+          # Pass self as context so symbolic tasks can call execute_task, execute_tool, etc.
+          task.call(inputs, self)
+        end
+      end
+
+      # Check if an error should be retried
+      #
+      # @param error [Exception] The error that occurred
+      # @return [Boolean] Whether the error should be retried
+      def retryable_error?(error)
+        RETRYABLE_ERRORS.any? { |error_class| error.is_a?(error_class) }
+      end
+
+      # Categorize error for logging and operator integration
+      #
+      # @param error [Exception] The error that occurred
+      # @return [Symbol] Error category
+      def categorize_error(error)
+        case error
+        when ArgumentError, TaskValidationError
+          :validation
+        when Timeout::Error, TaskTimeoutError
+          :timeout
+        when TaskExecutionError
+          # Check the original error for categorization
+          error.original_error ? categorize_error(error.original_error) : :execution
+        when *RETRYABLE_ERRORS
+          :network
+        else
+          :execution
+        end
+      end
+
+      # Calculate retry delay with exponential backoff
+      #
+      # @param attempt [Integer] Current attempt number (0-based)
+      # @return [Float] Delay in seconds
+      def calculate_retry_delay(attempt)
+        delay = @config[:retry_delay_base] * (2 ** attempt)
+        [delay, @config[:retry_delay_max]].min
+      end
+
+      # Create appropriate error type based on original error
+      #
+      # @param task_name [Symbol] Name of the task
+      # @param original_error [Exception] The original error
+      # @return [TaskExecutionError] Appropriate error type
+      def create_appropriate_error(task_name, original_error)
+        case original_error
+        when TaskTimeoutError
+          original_error
+        when Timeout::Error
+          TaskTimeoutError.new(task_name, "timed out", original_error)
+        when ArgumentError
+          TaskValidationError.new(task_name, original_error.message, original_error)
+        else
+          TaskExecutionError.new(task_name, original_error.message, original_error)
+        end
+      end
+
+      # Log task error with comprehensive context
+      #
+      # @param task_name [Symbol] Name of the task
+      # @param error [Exception] The error that occurred
+      # @param category [Symbol] Error category
+      # @param execution_start [Time] When execution started
+      # @param retry_count [Integer] Number of retries attempted
+      def log_task_error(task_name, error, category, execution_start, retry_count = 0)
+        execution_time = Time.now - execution_start
+        
+        logger.error('Task execution failed',
+                    task: task_name,
+                    error_category: ERROR_CATEGORIES[category],
+                    error_class: error.class.name,
+                    error_message: error.message,
+                    execution_time: execution_time.round(3),
+                    retry_count: retry_count,
+                    retryable: retryable_error?(error),
+                    backtrace: error.backtrace&.first(5))
       end
     end
   end

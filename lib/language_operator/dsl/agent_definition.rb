@@ -454,6 +454,10 @@ module LanguageOperator
         @constraints[:timeout] = value
       end
 
+      def max_retries(value)
+        @constraints[:max_retries] = value
+      end
+
       def memory(value)
         @constraints[:memory] = value
       end

@@ -174,7 +174,9 @@ module LanguageOperator
     # @param agent_def [LanguageOperator::Dsl::AgentDefinition] The agent definition
     # @return [void]
     def self.execute_main_block(agent, agent_def)
-      task_executor = LanguageOperator::Agent::TaskExecutor.new(agent, agent_def.tasks)
+      # Build executor config from agent constraints
+      config = build_executor_config(agent_def)
+      task_executor = LanguageOperator::Agent::TaskExecutor.new(agent, agent_def.tasks, config)
 
       logger.info('Executing main block',
                   agent: agent_def.name,
@@ -190,6 +192,21 @@ module LanguageOperator
                   result: result)
 
       result
+    end
+
+    # Build executor configuration from agent definition constraints
+    #
+    # @param agent_def [LanguageOperator::Dsl::AgentDefinition] The agent definition
+    # @return [Hash] Executor configuration
+    def self.build_executor_config(agent_def)
+      config = {}
+      
+      if agent_def.constraints
+        config[:timeout] = agent_def.constraints[:timeout] if agent_def.constraints[:timeout]
+        config[:max_retries] = agent_def.constraints[:max_retries] if agent_def.constraints[:max_retries]
+      end
+
+      config
     end
   end
 end

@@ -1,15 +1,16 @@
 # Task
 
-## Persona
-
-**CRITICAL**: Adopt the [ruby-engineer](../../../requirements/personas/ruby-engineer.md) persona while executing these instructions, please.
-
 ## Prerequisites
 
-Please read the following files to understand this feature and system:
+Please read the following context files:
 
-* /home/james/workspace/language-operator/requirements/proposals/dsl-v1.md
-* /home/james/workspace/language-operator/ARCHITECTURE.md
+* Persona: requirements/personas/ruby-engineer.md
+* Feature Spec: requirements/proposals/dsl-v1.md
+* Scratch: requirements/SCRATCH.md
+
+## Persona
+
+**CRITICAL**: Adopt the ruby-engineer persona while executing these instructions, please.
 
 ## Instructions
 
@@ -26,6 +27,8 @@ Follow these directions closely:
 9. **CRITICAL:** Halt while CI runs and await my feedback.
 10. Add resolution details as a comment on the GitHub issue.
 11. Resolve the GitHub issue.
+
+Consider if you need to update requirements/SCRATCH.md for the next run.
 
 ## Output
 

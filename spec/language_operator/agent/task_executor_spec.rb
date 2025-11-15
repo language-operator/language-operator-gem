@@ -23,13 +23,13 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
 
   describe '#execute_task' do
     context 'when task not found' do
-      it 'raises ArgumentError with available tasks' do
+      it 'raises TaskValidationError with available tasks' do
         tasks[:foo] = double
         tasks[:bar] = double
 
         expect do
           executor.execute_task(:missing, inputs: {})
-        end.to raise_error(ArgumentError, /Task not found: missing.*Available tasks: (foo, bar|bar, foo)/)
+        end.to raise_error(LanguageOperator::Agent::TaskValidationError, /Task not found: missing.*Available tasks: (foo, bar|bar, foo)/)
       end
     end
 
@@ -57,7 +57,7 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
       it 'validates inputs before execution' do
         expect do
           executor.execute_task(:calculate_total, inputs: {})
-        end.to raise_error(ArgumentError, /Missing required input parameter: items/)
+        end.to raise_error(LanguageOperator::Agent::TaskValidationError, /Missing required input parameter: items/)
       end
 
       it 'validates outputs after execution' do
@@ -73,7 +73,7 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
 
         expect do
           executor.execute_task(:broken, inputs: {})
-        end.to raise_error(ArgumentError, /Missing required output field: result/)
+        end.to raise_error(LanguageOperator::Agent::TaskValidationError, /Missing required output field: result/)
       end
 
       it 'provides task executor as context to symbolic tasks' do
@@ -161,7 +161,7 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
 
         expect do
           executor.execute_task(:summarize_text, inputs: { text: 'Text' })
-        end.to raise_error(RuntimeError, /returned invalid JSON/)
+        end.to raise_error(LanguageOperator::Agent::TaskExecutionError, /returned invalid JSON/)
       end
 
       it 'validates neural task outputs against schema' do
@@ -174,7 +174,7 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
 
         expect do
           executor.execute_task(:summarize_text, inputs: { text: 'Text' })
-        end.to raise_error(RuntimeError, /Missing required output field: summary/)
+        end.to raise_error(LanguageOperator::Agent::TaskValidationError, /Missing required output field: summary/)
       end
     end
 
@@ -189,21 +189,182 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
         end
       end
 
+      let(:timeout_task) do
+        LanguageOperator::Dsl::TaskDefinition.new(:timeout_task).tap do |t|
+          t.inputs({})
+          t.outputs({ result: 'string' })
+          t.execute do |_inputs|
+            sleep(2)
+            { result: 'completed' }
+          end
+        end
+      end
+
+      let(:network_error_task) do
+        LanguageOperator::Dsl::TaskDefinition.new(:network_error_task).tap do |t|
+          t.inputs({})
+          t.outputs({ result: 'string' })
+          t.execute do |_inputs|
+            raise Errno::ECONNREFUSED, 'Connection refused'
+          end
+        end
+      end
+
+      let(:validation_error_task) do
+        LanguageOperator::Dsl::TaskDefinition.new(:validation_error_task).tap do |t|
+          t.inputs({ required_param: 'string' })
+          t.outputs({ result: 'string' })
+          t.execute do |inputs|
+            { result: inputs[:required_param] }
+          end
+        end
+      end
+
       before do
         tasks[:failing] = failing_task
+        tasks[:timeout_task] = timeout_task
+        tasks[:network_error_task] = network_error_task
+        tasks[:validation_error_task] = validation_error_task
       end
 
-      it 'wraps execution errors with task context' do
-        expect do
-          executor.execute_task(:failing, inputs: {})
-        end.to raise_error(RuntimeError, /Task 'failing' execution failed: Task execution error/)
+      context 'basic error handling' do
+        it 'wraps execution errors with task context' do
+          expect do
+            executor.execute_task(:failing, inputs: {})
+          end.to raise_error(LanguageOperator::Agent::TaskExecutionError) do |error|
+            expect(error.message).to include("Task 'failing' execution failed")
+            expect(error.task_name).to eq(:failing)
+            expect(error.original_error).to be_a(StandardError)
+          end
+        end
+
+        it 'raises TaskValidationError for validation errors' do
+          expect do
+            executor.execute_task(:validation_error_task, inputs: {})
+          end.to raise_error(LanguageOperator::Agent::TaskValidationError) do |error|
+            expect(error.task_name).to eq(:validation_error_task)
+            expect(error.original_error).to be_a(ArgumentError)
+          end
+        end
       end
 
-      it 'fails fast on errors' do
-        # Ensure error is raised immediately, not caught
-        expect do
-          executor.execute_task(:failing, inputs: {})
-        end.to raise_error(RuntimeError)
+      context 'timeout handling' do
+        let(:timeout_executor) do
+          described_class.new(agent, tasks, { timeout: 0.5, max_retries: 0 })
+        end
+
+        it 'raises TaskTimeoutError when task times out' do
+          expect do
+            timeout_executor.execute_task(:timeout_task, inputs: {})
+          end.to raise_error(LanguageOperator::Agent::TaskTimeoutError) do |error|
+            expect(error.message).to include('timed out')
+            expect(error.task_name).to eq(:timeout_task)
+          end
+        end
+
+        it 'respects timeout override parameter' do
+          expect do
+            executor.execute_task(:timeout_task, inputs: {}, timeout: 0.5)
+          end.to raise_error(LanguageOperator::Agent::TaskTimeoutError)
+        end
+
+        it 'allows unlimited timeout when set to 0' do
+          result = timeout_executor.execute_task(:timeout_task, inputs: {}, timeout: 0)
+          expect(result).to eq({ result: 'completed' })
+        end
+      end
+
+      context 'retry logic' do
+        let(:retry_executor) do
+          described_class.new(agent, tasks, { max_retries: 2, retry_delay_base: 0.1 })
+        end
+
+        it 'retries network errors up to max_retries' do
+          # Mock sleep to speed up test
+          allow(retry_executor).to receive(:sleep)
+
+          expect do
+            retry_executor.execute_task(:network_error_task, inputs: {})
+          end.to raise_error(LanguageOperator::Agent::TaskExecutionError)
+
+          # Should have tried 3 times total (initial + 2 retries)
+          expect(retry_executor).to have_received(:sleep).twice
+        end
+
+        it 'does not retry validation errors' do
+          allow(retry_executor).to receive(:sleep)
+
+          expect do
+            retry_executor.execute_task(:validation_error_task, inputs: {})
+          end.to raise_error(LanguageOperator::Agent::TaskValidationError)
+
+          expect(retry_executor).not_to have_received(:sleep)
+        end
+
+        it 'respects max_retries override parameter' do
+          allow(retry_executor).to receive(:sleep)
+
+          expect do
+            retry_executor.execute_task(:network_error_task, inputs: {}, max_retries: 1)
+          end.to raise_error(LanguageOperator::Agent::TaskExecutionError)
+
+          # Should have tried 2 times total (initial + 1 retry)
+          expect(retry_executor).to have_received(:sleep).once
+        end
+
+        it 'calculates exponential backoff delays' do
+          delays = []
+          allow(retry_executor).to receive(:sleep) { |delay| delays << delay }
+
+          expect do
+            retry_executor.execute_task(:network_error_task, inputs: {})
+          end.to raise_error(LanguageOperator::Agent::TaskExecutionError)
+
+          expect(delays).to eq([0.1, 0.2]) # 2^0 * 0.1, 2^1 * 0.1
+        end
+      end
+
+      context 'error categorization' do
+        it 'categorizes validation errors correctly' do
+          error_category = nil
+          allow(executor).to receive(:log_task_error) do |_, _, category, _, _|
+            error_category = category
+          end
+
+          expect do
+            executor.execute_task(:validation_error_task, inputs: {})
+          end.to raise_error(LanguageOperator::Agent::TaskValidationError)
+
+          expect(error_category).to eq(:validation)
+        end
+
+        it 'categorizes network errors correctly' do
+          captured_categories = []
+          allow(executor).to receive(:log_task_error) do |_, _, category, _, _|
+            captured_categories << category
+          end
+
+          expect do
+            executor.execute_task(:network_error_task, inputs: {})
+          end.to raise_error(LanguageOperator::Agent::TaskExecutionError)
+
+          # Should have categorized the network error correctly in at least one of the log calls
+          expect(captured_categories).to include(:network)
+        end
+      end
+
+      context 'configuration' do
+        it 'uses default configuration when none provided' do
+          default_executor = described_class.new(agent, tasks)
+          expect(default_executor.config[:timeout]).to eq(30.0)
+          expect(default_executor.config[:max_retries]).to eq(3)
+        end
+
+        it 'merges provided config with defaults' do
+          custom_executor = described_class.new(agent, tasks, { timeout: 60.0 })
+          expect(custom_executor.config[:timeout]).to eq(60.0)
+          expect(custom_executor.config[:max_retries]).to eq(3) # default
+        end
       end
     end
   end
@@ -275,6 +436,64 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
       result = main_def.call({ number: 21 }, executor)
 
       expect(result).to eq({ result: 'The answer is 42' })
+    end
+
+    context 'error handling in main blocks' do
+      let(:failing_task) do
+        LanguageOperator::Dsl::TaskDefinition.new(:failing).tap do |t|
+          t.inputs({})
+          t.outputs({ result: 'string' })
+          t.execute do |_inputs|
+            raise StandardError, 'Task failed'
+          end
+        end
+      end
+
+      before do
+        tasks[:failing] = failing_task
+      end
+
+      it 'allows main block to catch task execution errors' do
+        main_def.execute do |inputs|
+          begin
+            execute_task(:failing, inputs: {})
+          rescue LanguageOperator::Agent::TaskExecutionError => e
+            { error: e.message, recovered: true }
+          end
+        end
+
+        result = main_def.call({}, executor)
+
+        expect(result[:recovered]).to be true
+        expect(result[:error]).to include('Task \'failing\' execution failed')
+      end
+
+      it 'allows main block to use ensure blocks' do
+        cleanup_called = false
+        main_def.execute do |inputs|
+          begin
+            execute_task(:failing, inputs: {})
+          ensure
+            cleanup_called = true
+          end
+        end
+
+        expect do
+          main_def.call({}, executor)
+        end.to raise_error(LanguageOperator::Agent::TaskExecutionError)
+
+        expect(cleanup_called).to be true
+      end
+
+      it 'propagates unhandled errors from main block' do
+        main_def.execute do |inputs|
+          execute_task(:failing, inputs: {})
+        end
+
+        expect do
+          main_def.call({}, executor)
+        end.to raise_error(LanguageOperator::Agent::TaskExecutionError)
+      end
     end
   end
 end

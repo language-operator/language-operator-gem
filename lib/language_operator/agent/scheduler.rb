@@ -100,9 +100,10 @@ module LanguageOperator
 
         logger.info('Scheduling main block execution', cron: cron_schedule, agent: agent_def.name)
 
-        # Create task executor
+        # Create task executor with constraints config
         require_relative 'task_executor'
-        task_executor = TaskExecutor.new(@agent, agent_def.tasks)
+        config = build_executor_config(agent_def)
+        task_executor = TaskExecutor.new(@agent, agent_def.tasks, config)
 
         @rufus_scheduler.cron(cron_schedule) do
           with_span('agent.scheduler.execute', attributes: {
@@ -221,6 +222,21 @@ module LanguageOperator
         end
 
         logger.info('Scheduled: Daily at 6:00 AM')
+      end
+
+      # Build executor configuration from agent definition constraints
+      #
+      # @param agent_def [LanguageOperator::Dsl::AgentDefinition] The agent definition
+      # @return [Hash] Executor configuration
+      def build_executor_config(agent_def)
+        config = {}
+        
+        if agent_def.constraints
+          config[:timeout] = agent_def.constraints[:timeout] if agent_def.constraints[:timeout]
+          config[:max_retries] = agent_def.constraints[:max_retries] if agent_def.constraints[:max_retries]
+        end
+
+        config
       end
     end
   end
