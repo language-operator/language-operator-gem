@@ -208,6 +208,24 @@ module Integration
           ],
           confidence: 0.87
         }.to_json
+      when /get.*current weather.*given location/i
+        # Mock weather task (neural_task_execution_spec.rb - get_weather task)
+        # Outputs: temperature (number), condition (string), humidity (number)
+        {
+          temperature: 72,
+          condition: 'sunny',
+          humidity: 45
+        }.to_json
+      when /fetch.*comprehensive user data/i
+        # Mock user data fetch (neural_task_execution_spec.rb - fetch_user_data task)
+        # Outputs: user (hash), preferences (hash)
+        {
+          user: { id: 123, name: 'Test User', email: 'test@example.com' },
+          preferences: { theme: 'dark', notifications: true }
+        }.to_json
+      when /calculate.*total|sum/i
+        # Mock calculation
+        { total: 42.5 }.to_json
       when /analyze.*sentiment/i
         # Mock sentiment analysis
         { sentiment: 'positive', confidence: 0.85, keywords: ['good', 'excellent'] }.to_json

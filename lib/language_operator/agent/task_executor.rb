@@ -289,14 +289,26 @@ module LanguageOperator
         # Parse JSON
         parsed = JSON.parse(json_text)
 
-        # Convert string keys to symbols
-        parsed.is_a?(Hash) ? parsed.transform_keys(&:to_sym) : parsed
+        # Deep convert all string keys to symbols (including nested hashes and arrays)
+        deep_symbolize_keys(parsed)
       rescue JSON::ParserError => e
         logger.error('Failed to parse neural task response as JSON',
                      task: task.name,
                      response: response_text[0..200],
                      error: e.message)
         raise "Neural task '#{task.name}' returned invalid JSON: #{e.message}"
+      end
+
+      # Recursively convert all hash keys to symbols
+      def deep_symbolize_keys(obj)
+        case obj
+        when Hash
+          obj.transform_keys(&:to_sym).transform_values { |v| deep_symbolize_keys(v) }
+        when Array
+          obj.map { |item| deep_symbolize_keys(item) }
+        else
+          obj
+        end
       end
 
       # Default configuration for task execution
