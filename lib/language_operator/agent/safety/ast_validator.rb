@@ -7,6 +7,9 @@ module LanguageOperator
     module Safety
       # Validates synthesized Ruby code for security before execution
       # Performs static analysis to detect dangerous method calls
+      #
+      # Supports DSL v1 (task/main model) and validates both neural and symbolic
+      # task implementations to ensure they use only safe Ruby subset.
       class ASTValidator
         # Gems that are safe to require (allowlist)
         # These are required for agent execution and are safe
@@ -36,10 +39,10 @@ module LanguageOperator
           STDIN STDOUT STDERR
         ].freeze
 
-        # Safe DSL methods that are allowed in agent definitions
+        # Safe DSL methods that are allowed in agent definitions (DSL v1)
         SAFE_AGENT_METHODS = %w[
           agent description persona schedule objectives objective
-          workflow step tool params depends_on prompt
+          task main execute_task inputs outputs instructions
           constraints budget max_requests rate_limit content_filter
           output mode webhook as_mcp_server as_chat_endpoint
         ].freeze
@@ -57,6 +60,7 @@ module LanguageOperator
           env_required env_get
           truncate parse_csv
           error success
+          TypeCoercion
         ].freeze
 
         # Safe Ruby built-in methods and classes
@@ -262,7 +266,7 @@ module LanguageOperator
 
           footer = "\n\nSynthesized code must only use safe DSL methods and approved helpers."
           footer += "\nSafe methods include: #{SAFE_AGENT_METHODS.join(', ')}, #{SAFE_TOOL_METHODS.join(', ')}"
-          footer += "\nSafe helpers include: HTTP.*, Shell.run, validate_*, env_*"
+          footer += "\nSafe helpers include: HTTP.*, Shell.run, validate_*, env_*, TypeCoercion.coerce"
 
           header + violation_messages.join("\n") + footer
         end
