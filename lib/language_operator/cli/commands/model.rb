@@ -235,9 +235,6 @@ module LanguageOperator
         option :timeout, type: :numeric, default: 30, desc: 'Timeout in seconds for endpoint test'
         def test(name)
           handle_command_error('test model') do
-            puts "Testing model '#{name}'..."
-            puts
-
             # 1. Get model resource
             model = get_resource_or_exit('LanguageModel', name)
             model_name = model.dig('spec', 'modelName')
@@ -251,132 +248,97 @@ module LanguageOperator
 
             # 4. Test chat completion endpoint
             test_chat_completion(name, model_name, pod, options[:timeout])
-
-            puts
-            Formatters::ProgressFormatter.success("Model '#{name}' is healthy and operational!")
           end
         end
 
         private
 
         def check_deployment_status(name)
-          puts '  Checking deployment status...'
-
-          begin
+          Formatters::ProgressFormatter.with_spinner('Verifying deployment') do
             deployment = ctx.client.get_resource('Deployment', name, ctx.namespace)
             replicas = deployment.dig('spec', 'replicas') || 1
             ready_replicas = deployment.dig('status', 'readyReplicas') || 0
 
-            if ready_replicas >= replicas
-              Formatters::ProgressFormatter.success("Deployment ready (#{ready_replicas}/#{replicas})")
-            else
-              Formatters::ProgressFormatter.error(
-                "Deployment not ready (#{ready_replicas}/#{replicas}). " \
-                "Run 'kubectl get deployment #{name} -n #{ctx.namespace}' for details."
-              )
-              exit 1
+            unless ready_replicas >= replicas
+              raise "Deployment not ready (#{ready_replicas}/#{replicas}). " \
+                    "Run 'kubectl get deployment #{name} -n #{ctx.namespace}' for details."
             end
 
             deployment
-          rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Deployment '#{name}' not found")
-            exit 1
           end
+        rescue K8s::Error::NotFound
+          Formatters::ProgressFormatter.error("Deployment '#{name}' not found")
+          exit 1
         end
 
         def check_pod_status(name, deployment)
-          puts '  Checking pod status...'
+          Formatters::ProgressFormatter.with_spinner('Verifying pod') do
+            labels = deployment.dig('spec', 'selector', 'matchLabels')
+            raise "Deployment '#{name}' has no selector labels" if labels.nil?
 
-          labels = deployment.dig('spec', 'selector', 'matchLabels')
-          if labels.nil?
-            Formatters::ProgressFormatter.error("Deployment '#{name}' has no selector labels")
-            exit 1
+            # Convert K8s::Resource to hash if needed
+            labels_hash = labels.respond_to?(:to_h) ? labels.to_h : labels
+            raise "Deployment '#{name}' has empty selector labels" if labels_hash.empty?
+
+            label_selector = labels_hash.map { |k, v| "#{k}=#{v}" }.join(',')
+
+            pods = ctx.client.list_resources('Pod', namespace: ctx.namespace, label_selector: label_selector)
+            raise "No pods found for model '#{name}'" if pods.empty?
+
+            # Find a running pod
+            running_pod = pods.find do |pod|
+              pod.dig('status', 'phase') == 'Running' &&
+                pod.dig('status', 'conditions')&.any? { |c| c['type'] == 'Ready' && c['status'] == 'True' }
+            end
+
+            if running_pod.nil?
+              pod_phases = pods.map { |p| p.dig('status', 'phase') }.join(', ')
+              raise "No running pods found. Pod phases: #{pod_phases}. " \
+                    "Run 'kubectl get pods -l #{label_selector} -n #{ctx.namespace}' for details."
+            end
+
+            running_pod
           end
-
-          # Convert K8s::Resource to hash if needed
-          labels_hash = labels.respond_to?(:to_h) ? labels.to_h : labels
-          if labels_hash.empty?
-            Formatters::ProgressFormatter.error("Deployment '#{name}' has empty selector labels")
-            exit 1
-          end
-
-          label_selector = labels_hash.map { |k, v| "#{k}=#{v}" }.join(',')
-
-          pods = ctx.client.list_resources('Pod', namespace: ctx.namespace, label_selector: label_selector)
-
-          if pods.empty?
-            Formatters::ProgressFormatter.error("No pods found for model '#{name}'")
-            exit 1
-          end
-
-          # Find a running pod
-          running_pod = pods.find do |pod|
-            pod.dig('status', 'phase') == 'Running' &&
-              pod.dig('status', 'conditions')&.any? { |c| c['type'] == 'Ready' && c['status'] == 'True' }
-          end
-
-          if running_pod.nil?
-            pod_phases = pods.map { |p| p.dig('status', 'phase') }.join(', ')
-            Formatters::ProgressFormatter.error(
-              "No running pods found. Pod phases: #{pod_phases}. " \
-              "Run 'kubectl get pods -l #{label_selector} -n #{ctx.namespace}' for details."
-            )
-            exit 1
-          end
-
-          pod_name = running_pod.dig('metadata', 'name')
-          Formatters::ProgressFormatter.success("Pod running: #{pod_name}")
-
-          running_pod
         end
 
         def test_chat_completion(_name, model_name, pod, timeout)
-          puts '  Testing chat completion endpoint...'
+          Formatters::ProgressFormatter.with_spinner('Verifying chat completion requests') do
+            pod_name = pod.dig('metadata', 'name')
 
-          pod_name = pod.dig('metadata', 'name')
+            # Build the JSON payload
+            payload = JSON.generate({
+                                      model: model_name,
+                                      messages: [{ role: 'user', content: 'hello' }],
+                                      max_tokens: 10
+                                    })
 
-          # Build the JSON payload
-          payload = JSON.generate({
-                                    model: model_name,
-                                    messages: [{ role: 'user', content: 'hello' }],
-                                    max_tokens: 10
-                                  })
+            # Build the curl command using echo to pipe JSON
+            # This avoids shell escaping issues with -d flag
+            curl_command = "echo '#{payload}' | curl -s -X POST http://localhost:4000/v1/chat/completions " \
+                           "-H 'Content-Type: application/json' -d @- --max-time #{timeout}"
 
-          # Build the curl command using echo to pipe JSON
-          # This avoids shell escaping issues with -d flag
-          curl_command = "echo '#{payload}' | curl -s -X POST http://localhost:4000/v1/chat/completions " \
-                         "-H 'Content-Type: application/json' -d @- --max-time #{timeout}"
+            # Execute the curl command inside the pod
+            result = execute_in_pod(pod_name, curl_command)
 
-          # Execute the curl command inside the pod
-          start_time = Time.now
-          result = execute_in_pod(pod_name, curl_command)
-          elapsed_time = Time.now - start_time
-
-          # Parse the response
-          begin
+            # Parse the response
             response = JSON.parse(result)
 
             if response['error']
-              Formatters::ProgressFormatter.error(
-                "Chat completion failed: #{response['error']['message'] || response['error']}"
-              )
-              exit 1
-            elsif response['choices']
-              Formatters::ProgressFormatter.success(
-                "Chat completion successful (responded in #{elapsed_time.round(2)}s)"
-              )
-            else
-              Formatters::ProgressFormatter.error(
-                "Unexpected response format: #{result.lines.first.strip}"
-              )
-              exit 1
+              error_msg = response['error']['message'] || response['error']
+              raise error_msg
+            elsif !response['choices']
+              raise "Unexpected response format: #{result.lines.first.strip}"
             end
+
+            response
           rescue JSON::ParserError => e
-            Formatters::ProgressFormatter.error(
-              "Failed to parse response: #{e.message}. Raw response: #{result.lines.first.strip}"
-            )
-            exit 1
+            raise "Failed to parse response: #{e.message}"
           end
+        rescue StandardError => e
+          # Display error in bold red
+          puts
+          puts Formatters::ProgressFormatter.pastel.bold.red(e.message)
+          exit 1
         end
 
         def execute_in_pod(pod_name, command)
