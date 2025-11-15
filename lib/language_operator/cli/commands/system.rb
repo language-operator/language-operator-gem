@@ -643,21 +643,18 @@ module LanguageOperator
         # Extract method calls from template code
         # Returns array of method name strings
         def extract_method_calls(template)
-          require 'parser/current'
+          require 'prism'
 
           method_calls = []
           code_examples = extract_code_examples(template)
 
           code_examples.each do |example|
             # Parse the code to find method calls
-            buffer = Parser::Source::Buffer.new('(template)')
-            buffer.source = example[:code]
-            parser = Parser::CurrentRuby.new
-            ast = parser.parse(buffer)
+            result = Prism.parse(example[:code])
 
             # Walk the AST to find method calls
-            extract_methods_from_ast(ast, method_calls)
-          rescue Parser::SyntaxError
+            extract_methods_from_ast(result.value, method_calls) if result.success?
+          rescue Prism::ParseError
             # Skip code with syntax errors - they'll be caught by validate_code_against_schema
             next
           end
@@ -667,14 +664,13 @@ module LanguageOperator
 
         # Recursively extract method names from AST
         def extract_methods_from_ast(node, methods)
-          return unless node.is_a?(Parser::AST::Node)
+          return unless node
 
-          if node.type == :send
-            _, method_name, * = node.children
-            methods << method_name.to_s if method_name
+          if node.is_a?(Prism::CallNode)
+            methods << node.name.to_s
           end
 
-          node.children.each do |child|
+          node.compact_child_nodes.each do |child|
             extract_methods_from_ast(child, methods)
           end
         end

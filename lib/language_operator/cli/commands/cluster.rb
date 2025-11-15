@@ -15,6 +15,8 @@ module LanguageOperator
     module Commands
       # Cluster management commands
       class Cluster < BaseCommand
+        include Helpers::PastelHelper
+
         desc 'create NAME', 'Create a new language cluster'
         option :namespace, type: :string, desc: 'Kubernetes namespace (defaults to current context namespace)'
         option :kubeconfig, type: :string, desc: 'Path to kubeconfig file'
@@ -97,9 +99,10 @@ module LanguageOperator
             end
 
             puts "\nCluster Details"
-            puts '----------------'
+            puts '---------------'
             puts "Name: #{pastel.bold.white(name)}"
             puts "Namespace: #{pastel.bold.white(namespace)}"
+            puts "Context: #{pastel.bold.white(actual_context)}"
           end
         end
 

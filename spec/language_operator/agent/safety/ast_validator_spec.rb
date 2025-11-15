@@ -328,8 +328,8 @@ RSpec.describe LanguageOperator::Agent::Safety::ASTValidator do
     end
 
     context 'with syntax errors' do
-      # NOTE: parser gem is very forgiving and accepts most Ruby syntax variations
-      # Skipping these tests as finding truly invalid syntax for the parser is difficult
+      # NOTE: Prism is very forgiving and accepts most Ruby syntax variations
+      # Skipping these tests as finding truly invalid syntax for Prism is difficult
       xit 'raises SecurityError for invalid Ruby syntax' do
         code = 'class Foo; def bar end end'
 
@@ -407,7 +407,7 @@ RSpec.describe LanguageOperator::Agent::Safety::ASTValidator do
       expect(violations[1][:method]).to eq('eval')
     end
 
-    # NOTE: parser gem is very forgiving - skipping syntax error test
+    # NOTE: Prism is very forgiving - skipping syntax error test
     xit 'returns syntax error violation for invalid syntax' do
       code = 'class Foo; def bar end end'
 

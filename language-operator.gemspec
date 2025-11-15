@@ -12,7 +12,7 @@ Gem::Specification.new do |spec|
   spec.description   = 'Used in conjunction with the Language Operator for Kubernetes'
   spec.homepage      = 'https://github.com/language-operator/language-operator'
   spec.license       = 'FSL-1.1-Apache-2.0'
-  spec.required_ruby_version = '>= 3.2.0'
+  spec.required_ruby_version = '>= 3.4.0'
 
   spec.metadata['homepage_uri'] = spec.homepage
   spec.metadata['source_code_uri'] = 'https://github.com/language-operator/language-operator-gem'
@@ -45,9 +45,6 @@ Gem::Specification.new do |spec|
   # Agent dependencies
   spec.add_dependency 'parallel', '~> 1.26'
   spec.add_dependency 'rufus-scheduler', '~> 3.9'
-
-  # Code security and AST parsing
-  spec.add_dependency 'parser', '~> 3.0'
 
   # Kubernetes client
   spec.add_dependency 'k8s-ruby', '~> 0.17'

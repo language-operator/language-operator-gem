@@ -9,7 +9,6 @@ PATH
       opentelemetry-instrumentation-rack (~> 0.24)
       opentelemetry-sdk (~> 1.4)
       parallel (~> 1.26)
-      parser (~> 3.0)
       pastel (~> 0.8)
       puma (~> 6.0)
       rack (~> 3.0)

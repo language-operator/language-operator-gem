@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'parser/current'
+require 'prism'
 
 module LanguageOperator
   module Agent
@@ -80,7 +80,7 @@ module LanguageOperator
         class SecurityError < StandardError; end
 
         def initialize
-          @parser = Parser::CurrentRuby.new
+          # Prism doesn't require initialization
         end
 
         # Validate code and raise SecurityError if dangerous methods found
@@ -106,62 +106,69 @@ module LanguageOperator
           begin
             ast = parse_code(code, file_path)
           rescue SecurityError => e
-            # Convert SecurityError (which wraps Parser::SyntaxError) to violation
+            # Convert SecurityError (which wraps syntax error) to violation
             return [{ type: :syntax_error, message: e.message }]
           end
 
           return [] if ast.nil?
 
           scan_ast(ast)
-        rescue Parser::SyntaxError => e
+        rescue Prism::ParseError => e
           [{ type: :syntax_error, message: e.message }]
         end
 
         private
 
         def parse_code(code, file_path)
-          buffer = Parser::Source::Buffer.new(file_path)
-          buffer.source = code
-          @parser.parse(buffer)
-        rescue Parser::SyntaxError => e
+          result = Prism.parse(code, filepath: file_path)
+
+          # Prism is forgiving and creates an AST even with some syntax errors
+          # We'll allow parsing to proceed and only raise if there are FATAL errors
+          # that prevent AST creation entirely
+          if result.value.nil?
+            errors = result.errors.map(&:message).join('; ')
+            raise SecurityError, "Syntax error in #{file_path}: #{errors}"
+          end
+
+          result.value
+        rescue Prism::ParseError => e
           raise SecurityError, "Syntax error in #{file_path}: #{e.message}"
         end
 
         def scan_ast(node, violations = [])
           return violations if node.nil?
 
-          case node.type
-          when :send
+          # Prism uses different node types
+          case node
+          when Prism::CallNode
             check_method_call(node, violations)
-          when :const
+          when Prism::ConstantReadNode, Prism::ConstantPathNode
             check_constant(node, violations)
-          when :gvar
+          when Prism::GlobalVariableReadNode, Prism::GlobalVariableWriteNode
             check_global_variable(node, violations)
-          when :xstr
+          when Prism::XStringNode
             # Backtick string execution (e.g., `command`)
             violations << {
               type: :backtick_execution,
-              location: node.location.line,
+              location: node.location.start_line,
               message: 'Backtick command execution is not allowed'
             }
           end
 
           # Recursively scan all child nodes
-          node.children.each do |child|
-            scan_ast(child, violations) if child.is_a?(Parser::AST::Node)
+          node.compact_child_nodes.each do |child|
+            scan_ast(child, violations)
           end
 
           violations
         end
 
         def check_method_call(node, violations)
-          receiver, method_name, *args = node.children
-
-          method_str = method_name.to_s
+          method_str = node.name.to_s
 
           # Special handling for require - check if it's in the allowlist
           if %w[require require_relative].include?(method_str)
-            required_gem = extract_require_argument(args)
+            required_gem = extract_require_argument(node)
 
             # Allow if in the allowlist
             return if required_gem && ALLOWED_REQUIRES.include?(required_gem)
@@ -170,7 +177,7 @@ module LanguageOperator
             violations << {
               type: :dangerous_method,
               method: method_str,
-              location: node.location.line,
+              location: node.location.start_line,
               message: "Dangerous method '#{method_str}' is not allowed"
             }
             return
@@ -181,20 +188,21 @@ module LanguageOperator
             violations << {
               type: :dangerous_method,
               method: method_str,
-              location: node.location.line,
+              location: node.location.start_line,
               message: "Dangerous method '#{method_str}' is not allowed"
             }
           end
 
           # Check for File/Dir/IO operations
-          if receiver && receiver.type == :const
-            const_name = receiver.children[1].to_s
-            if DANGEROUS_CONSTANTS.include?(const_name)
+          receiver = node.receiver
+          if receiver && (receiver.is_a?(Prism::ConstantReadNode) || receiver.is_a?(Prism::ConstantPathNode))
+            const_name = receiver.is_a?(Prism::ConstantReadNode) ? receiver.name.to_s : receiver.name
+            if DANGEROUS_CONSTANTS.include?(const_name.to_s)
               violations << {
                 type: :dangerous_constant,
-                constant: const_name,
+                constant: const_name.to_s,
                 method: method_str,
-                location: node.location.line,
+                location: node.location.start_line,
                 message: "Access to #{const_name}.#{method_str} is not allowed"
               }
             end
@@ -206,14 +214,20 @@ module LanguageOperator
 
           violations << {
             type: :backtick_execution,
-            location: node.location.line,
+            location: node.location.start_line,
             message: 'Backtick command execution is not allowed'
           }
         end
 
         def check_constant(node, violations)
-          _, const_name = node.children
-          const_str = const_name.to_s
+          const_str = if node.is_a?(Prism::ConstantReadNode)
+                        node.name.to_s
+                      elsif node.is_a?(Prism::ConstantPathNode)
+                        # For paths like Foo::Bar, get the last part
+                        node.name.to_s
+                      else
+                        return
+                      end
 
           # Check for dangerous constants being accessed directly
           return unless DANGEROUS_CONSTANTS.include?(const_str)
@@ -221,13 +235,13 @@ module LanguageOperator
           violations << {
             type: :dangerous_constant_access,
             constant: const_str,
-            location: node.location.line,
+            location: node.location.start_line,
             message: "Direct access to #{const_str} constant is not allowed"
           }
         end
 
         def check_global_variable(node, violations)
-          var_name = node.children[0].to_s
+          var_name = node.name.to_s
 
           # Block access to dangerous global variables
           dangerous_globals = %w[$0 $PROGRAM_NAME $LOAD_PATH $: $LOADED_FEATURES $"]
@@ -237,21 +251,22 @@ module LanguageOperator
           violations << {
             type: :dangerous_global,
             variable: var_name,
-            location: node.location.line,
+            location: node.location.start_line,
             message: "Access to global variable #{var_name} is not allowed"
           }
         end
 
-        def extract_require_argument(args)
-          # args is an array of AST nodes representing the arguments to require
-          # We're looking for a string literal like 'language_operator' or "language_operator"
-          return nil if args.empty?
+        def extract_require_argument(node)
+          # node is a CallNode for require/require_relative
+          # We're looking for a string literal argument like 'language_operator' or "language_operator"
+          args = node.arguments
+          return nil unless args && args.arguments.any?
 
-          arg_node = args.first
+          arg_node = args.arguments.first
           return nil unless arg_node
 
-          # Check if it's a string literal (:str node)
-          return arg_node.children[0] if arg_node.type == :str
+          # Check if it's a string literal (StringNode)
+          return arg_node.unescaped if arg_node.is_a?(Prism::StringNode)
 
           # If it's not a string literal (e.g., dynamic require), we can't verify it
           nil

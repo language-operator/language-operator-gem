@@ -11,6 +11,7 @@ require_relative '../helpers/editor_helper'
 require_relative '../../config/cluster_config'
 require_relative '../../kubernetes/client'
 require_relative '../../kubernetes/resource_builder'
+require_relative '../../ux/create_model'
 
 module LanguageOperator
   module CLI
@@ -51,22 +52,39 @@ module LanguageOperator
           end
         end
 
-        desc 'create NAME', 'Create a new model'
+        desc 'create [NAME]', 'Create a new model'
         long_desc <<-DESC
           Create a new LanguageModel resource in the cluster.
 
+          If NAME is omitted and no options are provided, an interactive wizard will guide you.
+
           Examples:
+            aictl model create                  # Launch interactive wizard
             aictl model create gpt4 --provider openai --model gpt-4-turbo
             aictl model create claude --provider anthropic --model claude-3-opus-20240229
             aictl model create local --provider openai_compatible --model llama-3 --endpoint http://localhost:8080
         DESC
-        option :provider, type: :string, required: true, desc: 'LLM provider (e.g., openai, anthropic, openai_compatible)'
-        option :model, type: :string, required: true, desc: 'Model identifier (e.g., gpt-4, claude-3-opus)'
+        option :provider, type: :string, required: false, desc: 'LLM provider (e.g., openai, anthropic, openai_compatible)'
+        option :model, type: :string, required: false, desc: 'Model identifier (e.g., gpt-4, claude-3-opus)'
         option :endpoint, type: :string, desc: 'Custom endpoint URL (for openai_compatible or self-hosted)'
         option :cluster, type: :string, desc: 'Override current cluster context'
         option :dry_run, type: :boolean, default: false, desc: 'Output the manifest without creating'
-        def create(name)
+        def create(name = nil)
           handle_command_error('create model') do
+            # Launch interactive wizard if no arguments provided
+            if name.nil? && options[:provider].nil? && options[:model].nil?
+              Ux::CreateModel.execute(ctx)
+              return
+            end
+
+            # Validate required options for non-interactive mode
+            if options[:provider].nil? || options[:model].nil?
+              Formatters::ProgressFormatter.error(
+                'Must provide both --provider and --model, or use interactive mode (run without arguments)'
+              )
+              exit 1
+            end
+
             # Build LanguageModel resource
             resource = Kubernetes::ResourceBuilder.language_model(
               name,
