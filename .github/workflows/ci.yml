@@ -31,8 +31,20 @@ jobs:
       - name: Generate schema artifacts
         run: make schema
 
-      - name: Run tests
+      - name: Run unit tests
         run: make test
+
+      - name: Run integration tests
+        run: bundle exec rspec spec/integration/ --tag type:integration
+        env:
+          INTEGRATION_MOCK_LLM: 'true'
+          INTEGRATION_BENCHMARK: 'false'
+
+      - name: Run performance benchmarks
+        run: bundle exec rspec spec/integration/performance_benchmarks_spec.rb --tag type:integration
+        env:
+          INTEGRATION_MOCK_LLM: 'true'
+          INTEGRATION_BENCHMARK: 'true'
 
       - name: Run linter
         run: make lint

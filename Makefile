@@ -1,4 +1,4 @@
-.PHONY: help build test install console docs clean version-bump lint schema
+.PHONY: help build test test-integration test-performance install console docs clean version-bump lint schema
 
 .DEFAULT_GOAL := help
 
@@ -18,10 +18,22 @@ build: schema ## Build the gem
 	@gem build language-operator.gemspec
 	@echo "✅ Gem built successfully"
 
-test: ## Run the test suite
-	@echo "Running tests..."
-	@bundle exec rspec
-	@echo "✅ All tests passed"
+test: ## Run the unit test suite
+	@echo "Running unit tests..."
+	@bundle exec rspec --exclude-pattern "spec/integration/**/*_spec.rb"
+	@echo "✅ All unit tests passed"
+
+test-integration: ## Run integration tests for DSL v1 task execution
+	@echo "Running integration tests..."
+	@INTEGRATION_MOCK_LLM=true INTEGRATION_BENCHMARK=false bundle exec rspec spec/integration/ --tag type:integration
+	@echo "✅ All integration tests passed"
+
+test-performance: ## Run performance benchmarks
+	@echo "Running performance benchmarks..."
+	@INTEGRATION_MOCK_LLM=true INTEGRATION_BENCHMARK=true bundle exec rspec spec/integration/performance_benchmarks_spec.rb --tag type:integration
+	@echo "✅ Performance benchmarks completed"
+
+test-all: test test-integration ## Run all tests (unit + integration)
 
 install: build ## Build and install the gem locally
 	@echo "Installing gem..."
@@ -70,7 +82,7 @@ version-bump-major: ## Bump major version (0.1.0 -> 1.0.0)
 	@./bin/bump-version major
 
 # CI targets
-ci-test: test lint ## Run CI test suite (tests + linting)
+ci-test: test test-integration lint ## Run CI test suite (unit tests + integration tests + linting)
 
 # Development workflow
 dev-setup: ## Install development dependencies
@@ -80,3 +92,7 @@ dev-setup: ## Install development dependencies
 
 dev-watch: ## Run tests in watch mode
 	@bundle exec guard
+
+# Autopilot
+iterate:
+	claude "read and execute requirements/tasks/iterate.md"
