@@ -47,15 +47,28 @@ module Integration
       agent = LanguageOperator::Agent::Base.new(config)
       agent.instance_variable_set(:@definition, agent_def)
       
-      # Connect agent for neural task execution using SYNTHESIS_* env vars
-      begin
-        puts "Attempting to connect agent..." if ENV['DEBUG']
-        agent.connect!
-        puts "Agent connected successfully" if ENV['DEBUG']
-      rescue StandardError => e
-        puts "Agent connection failed in test: #{e.message}"
-        puts "  Backtrace: #{e.backtrace.first(3).join("\n  ")}" if ENV['DEBUG']
-        # Try to continue anyway for symbolic-only tests
+      # Connect agent for neural task execution if not mocking
+      unless Integration::Config.mock_llm_responses?
+        begin
+          puts "Attempting to connect agent..." if ENV['DEBUG']
+          agent.connect!
+          puts "Agent connected successfully" if ENV['DEBUG']
+        rescue StandardError => e
+          puts "Agent connection failed in test: #{e.message}"
+          puts "  Backtrace: #{e.backtrace.first(3).join("\n  ")}" if ENV['DEBUG']
+          raise "Failed to connect agent for real LLM testing" unless ENV['CI']
+        end
+      else
+        # When mocking, create a mock chat object
+        mock_chat = double('Chat')
+        allow(mock_chat).to receive(:ask) do |message|
+          # Generate mock response based on the message
+          mock_neural_response(message)
+        end
+        allow(mock_chat).to receive(:messages).and_return([])
+
+        agent.instance_variable_set(:@chat, mock_chat)
+        agent.instance_variable_set(:@connected, true)
       end
 
       # Clean up temporary file
@@ -151,6 +164,43 @@ module Integration
       end
 
       true
+    end
+
+    # Generate mock response for neural tasks
+    def mock_neural_response(message)
+      # Extract task name and instructions from the message
+      case message
+      when /clean.*raw data.*identify anomalies.*validate data quality/i
+        # Mock data cleaning response (comprehensive_integration_spec.rb - clean_and_validate task)
+        {
+          clean_data: [{ id: 1, value: 100 }, { id: 2, value: 200 }],
+          anomalies: [],
+          quality_score: 0.95
+        }.to_json
+      when /generate.*response.*inquiry.*context/i
+        # Mock customer service response (comprehensive_integration_spec.rb - generate_response task)
+        {
+          response: 'Thank you for contacting us. Your order will arrive within 3-5 business days.',
+          confidence: 0.9,
+          suggested_actions: ['check_order_status']
+        }.to_json
+      when /analyze.*risk.*financial data/i
+        # Mock risk analysis (comprehensive_integration_spec.rb - analyze_risk task)
+        {
+          risk_score: 0.25,
+          risk_factors: ['market volatility', 'currency fluctuation'],
+          recommendations: ['diversify portfolio', 'hedge currency risk']
+        }.to_json
+      when /analyze.*sentiment/i
+        # Mock sentiment analysis
+        { sentiment: 'positive', confidence: 0.85, keywords: ['good', 'excellent'] }.to_json
+      when /summarize|summary/i
+        # Mock summarization
+        { summary: 'This is a comprehensive summary of the analyzed data.' }.to_json
+      else
+        # Default mock response - return generic JSON that most schemas will accept
+        { result: 'Mock neural task result', success: true, data: {} }.to_json
+      end
     end
 
     private
