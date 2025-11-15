@@ -34,12 +34,13 @@ module LanguageOperator
         {
           'llm' => {
             'provider' => detect_provider_from_env,
-            'model' => ENV.fetch('LLM_MODEL') { default_model_from_env },
+            'model' => LanguageOperator::Config.get('LLM_MODEL', default: default_model_from_env),
             'endpoint' => parse_model_endpoint_from_env,
-            'api_key' => ENV.fetch('OPENAI_API_KEY') { ENV.fetch('ANTHROPIC_API_KEY', 'dummy-key-for-local-proxy') }
+            'api_key' => LanguageOperator::Config.get('OPENAI_API_KEY', 'ANTHROPIC_API_KEY',
+                                                      default: 'dummy-key-for-local-proxy')
           },
           'mcp_servers' => parse_mcp_servers_from_env,
-          'debug' => ENV['DEBUG'] == 'true'
+          'debug' => LanguageOperator::Config.get_bool('DEBUG', default: false)
         }
       end
 
@@ -49,15 +50,12 @@ module LanguageOperator
       #
       # @return [String, nil] Model endpoint URL
       def self.parse_model_endpoint_from_env
-        # Support MODEL_ENDPOINTS (operator sets this)
-        endpoints_env = ENV.fetch('MODEL_ENDPOINTS', nil)
-        if endpoints_env && !endpoints_env.empty?
-          # Take the first endpoint from comma-separated list
-          endpoints_env.split(',').first.strip
-        else
-          # Fallback to legacy OPENAI_ENDPOINT
-          ENV.fetch('OPENAI_ENDPOINT', nil)
-        end
+        # Support MODEL_ENDPOINTS (operator sets this) - take first from comma-separated list
+        endpoints = LanguageOperator::Config.get_array('MODEL_ENDPOINTS')
+        return endpoints.first unless endpoints.empty?
+
+        # Fallback to legacy OPENAI_ENDPOINT
+        LanguageOperator::Config.get('OPENAI_ENDPOINT')
       end
 
       # Load configuration with automatic fallback to environment variables
@@ -79,11 +77,11 @@ module LanguageOperator
       # @return [String] Provider name (openai_compatible, openai, or anthropic)
       # @raise [RuntimeError] If no API key or endpoint is found
       def self.detect_provider_from_env
-        if ENV['OPENAI_ENDPOINT'] || ENV['MODEL_ENDPOINTS']
+        if LanguageOperator::Config.set?('OPENAI_ENDPOINT', 'MODEL_ENDPOINTS')
           'openai_compatible'
-        elsif ENV['OPENAI_API_KEY']
+        elsif LanguageOperator::Config.set?('OPENAI_API_KEY')
           'openai'
-        elsif ENV['ANTHROPIC_API_KEY']
+        elsif LanguageOperator::Config.set?('ANTHROPIC_API_KEY')
           'anthropic'
         else
           raise 'No API key or endpoint found. Set OPENAI_ENDPOINT or MODEL_ENDPOINTS for local LLM, ' \
@@ -109,21 +107,22 @@ module LanguageOperator
       # @return [Array<Hash>] Array of MCP server configurations
       def self.parse_mcp_servers_from_env
         # Support both MCP_SERVERS (comma-separated) and legacy MCP_URL
-        servers_env = ENV.fetch('MCP_SERVERS', nil)
-        if servers_env && !servers_env.empty?
+        servers = LanguageOperator::Config.get_array('MCP_SERVERS')
+
+        if !servers.empty?
           # Parse comma-separated URLs
-          servers_env.split(',').map.with_index do |url, index|
+          servers.map.with_index do |url, index|
             {
               'name' => "default-tools-#{index}",
-              'url' => url.strip,
+              'url' => url,
               'transport' => 'streamable',
               'enabled' => true
             }
           end
-        elsif ENV['MCP_URL']
+        elsif (url = LanguageOperator::Config.get('MCP_URL'))
           [{
             'name' => 'default-tools',
-            'url' => ENV['MCP_URL'],
+            'url' => url,
             'transport' => 'streamable',
             'enabled' => true
           }]

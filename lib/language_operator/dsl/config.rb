@@ -4,8 +4,11 @@ module LanguageOperator
   module Dsl
     # Configuration helper for managing environment variables
     #
-    # Provides utilities for reading and managing environment variables with fallback support,
-    # type conversion, and validation. All methods are class methods.
+    # This class delegates to LanguageOperator::Config for all functionality.
+    # It exists for backwards compatibility with existing code that uses
+    # Dsl::Config.
+    #
+    # @deprecated Use LanguageOperator::Config directly instead
     #
     # @example Basic usage
     #   Config.get('SMTP_HOST', 'MAIL_HOST', default: 'localhost')
@@ -13,92 +16,45 @@ module LanguageOperator
     #   Config.get_bool('USE_TLS', default: true)
     class Config
       # Get environment variable with multiple fallback keys
-      #
-      # @param keys [Array<String>] Environment variable names to try
-      # @param default [Object, nil] Default value if none found
-      # @return [String, nil] The first non-nil value or default
+      # Delegates to LanguageOperator::Config.get
       def self.get(*keys, default: nil)
-        keys.each do |key|
-          value = ENV.fetch(key.to_s, nil)
-          return value if value
-        end
-        default
+        LanguageOperator::Config.get(*keys, default: default)
       end
 
       # Get required environment variable with fallback keys
-      #
-      # @param keys [Array<String>] Environment variable names to try
-      # @return [String] The first non-nil value
-      # @raise [ArgumentError] If none of the keys are set
+      # Delegates to LanguageOperator::Config.require
       def self.require(*keys)
-        value = get(*keys)
-        raise ArgumentError, "Missing required configuration: #{keys.join(' or ')}" unless value
-
-        value
+        LanguageOperator::Config.require(*keys)
       end
 
       # Get environment variable as integer
-      #
-      # @param keys [Array<String>] Environment variable names to try
-      # @param default [Integer, nil] Default value if none found
-      # @return [Integer, nil] The value converted to integer, or default
+      # Delegates to LanguageOperator::Config.get_int
       def self.get_int(*keys, default: nil)
-        value = get(*keys)
-        return default if value.nil?
-
-        value.to_i
+        LanguageOperator::Config.get_int(*keys, default: default)
       end
 
       # Get environment variable as boolean
-      #
-      # Treats 'true', '1', 'yes', 'on' as true (case insensitive).
-      #
-      # @param keys [Array<String>] Environment variable names to try
-      # @param default [Boolean] Default value if none found
-      # @return [Boolean] The value as boolean
+      # Delegates to LanguageOperator::Config.get_bool
       def self.get_bool(*keys, default: false)
-        value = get(*keys)
-        return default if value.nil?
-
-        value.to_s.downcase.match?(/^(true|1|yes|on)$/)
+        LanguageOperator::Config.get_bool(*keys, default: default)
       end
 
-      # Get environment variable as array (split by separator)
-      #
-      # @param keys [Array<String>] Environment variable names to try
-      # @param default [Array] Default value if none found
-      # @param separator [String] Character to split on (default: ',')
-      # @return [Array<String>] The value split into array
+      # Get environment variable as array
+      # Delegates to LanguageOperator::Config.get_array
       def self.get_array(*keys, default: [], separator: ',')
-        value = get(*keys)
-        return default if value.nil? || value.empty?
-
-        value.split(separator).map(&:strip).reject(&:empty?)
+        LanguageOperator::Config.get_array(*keys, default: default, separator: separator)
       end
 
-      # Check if all required keys are present
-      #
-      # @param keys [Array<String>] Environment variable names to check
-      # @return [Array<String>] Array of missing keys (empty if all present)
-      def self.check_required(*keys)
-        keys.reject { |key| ENV.fetch(key.to_s, nil) }
-      end
-
-      # Check if environment variable is set (even if empty string)
-      #
-      # @param keys [Array<String>] Environment variable names to check
-      # @return [Boolean] True if any key is set
+      # Check if environment variable is set
+      # Delegates to LanguageOperator::Config.set?
       def self.set?(*keys)
-        keys.any? { |key| ENV.key?(key.to_s) }
+        LanguageOperator::Config.set?(*keys)
       end
 
       # Get all environment variables matching a prefix
-      #
-      # @param prefix [String] Prefix to match
-      # @return [Hash<String, String>] Hash with prefix removed from keys
+      # Delegates to LanguageOperator::Config.with_prefix
       def self.with_prefix(prefix)
-        ENV.select { |key, _| key.start_with?(prefix) }
-           .transform_keys { |key| key.sub(prefix, '') }
+        LanguageOperator::Config.with_prefix(prefix)
       end
 
       # Build a configuration hash from environment variables
@@ -109,10 +65,18 @@ module LanguageOperator
         config = {}
         mappings.each do |config_key, env_keys|
           env_keys = [env_keys] unless env_keys.is_a?(Array)
-          value = get(*env_keys)
+          value = LanguageOperator::Config.get(*env_keys)
           config[config_key] = value if value
         end
         config
+      end
+
+      # Check if all required keys are present
+      #
+      # @param keys [Array<String>] Environment variable names to check
+      # @return [Array<String>] Array of missing keys (empty if all present)
+      def self.check_required(*keys)
+        keys.reject { |key| ENV.fetch(key.to_s, nil) }
       end
     end
   end

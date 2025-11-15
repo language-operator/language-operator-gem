@@ -8,8 +8,9 @@ module LanguageOperator
   # - Key-to-env-var mappings
   # - Prefixes (e.g., SMTP_HOST from prefix: 'SMTP')
   # - Default values
-  # - Type conversion (string, integer, boolean, float)
+  # - Type conversion (string, integer, boolean, float, array)
   # - Required config validation
+  # - Multiple fallback keys
   #
   # @example Load SMTP configuration
   #   config = LanguageOperator::Config.load(
@@ -75,7 +76,8 @@ module LanguageOperator
     # Convert a string value to the specified type
     #
     # @param value [String, nil] Raw string value from environment
-    # @param type [Symbol] Target type (:string, :integer, :boolean, :float)
+    # @param type [Symbol] Target type (:string, :integer, :boolean, :float, :array)
+    # @param separator [String] Separator for array type (default: ',')
     # @return [Object] Converted value
     #
     # @example String conversion
@@ -92,7 +94,10 @@ module LanguageOperator
     #
     # @example Float conversion
     #   Config.convert_type('3.14', :float) # => 3.14
-    def self.convert_type(value, type)
+    #
+    # @example Array conversion
+    #   Config.convert_type('a,b,c', :array) # => ["a", "b", "c"]
+    def self.convert_type(value, type, separator: ',')
       return nil if value.nil?
 
       case type
@@ -104,6 +109,10 @@ module LanguageOperator
         value.to_f
       when :boolean
         %w[true 1 yes on].include?(value.to_s.downcase)
+      when :array
+        return [] if value.to_s.empty?
+
+        value.to_s.split(separator).map(&:strip).reject(&:empty?)
       else
         value
       end
@@ -133,6 +142,109 @@ module LanguageOperator
       config = from_env(mappings, prefix: prefix, defaults: defaults, types: types)
       validate_required!(config, required) unless required.empty?
       config
+    end
+
+    # Get environment variable with multiple fallback keys
+    #
+    # @param keys [Array<String>] Environment variable names to try
+    # @param default [Object, nil] Default value if none found
+    # @return [String, nil] The first non-nil value or default
+    #
+    # @example
+    #   Config.get('SMTP_HOST', 'MAIL_HOST', default: 'localhost')
+    def self.get(*keys, default: nil)
+      keys.each do |key|
+        value = ENV.fetch(key.to_s, nil)
+        return value if value
+      end
+      default
+    end
+
+    # Get required environment variable with fallback keys
+    #
+    # @param keys [Array<String>] Environment variable names to try
+    # @return [String] The first non-nil value
+    # @raise [ArgumentError] If none of the keys are set
+    #
+    # @example
+    #   Config.require('DATABASE_URL', 'DB_URL')
+    def self.require(*keys)
+      value = get(*keys)
+      raise ArgumentError, "Missing required configuration: #{keys.join(' or ')}" unless value
+
+      value
+    end
+
+    # Get environment variable as integer
+    #
+    # @param keys [Array<String>] Environment variable names to try
+    # @param default [Integer, nil] Default value if none found
+    # @return [Integer, nil] The value converted to integer, or default
+    #
+    # @example
+    #   Config.get_int('MAX_WORKERS', default: 4)
+    def self.get_int(*keys, default: nil)
+      value = get(*keys)
+      return default if value.nil?
+
+      value.to_i
+    end
+
+    # Get environment variable as boolean
+    #
+    # Treats 'true', '1', 'yes', 'on' as true (case insensitive).
+    #
+    # @param keys [Array<String>] Environment variable names to try
+    # @param default [Boolean] Default value if none found
+    # @return [Boolean] The value as boolean
+    #
+    # @example
+    #   Config.get_bool('USE_TLS', 'ENABLE_TLS', default: true)
+    def self.get_bool(*keys, default: false)
+      value = get(*keys)
+      return default if value.nil?
+
+      %w[true 1 yes on].include?(value.to_s.downcase)
+    end
+
+    # Get environment variable as array (split by separator)
+    #
+    # @param keys [Array<String>] Environment variable names to try
+    # @param default [Array] Default value if none found
+    # @param separator [String] Character to split on (default: ',')
+    # @return [Array<String>] The value split into array
+    #
+    # @example
+    #   Config.get_array('ALLOWED_HOSTS', separator: ',')
+    def self.get_array(*keys, default: [], separator: ',')
+      value = get(*keys)
+      return default if value.nil? || value.empty?
+
+      value.split(separator).map(&:strip).reject(&:empty?)
+    end
+
+    # Check if environment variable is set (even if empty string)
+    #
+    # @param keys [Array<String>] Environment variable names to check
+    # @return [Boolean] True if any key is set
+    #
+    # @example
+    #   Config.set?('DEBUG', 'VERBOSE')
+    def self.set?(*keys)
+      keys.any? { |key| ENV.key?(key.to_s) }
+    end
+
+    # Get all environment variables matching a prefix
+    #
+    # @param prefix [String] Prefix to match
+    # @return [Hash<String, String>] Hash with prefix removed from keys
+    #
+    # @example
+    #   Config.with_prefix('DATABASE_')
+    #   # Returns { 'URL' => '...', 'POOL_SIZE' => '5' } for DATABASE_URL and DATABASE_POOL_SIZE
+    def self.with_prefix(prefix)
+      ENV.select { |key, _| key.start_with?(prefix) }
+         .transform_keys { |key| key.sub(prefix, '') }
     end
   end
 end
