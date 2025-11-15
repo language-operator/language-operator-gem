@@ -90,10 +90,10 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor, '#execute_parallel' do
       results = executor.execute_parallel(task_specs)
 
       expect(results).to eq([
-        { doubled: 10 },
-        { doubled: 20 },
-        { doubled: 30 }
-      ])
+                              { doubled: 10 },
+                              { doubled: 20 },
+                              { doubled: 30 }
+                            ])
     end
   end
 
@@ -205,9 +205,9 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor, '#execute_parallel' do
       it 'extracts in parallel then merges' do
         # Extract in parallel
         sources = executor.execute_parallel([
-          { name: :extract_source1 },
-          { name: :extract_source2 }
-        ])
+                                              { name: :extract_source1 },
+                                              { name: :extract_source2 }
+                                            ])
 
         # Merge sequentially
         result = executor.execute_task(:merge, inputs: { sources: sources })
@@ -218,9 +218,9 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor, '#execute_parallel' do
       it 'demonstrates parallel speedup' do
         start_time = Time.now
         executor.execute_parallel([
-          { name: :extract_source1 },
-          { name: :extract_source2 }
-        ])
+                                    { name: :extract_source1 },
+                                    { name: :extract_source2 }
+                                  ])
         elapsed = Time.now - start_time
 
         # Sequential would take ~0.06s, parallel should be ~0.03s
@@ -272,10 +272,10 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor, '#execute_parallel' do
         code = 'def foo; end'
 
         results = executor.execute_parallel([
-          { name: :check_style, inputs: { code: code } },
-          { name: :scan_security, inputs: { code: code } },
-          { name: :analyze_coverage, inputs: { code: code } }
-        ])
+                                              { name: :check_style, inputs: { code: code } },
+                                              { name: :scan_security, inputs: { code: code } },
+                                              { name: :analyze_coverage, inputs: { code: code } }
+                                            ])
 
         expect(results[0][:issues]).to eq(3)
         expect(results[1][:vulnerabilities]).to eq(0)

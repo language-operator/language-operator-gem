@@ -229,9 +229,8 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
 
       context 'basic error handling' do
         it 'wraps execution errors with task context' do
-          expect do
-            executor.execute_task(:failing, inputs: {})
-          end.to raise_error(LanguageOperator::Agent::TaskExecutionError) do |error|
+          expect { executor.execute_task(:failing, inputs: {}) }
+            .to raise_error(LanguageOperator::Agent::TaskExecutionError) do |error|
             expect(error.message).to include("Task 'failing' execution failed")
             expect(error.task_name).to eq(:failing)
             expect(error.original_error).to be_a(StandardError)
@@ -239,9 +238,8 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
         end
 
         it 'raises TaskValidationError for validation errors' do
-          expect do
-            executor.execute_task(:validation_error_task, inputs: {})
-          end.to raise_error(LanguageOperator::Agent::TaskValidationError) do |error|
+          expect { executor.execute_task(:validation_error_task, inputs: {}) }
+            .to raise_error(LanguageOperator::Agent::TaskValidationError) do |error|
             expect(error.task_name).to eq(:validation_error_task)
             expect(error.original_error).to be_a(ArgumentError)
           end
@@ -254,9 +252,8 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
         end
 
         it 'raises TaskTimeoutError when task times out' do
-          expect do
-            timeout_executor.execute_task(:timeout_task, inputs: {})
-          end.to raise_error(LanguageOperator::Agent::TaskTimeoutError) do |error|
+          expect { timeout_executor.execute_task(:timeout_task, inputs: {}) }
+            .to raise_error(LanguageOperator::Agent::TaskTimeoutError) do |error|
             expect(error.message).to include('timed out')
             expect(error.task_name).to eq(:timeout_task)
           end
@@ -454,12 +451,10 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
       end
 
       it 'allows main block to catch task execution errors' do
-        main_def.execute do |inputs|
-          begin
-            execute_task(:failing, inputs: {})
-          rescue LanguageOperator::Agent::TaskExecutionError => e
-            { error: e.message, recovered: true }
-          end
+        main_def.execute do |_inputs|
+          execute_task(:failing, inputs: {})
+        rescue LanguageOperator::Agent::TaskExecutionError => e
+          { error: e.message, recovered: true }
         end
 
         result = main_def.call({}, executor)
@@ -470,12 +465,10 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
 
       it 'allows main block to use ensure blocks' do
         cleanup_called = false
-        main_def.execute do |inputs|
-          begin
-            execute_task(:failing, inputs: {})
-          ensure
-            cleanup_called = true
-          end
+        main_def.execute do |_inputs|
+          execute_task(:failing, inputs: {})
+        ensure
+          cleanup_called = true
         end
 
         expect do
@@ -486,7 +479,7 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
       end
 
       it 'propagates unhandled errors from main block' do
-        main_def.execute do |inputs|
+        main_def.execute do |_inputs|
           execute_task(:failing, inputs: {})
         end
 

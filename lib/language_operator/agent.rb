@@ -200,7 +200,7 @@ module LanguageOperator
     # @return [Hash] Executor configuration
     def self.build_executor_config(agent_def)
       config = {}
-      
+
       if agent_def.constraints
         config[:timeout] = agent_def.constraints[:timeout] if agent_def.constraints[:timeout]
         config[:max_retries] = agent_def.constraints[:max_retries] if agent_def.constraints[:max_retries]

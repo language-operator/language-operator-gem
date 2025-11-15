@@ -72,8 +72,8 @@ module LanguageOperator
         @agent = agent
         @tasks = tasks
         @config = default_config.merge(config)
-        logger.debug('TaskExecutor initialized', 
-                     task_count: @tasks.size, 
+        logger.debug('TaskExecutor initialized',
+                     task_count: @tasks.size,
                      timeout: @config[:timeout],
                      max_retries: @config[:max_retries])
       end
@@ -102,17 +102,16 @@ module LanguageOperator
                     'task.timeout' => timeout,
                     'task.max_retries' => max_retries
                   }) do
-          
           # Find task definition
           task = @tasks[task_name.to_sym]
           raise ArgumentError, "Task not found: #{task_name}. Available tasks: #{@tasks.keys.join(', ')}" unless task
 
           task_type = determine_task_type(task)
-          logger.info('Executing task', 
-                     task: task_name, 
-                     type: task_type, 
-                     timeout: timeout,
-                     max_retries: max_retries)
+          logger.info('Executing task',
+                      task: task_name,
+                      type: task_type,
+                      timeout: timeout,
+                      max_retries: max_retries)
 
           # Execute with retry logic
           execute_with_retry(task, task_name, inputs, timeout, max_retries, execution_start)
@@ -121,7 +120,7 @@ module LanguageOperator
         # Validation errors should not be retried - re-raise immediately
         log_task_error(task_name, e, :validation, execution_start)
         raise TaskValidationError.new(task_name, e.message, e)
-      rescue => e
+      rescue StandardError => e
         # Catch any unexpected errors that escaped retry logic
         log_task_error(task_name, e, :system, execution_start)
         raise create_appropriate_error(task_name, e)
@@ -344,7 +343,7 @@ module LanguageOperator
         while attempt <= max_retries
           begin
             return execute_single_attempt(task, task_name, inputs, timeout, attempt, execution_start)
-          rescue => e
+          rescue StandardError => e
             last_error = e
             attempt += 1
 
@@ -352,7 +351,7 @@ module LanguageOperator
             unless retryable_error?(e) && attempt <= max_retries
               # Re-raise ArgumentError so it gets caught by the ArgumentError rescue block
               raise e if e.is_a?(ArgumentError)
-              
+
               log_task_error(task_name, e, categorize_error(e), execution_start, attempt - 1)
               raise create_appropriate_error(task_name, e)
             end
@@ -360,14 +359,14 @@ module LanguageOperator
             # Calculate delay for exponential backoff
             delay = calculate_retry_delay(attempt - 1)
             logger.warn('Task execution failed, retrying',
-                       task: task_name,
-                       attempt: attempt,
-                       max_retries: max_retries,
-                       error: e.class.name,
-                       message: e.message,
-                       retry_delay: delay)
+                        task: task_name,
+                        attempt: attempt,
+                        max_retries: max_retries,
+                        error: e.class.name,
+                        message: e.message,
+                        retry_delay: delay)
 
-            sleep(delay) if delay > 0
+            sleep(delay) if delay.positive?
           end
         end
 
@@ -385,31 +384,31 @@ module LanguageOperator
       # @param attempt [Integer] Current attempt number
       # @param execution_start [Time] When execution started
       # @return [Hash] Task outputs
-      def execute_single_attempt(task, task_name, inputs, timeout, attempt, execution_start)
+      def execute_single_attempt(task, task_name, inputs, timeout, attempt, _execution_start)
         attempt_start = Time.now
-        
-        result = if timeout > 0
-          Timeout.timeout(timeout) do
-            execute_task_implementation(task, inputs)
-          end
-        else
-          execute_task_implementation(task, inputs)
-        end
+
+        result = if timeout.positive?
+                   Timeout.timeout(timeout) do
+                     execute_task_implementation(task, inputs)
+                   end
+                 else
+                   execute_task_implementation(task, inputs)
+                 end
 
         execution_time = Time.now - attempt_start
         logger.debug('Task execution completed',
-                    task: task_name,
-                    attempt: attempt + 1,
-                    execution_time: execution_time.round(3))
+                     task: task_name,
+                     attempt: attempt + 1,
+                     execution_time: execution_time.round(3))
 
         result
       rescue Timeout::Error => e
         execution_time = Time.now - attempt_start
         logger.warn('Task execution timed out',
-                   task: task_name,
-                   attempt: attempt + 1,
-                   timeout: timeout,
-                   execution_time: execution_time.round(3))
+                    task: task_name,
+                    attempt: attempt + 1,
+                    timeout: timeout,
+                    execution_time: execution_time.round(3))
         raise TaskTimeoutError.new(task_name, "timed out after #{timeout}s", e)
       end
 
@@ -462,7 +461,7 @@ module LanguageOperator
       # @param attempt [Integer] Current attempt number (0-based)
       # @return [Float] Delay in seconds
       def calculate_retry_delay(attempt)
-        delay = @config[:retry_delay_base] * (2 ** attempt)
+        delay = @config[:retry_delay_base] * (2**attempt)
         [delay, @config[:retry_delay_max]].min
       end
 
@@ -476,7 +475,7 @@ module LanguageOperator
         when TaskTimeoutError
           original_error
         when Timeout::Error
-          TaskTimeoutError.new(task_name, "timed out", original_error)
+          TaskTimeoutError.new(task_name, 'timed out', original_error)
         when ArgumentError
           TaskValidationError.new(task_name, original_error.message, original_error)
         else
@@ -493,16 +492,16 @@ module LanguageOperator
       # @param retry_count [Integer] Number of retries attempted
       def log_task_error(task_name, error, category, execution_start, retry_count = 0)
         execution_time = Time.now - execution_start
-        
+
         logger.error('Task execution failed',
-                    task: task_name,
-                    error_category: ERROR_CATEGORIES[category],
-                    error_class: error.class.name,
-                    error_message: error.message,
-                    execution_time: execution_time.round(3),
-                    retry_count: retry_count,
-                    retryable: retryable_error?(error),
-                    backtrace: error.backtrace&.first(5))
+                     task: task_name,
+                     error_category: ERROR_CATEGORIES[category],
+                     error_class: error.class.name,
+                     error_message: error.message,
+                     execution_time: execution_time.round(3),
+                     retry_count: retry_count,
+                     retryable: retryable_error?(error),
+                     backtrace: error.backtrace&.first(5))
       end
     end
   end
