@@ -2,6 +2,7 @@
 
 require_relative 'agent/base'
 require_relative 'agent/executor'
+require_relative 'agent/task_executor'
 require_relative 'agent/scheduler'
 require_relative 'agent/web_server'
 require_relative 'dsl'
@@ -127,15 +128,34 @@ module LanguageOperator
     def self.run_with_definition(agent, agent_def)
       agent.connect!
 
+      # Check if agent uses DSL v1 (task/main) or v0 (workflow/step)
+      uses_dsl_v1 = agent_def.main&.defined?
+      uses_dsl_v0 = agent_def.workflow
+
       case agent.mode
       when 'autonomous', 'interactive'
-        # Execute workflow in autonomous mode
-        executor = LanguageOperator::Agent::Executor.new(agent)
-        executor.execute_workflow(agent_def)
+        if uses_dsl_v1
+          # DSL v1: Execute main block with task executor
+          execute_main_block(agent, agent_def)
+        elsif uses_dsl_v0
+          # DSL v0: Execute workflow in autonomous mode
+          executor = LanguageOperator::Agent::Executor.new(agent)
+          executor.execute_workflow(agent_def)
+        else
+          raise 'Agent definition must have either main block (DSL v1) or workflow (DSL v0)'
+        end
       when 'scheduled', 'event-driven'
-        # Schedule workflow execution
-        scheduler = LanguageOperator::Agent::Scheduler.new(agent)
-        scheduler.start_with_workflow(agent_def)
+        if uses_dsl_v1
+          # DSL v1: Schedule main block execution
+          scheduler = LanguageOperator::Agent::Scheduler.new(agent)
+          scheduler.start_with_main(agent_def)
+        elsif uses_dsl_v0
+          # DSL v0: Schedule workflow execution
+          scheduler = LanguageOperator::Agent::Scheduler.new(agent)
+          scheduler.start_with_workflow(agent_def)
+        else
+          raise 'Agent definition must have either main block (DSL v1) or workflow (DSL v0)'
+        end
       when 'reactive', 'http', 'webhook'
         # Start web server with webhooks, MCP tools, and chat endpoint
         web_server = LanguageOperator::Agent::WebServer.new(agent)
@@ -146,6 +166,30 @@ module LanguageOperator
       else
         raise "Unknown agent mode: #{agent.mode}"
       end
+    end
+
+    # Execute main block (DSL v1) in autonomous mode
+    #
+    # @param agent [LanguageOperator::Agent::Base] The agent instance
+    # @param agent_def [LanguageOperator::Dsl::AgentDefinition] The agent definition
+    # @return [void]
+    def self.execute_main_block(agent, agent_def)
+      task_executor = LanguageOperator::Agent::TaskExecutor.new(agent, agent_def.tasks)
+
+      logger.info('Executing main block',
+                  agent: agent_def.name,
+                  task_count: agent_def.tasks.size)
+
+      # Get inputs from environment or default to empty hash
+      inputs = {}
+
+      # Execute main block with task executor as context
+      result = agent_def.main.call(inputs, task_executor)
+
+      logger.info('Main block execution completed',
+                  result: result)
+
+      result
     end
   end
 end

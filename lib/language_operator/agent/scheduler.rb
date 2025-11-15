@@ -84,6 +84,50 @@ module LanguageOperator
         @rufus_scheduler.join
       end
 
+      # Start the scheduler with a main block (DSL v1)
+      #
+      # @param agent_def [LanguageOperator::Dsl::AgentDefinition] The agent definition with main block
+      # @return [void]
+      def start_with_main(agent_def)
+        logger.info('Agent starting in scheduled mode with main block',
+                    agent_name: agent_def.name,
+                    task_count: agent_def.tasks.size)
+        logger.info("Workspace: #{@agent.workspace_path}")
+        logger.info("Connected to #{@agent.servers_info.length} MCP server(s)")
+
+        # Extract schedule from agent definition or use default
+        cron_schedule = agent_def.schedule&.cron || '0 6 * * *'
+
+        logger.info('Scheduling main block execution', cron: cron_schedule, agent: agent_def.name)
+
+        # Create task executor
+        require_relative 'task_executor'
+        task_executor = TaskExecutor.new(@agent, agent_def.tasks)
+
+        @rufus_scheduler.cron(cron_schedule) do
+          with_span('agent.scheduler.execute', attributes: {
+                      'scheduler.cron_expression' => cron_schedule,
+                      'agent.name' => agent_def.name,
+                      'scheduler.task_type' => 'main_block'
+                    }) do
+            logger.timed('Scheduled main block execution') do
+              logger.info('Executing scheduled main block', agent: agent_def.name)
+
+              # Get inputs from environment or default to empty hash
+              inputs = {}
+
+              # Execute main block
+              result = agent_def.main.call(inputs, task_executor)
+
+              logger.info('Main block completed', result: result)
+            end
+          end
+        end
+
+        logger.info('Scheduler started, waiting for scheduled tasks')
+        @rufus_scheduler.join
+      end
+
       # Stop the scheduler
       #
       # @return [void]
