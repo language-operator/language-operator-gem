@@ -56,10 +56,10 @@ module LanguageOperator
         execute(enriched_instruction)
       end
 
-      # Execute a single task or workflow
+      # Execute a single task
       #
       # @param task [String] The task to execute
-      # @param agent_definition [LanguageOperator::Dsl::AgentDefinition, nil] Optional agent definition with workflow
+      # @param agent_definition [LanguageOperator::Dsl::AgentDefinition, nil] Optional agent definition (unused in DSL v1)
       # @return [String] The result
       # rubocop:disable Metrics/BlockLength
       def execute(task, agent_definition: nil)
@@ -67,9 +67,6 @@ module LanguageOperator
                     'agent.goal_description' => task[0...500]
                   }) do
           @iteration_count += 1
-
-          # Route to workflow execution if agent has a workflow defined
-          return execute_workflow(agent_definition) if agent_definition&.workflow
 
           # Standard instruction-based execution
           logger.info('Starting iteration',
@@ -205,95 +202,6 @@ module LanguageOperator
         logger.warn('Maximum iterations reached',
                     iterations: @max_iterations,
                     reason: 'Hit max_iterations limit')
-      end
-
-      # Execute a workflow-based agent
-      #
-      # @param agent_def [LanguageOperator::Dsl::AgentDefinition] The agent definition
-      # @return [RubyLLM::Message] The final response
-      def execute_workflow(agent_def)
-        start_time = Time.now
-
-        logger.info("Starting workflow execution: #{agent_def.name}")
-
-        # Log persona if defined
-        puts "\e[1;35m·\e[0m Loading persona: #{agent_def.persona}" if agent_def.persona
-
-        # Build orchestration prompt from agent definition
-        prompt = build_workflow_prompt(agent_def)
-
-        # Log the full prompt being sent
-        puts "\e[1;34m·\e[0m \e[1mPrompt sent to LLM:\e[0m"
-        puts prompt
-        puts
-
-        # Register workflow steps as tools (placeholder - will implement after tool converter)
-        # For now, just execute with instructions
-        result = logger.timed('LLM request') do
-          @agent.send_message(prompt)
-        end
-
-        # Record metrics
-        model_id = @agent.config.dig('llm', 'model')
-        @metrics_tracker.record_request(result, model_id) if model_id
-
-        # Log the full response received
-        result_text = result.is_a?(String) ? result : result.content
-        cleaned_response = result_text.gsub(%r{\[THINK\].*?\[/THINK\]}m, '').strip
-        puts "\e[1;35m·\e[0m \e[1mLLM Response:\e[0m"
-        puts cleaned_response
-        puts
-
-        # Write output if configured
-        write_output(agent_def, result) if agent_def.output_config && result
-
-        # Log execution summary
-        total_duration = Time.now - start_time
-        metrics = @metrics_tracker.cumulative_stats
-        logger.info('Workflow execution completed',
-                    duration_s: total_duration.round(2),
-                    total_tokens: metrics[:totalTokens],
-                    estimated_cost: "$#{metrics[:estimatedCost]}")
-        result
-      rescue StandardError => e
-        logger.error('❌ Workflow execution failed', error: e.message)
-        handle_error(e)
-      end
-
-      # Build orchestration prompt from agent definition
-      #
-      # @param agent_def [LanguageOperator::Dsl::AgentDefinition] The agent definition
-      # @return [String] The prompt
-      def build_workflow_prompt(agent_def)
-        prompt = "# Task: #{agent_def.description}\n\n"
-
-        if agent_def.objectives&.any?
-          prompt += "## Objectives:\n"
-          agent_def.objectives.each { |obj| prompt += "- #{obj}\n" }
-          prompt += "\n"
-        end
-
-        if agent_def.workflow&.steps&.any?
-          prompt += "## Workflow Steps:\n"
-          agent_def.workflow.step_order.each do |step_name|
-            step = agent_def.workflow.steps[step_name]
-            prompt += step_name.to_s.tr('_', ' ').capitalize.to_s
-            prompt += " (using tool: #{step.tool_name})" if step.tool_name
-            prompt += " - depends on: #{step.dependencies.join(', ')}" if step.dependencies&.any?
-            prompt += "\n"
-          end
-          prompt += "\n"
-        end
-
-        if agent_def.constraints
-          prompt += "## Constraints:\n"
-          prompt += "- Maximum iterations: #{agent_def.constraints[:max_iterations]}\n" if agent_def.constraints[:max_iterations]
-          prompt += "- Timeout: #{agent_def.constraints[:timeout]}\n" if agent_def.constraints[:timeout]
-          prompt += "\n"
-        end
-
-        prompt += 'Please complete this task following the workflow steps.'
-        prompt
       end
 
       # Write output to configured destinations

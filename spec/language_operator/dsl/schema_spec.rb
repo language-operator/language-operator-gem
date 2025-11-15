@@ -96,11 +96,6 @@ RSpec.describe LanguageOperator::Dsl::Schema do
         expect(properties[:objectives][:items][:type]).to eq('string')
       end
 
-      it 'includes workflow property with reference' do
-        expect(properties[:workflow]).to be_a(Hash)
-        expect(properties[:workflow][:$ref]).to eq('#/definitions/WorkflowDefinition')
-      end
-
       it 'includes constraints property with reference' do
         expect(properties[:constraints]).to be_a(Hash)
         expect(properties[:constraints][:$ref]).to eq('#/definitions/ConstraintsDefinition')
@@ -140,10 +135,6 @@ RSpec.describe LanguageOperator::Dsl::Schema do
         expect(properties[:main][:$ref]).to eq('#/definitions/MainDefinition')
         expect(properties[:main][:description]).to include('imperative entry point')
       end
-
-      it 'marks workflow as deprecated' do
-        expect(properties[:workflow][:description]).to include('deprecated')
-      end
     end
 
     describe 'definitions' do
@@ -154,8 +145,6 @@ RSpec.describe LanguageOperator::Dsl::Schema do
           TaskDefinition
           MainDefinition
           TypeSchema
-          WorkflowDefinition
-          StepDefinition
           ConstraintsDefinition
           OutputDefinition
           WebhookDefinition
@@ -262,41 +251,6 @@ RSpec.describe LanguageOperator::Dsl::Schema do
           expect(type_schema[:examples]).to be_an(Array)
           expect(type_schema[:examples].length).to be > 0
           expect(type_schema[:examples].first).to be_a(Hash)
-        end
-      end
-
-      describe 'WorkflowDefinition' do
-        let(:workflow_def) { definitions[:WorkflowDefinition] }
-
-        it 'is an object with steps array' do
-          expect(workflow_def[:type]).to eq('object')
-          expect(workflow_def[:properties][:steps][:type]).to eq('array')
-          expect(workflow_def[:properties][:steps][:items][:$ref]).to eq('#/definitions/StepDefinition')
-        end
-      end
-
-      describe 'StepDefinition' do
-        let(:step_def) { definitions[:StepDefinition] }
-
-        it 'includes required properties' do
-          expect(step_def[:type]).to eq('object')
-          expect(step_def[:required]).to include('name')
-        end
-
-        it 'includes step properties' do
-          expect(step_def[:properties][:name]).to be_a(Hash)
-          expect(step_def[:properties][:tool]).to be_a(Hash)
-          expect(step_def[:properties][:params]).to be_a(Hash)
-          expect(step_def[:properties][:depends_on]).to be_a(Hash)
-          expect(step_def[:properties][:prompt]).to be_a(Hash)
-        end
-
-        it 'allows depends_on as string or array' do
-          depends_on = step_def[:properties][:depends_on]
-          expect(depends_on[:oneOf]).to be_a(Array)
-          expect(depends_on[:oneOf].length).to eq(2)
-          expect(depends_on[:oneOf][0][:type]).to eq('string')
-          expect(depends_on[:oneOf][1][:type]).to eq('array')
         end
       end
 

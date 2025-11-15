@@ -5,17 +5,14 @@ require 'language_operator'
 agent 'hello-world' do
   description 'Logs a message to stdout'
 
-  objectives [
-    "Log the message 'Hello, world!' to agent logs"
-  ]
+  task :log_message,
+       instructions: "log the message 'Hello, world!' to agent logs",
+       inputs: {},
+       outputs: { result: 'string' }
 
-  workflow do
-    step :log_message do
-      execute do |_results, _context|
-        puts 'Hello, world!'
-        { result: 'message logged' }
-      end
-    end
+  main do |_inputs|
+    puts 'Hello, world!'
+    { result: 'message logged' }
   end
 
   constraints do

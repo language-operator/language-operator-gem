@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require_relative 'workflow_definition'
 require_relative 'main_definition'
 require_relative 'task_definition'
 require_relative 'webhook_definition'
@@ -13,7 +12,7 @@ module LanguageOperator
   module Dsl
     # Agent definition for autonomous agents
     #
-    # Defines an agent with objectives, workflow, schedule, and constraints.
+    # Defines an agent with objectives, tasks, main execution block, schedule, and constraints.
     # Used within the DSL to create agents that can be executed standalone
     # or deployed to Kubernetes.
     #
@@ -23,14 +22,14 @@ module LanguageOperator
     #
     #     schedule "0 12 * * *"
     #
-    #     objectives [
-    #       "Search for recent news",
-    #       "Summarize findings"
-    #     ]
+    #     task :search,
+    #       instructions: "search for latest news",
+    #       inputs: {},
+    #       outputs: { results: 'array' }
     #
-    #     workflow do
-    #       step :search, tool: "web_search", params: {query: "latest news"}
-    #       step :summarize, depends_on: :search
+    #     main do |inputs|
+    #       results = execute_task(:search)
+    #       results
     #     end
     #   end
     #
@@ -49,7 +48,7 @@ module LanguageOperator
     class AgentDefinition
       include LanguageOperator::Loggable
 
-      attr_reader :name, :description, :persona, :schedule, :objectives, :workflow, :main, :tasks,
+      attr_reader :name, :description, :persona, :schedule, :objectives, :main, :tasks,
                   :constraints, :output_config, :execution_mode, :webhooks, :mcp_server, :chat_endpoint
 
       def initialize(name)
@@ -58,7 +57,6 @@ module LanguageOperator
         @persona = nil
         @schedule = nil
         @objectives = []
-        @workflow = nil
         @main = nil
         @tasks = {}
         @constraints = {}
@@ -120,24 +118,6 @@ module LanguageOperator
       # @return [void]
       def objective(text)
         @objectives << text
-      end
-
-      # Define workflow with steps (deprecated - use task/main instead)
-      #
-      # @deprecated Use {#task} and {#main} instead (DSL v1)
-      # @yield Workflow definition block
-      # @return [WorkflowDefinition] Current workflow
-      def workflow(&block)
-        return @workflow if block.nil?
-
-        logger.warn('DEPRECATED: workflow/step pattern is deprecated. ' \
-                    'Please migrate to task/main pattern. ' \
-                    'See requirements/proposals/dsl-v1.md for migration guide.',
-                    agent: @name)
-
-        @workflow = WorkflowDefinition.new
-        @workflow.instance_eval(&block) if block
-        @workflow
       end
 
       # Define main execution block (DSL v1)
@@ -314,7 +294,7 @@ module LanguageOperator
                     name: @name,
                     mode: @execution_mode,
                     objectives_count: @objectives.size,
-                    has_workflow: !@workflow.nil?)
+                    has_main: !@main.nil?)
 
         case @execution_mode
         when :scheduled
@@ -418,7 +398,7 @@ module LanguageOperator
       def execute_objectives
         logger.info('Executing objectives',
                     total: @objectives.size,
-                    has_workflow: !@workflow.nil?)
+                    has_main: !@main.nil?)
 
         @objectives.each_with_index do |objective, index|
           logger.info('Executing objective',
@@ -426,13 +406,13 @@ module LanguageOperator
                       total: @objectives.size,
                       objective: objective[0..100])
 
-          # If workflow defined, execute it; otherwise just log
-          if @workflow
-            logger.timed('Objective workflow execution') do
-              @workflow.execute(objective)
+          # If main defined, execute it; otherwise just log
+          if @main
+            logger.timed('Objective main execution') do
+              @main.call({ objective: objective })
             end
           else
-            logger.warn('No workflow defined, skipping execution')
+            logger.warn('No main block defined, skipping execution')
           end
         end
 

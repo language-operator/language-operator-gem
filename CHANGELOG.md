@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- **BREAKING**: Removed deprecated DSL v0 (workflow/step model)
+  - Deleted `WorkflowDefinition` and `StepDefinition` classes
+  - Removed `workflow` method from agent definitions
+  - Removed workflow execution logic from executor
+  - Removed workflow/step schema definitions
+  - Users must migrate to DSL v1 (task/main model)
+  - See `requirements/proposals/dsl-v1.md` for migration guide
+
+### Changed
+- Updated agent definition examples to use task/main pattern
+- Updated JSON schema artifacts to reflect DSL v1 only
+- Updated documentation to focus exclusively on task/main model
+
 ### Added
 - **Schema Version Method**: Added `LanguageOperator::Dsl::Schema.version` method that returns the current schema version (linked to gem version)
 - **Schema Versioning Documentation**: Added comprehensive `docs/dsl/SCHEMA_VERSION.md` documenting versioning policy, semantic version semantics for schema changes, compatibility rules, and deprecation policy

@@ -4,7 +4,6 @@ require 'spec_helper'
 require 'language_operator/dsl/agent_definition'
 require 'language_operator/dsl/task_definition'
 require 'language_operator/dsl/main_definition'
-require 'language_operator/dsl/workflow_definition'
 
 RSpec.describe LanguageOperator::Dsl::AgentDefinition do
   let(:agent_name) { 'test-agent' }
@@ -20,8 +19,7 @@ RSpec.describe LanguageOperator::Dsl::AgentDefinition do
       expect(agent.tasks).to be_a(Hash)
     end
 
-    it 'initializes with nil workflow and main' do
-      expect(agent.workflow).to be_nil
+    it 'initializes with nil main' do
       expect(agent.main).to be_nil
     end
 
@@ -147,54 +145,6 @@ RSpec.describe LanguageOperator::Dsl::AgentDefinition do
       retrieved_main = agent.main
 
       expect(retrieved_main).to eq(original_main)
-    end
-  end
-
-  describe '#workflow (deprecated)' do
-    it 'creates a workflow definition when block is provided' do
-      workflow_def = agent.workflow do
-        # workflow block would normally have steps
-      end
-
-      expect(workflow_def).to be_a(LanguageOperator::Dsl::WorkflowDefinition)
-      expect(agent.workflow).to eq(workflow_def)
-    end
-
-    it 'logs deprecation warning when workflow is used' do
-      logger_double = instance_double('LanguageOperator::Logger')
-      allow(logger_double).to receive(:debug)
-      allow(logger_double).to receive(:warn)
-      allow(agent).to receive(:logger).and_return(logger_double)
-
-      expect(logger_double).to receive(:warn).with(
-        a_string_including('DEPRECATED'),
-        agent: agent_name
-      )
-
-      agent.workflow { nil } # Empty workflow for deprecation test
-    end
-  end
-
-  describe 'backward compatibility' do
-    it 'allows both task and workflow in the same agent' do
-      agent.task :my_task,
-                 inputs: {},
-                 outputs: { result: 'string' } do
-        { result: 'done' }
-      end
-
-      agent.workflow { nil } # Empty workflow for compatibility test
-
-      expect(agent.tasks.size).to eq(1)
-      expect(agent.workflow).to be_a(LanguageOperator::Dsl::WorkflowDefinition)
-    end
-
-    it 'allows both main and workflow in the same agent' do
-      agent.main { |inputs| inputs }
-      agent.workflow { nil } # Empty workflow for compatibility test
-
-      expect(agent.main).to be_a(LanguageOperator::Dsl::MainDefinition)
-      expect(agent.workflow).to be_a(LanguageOperator::Dsl::WorkflowDefinition)
     end
   end
 

@@ -186,11 +186,6 @@ module LanguageOperator
             '$ref': '#/definitions/MainDefinition',
             description: 'Main execution block (imperative entry point)'
           },
-          # DSL v0 (workflow/step model - deprecated)
-          workflow: {
-            '$ref': '#/definitions/WorkflowDefinition',
-            description: 'Multi-step workflow (deprecated - use tasks and main instead)'
-          },
           # Common properties
           constraints: {
             '$ref': '#/definitions/ConstraintsDefinition'
@@ -223,9 +218,6 @@ module LanguageOperator
           TaskDefinition: task_definition_schema,
           MainDefinition: main_definition_schema,
           TypeSchema: type_schema_definition,
-          # DSL v0 (workflow/step model - deprecated but kept for migration)
-          WorkflowDefinition: workflow_definition_schema,
-          StepDefinition: step_definition_schema,
           # Common definitions
           ConstraintsDefinition: constraints_definition_schema,
           OutputDefinition: output_definition_schema,
@@ -235,65 +227,6 @@ module LanguageOperator
           ChatEndpointDefinition: chat_endpoint_definition_schema,
           ToolDefinition: tool_definition_schema,
           ParameterDefinition: parameter_definition_schema
-        }
-      end
-
-      # Workflow definition schema
-      #
-      # @return [Hash] Schema for workflow definitions
-      def self.workflow_definition_schema
-        {
-          type: 'object',
-          description: 'Multi-step workflow with dependencies',
-          properties: {
-            steps: {
-              type: 'array',
-              description: 'Ordered list of workflow steps',
-              items: {
-                '$ref': '#/definitions/StepDefinition'
-              }
-            }
-          }
-        }
-      end
-
-      # Step definition schema (DSL v0 - deprecated)
-      #
-      # @return [Hash] Schema for workflow steps
-      def self.step_definition_schema
-        {
-          type: 'object',
-          description: 'Individual workflow step (deprecated - use TaskDefinition instead)',
-          properties: {
-            name: {
-              type: 'string',
-              description: 'Step identifier (symbol or string)'
-            },
-            tool: {
-              type: 'string',
-              description: 'Tool name to execute in this step'
-            },
-            params: {
-              type: 'object',
-              description: 'Parameters to pass to the tool',
-              additionalProperties: true
-            },
-            depends_on: {
-              oneOf: [
-                { type: 'string' },
-                {
-                  type: 'array',
-                  items: { type: 'string' }
-                }
-              ],
-              description: 'Step dependencies (must complete before this step)'
-            },
-            prompt: {
-              type: 'string',
-              description: 'LLM prompt template for this step'
-            }
-          },
-          required: %w[name]
         }
       end
 

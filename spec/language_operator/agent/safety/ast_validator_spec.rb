@@ -147,30 +147,6 @@ RSpec.describe LanguageOperator::Agent::Safety::ASTValidator do
       end
     end
 
-    context 'with deprecated DSL v0 (workflow/step) code' do
-      it 'rejects workflow/step syntax' do
-        code = <<~RUBY
-          require 'language_operator'
-
-          LanguageOperator::Dsl.define_agents do
-            agent "old-agent" do
-              workflow do
-                step :fetch, tool: 'database'
-                step :process, depends_on: :fetch
-              end
-            end
-          end
-        RUBY
-
-        # NOTE: workflow/step are no longer in SAFE_AGENT_METHODS,
-        # but they won't trigger dangerous method violations either.
-        # This test documents that the old DSL simply isn't validated as "safe"
-        # in the new model, though it won't explicitly error unless it uses
-        # dangerous methods.
-        expect { validator.validate!(code) }.not_to raise_error
-      end
-    end
-
     context 'with dangerous code in tasks' do
       it 'rejects system call in symbolic task' do
         code = <<~RUBY

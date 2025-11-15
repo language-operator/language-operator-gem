@@ -38,7 +38,8 @@ RSpec.describe 'Schema Artifacts Generation' do
       schema = JSON.parse(File.read(json_schema_path))
 
       expect(schema['definitions']).to include(
-        'WorkflowDefinition',
+        'TaskDefinition',
+        'MainDefinition',
         'ConstraintsDefinition',
         'WebhookDefinition',
         'ToolDefinition'

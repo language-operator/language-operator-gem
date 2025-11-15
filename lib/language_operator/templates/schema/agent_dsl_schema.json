@@ -43,8 +43,16 @@
       },
       "minItems": 0
     },
-    "workflow": {
-      "$ref": "#/definitions/WorkflowDefinition"
+    "tasks": {
+      "type": "array",
+      "description": "Task definitions (organic functions with stable contracts)",
+      "items": {
+        "$ref": "#/definitions/TaskDefinition"
+      }
+    },
+    "main": {
+      "$ref": "#/definitions/MainDefinition",
+      "description": "Main execution block (imperative entry point)"
     },
     "constraints": {
       "$ref": "#/definitions/ConstraintsDefinition"
@@ -70,57 +78,91 @@
     "name"
   ],
   "definitions": {
-    "WorkflowDefinition": {
+    "TaskDefinition": {
       "type": "object",
-      "description": "Multi-step workflow with dependencies",
-      "properties": {
-        "steps": {
-          "type": "array",
-          "description": "Ordered list of workflow steps",
-          "items": {
-            "$ref": "#/definitions/StepDefinition"
-          }
-        }
-      }
-    },
-    "StepDefinition": {
-      "type": "object",
-      "description": "Individual workflow step",
+      "description": "Organic function with stable contract (inputs/outputs) and evolving implementation",
       "properties": {
         "name": {
           "type": "string",
-          "description": "Step identifier (symbol or string)"
+          "description": "Task identifier (symbol)",
+          "pattern": "^[a-z_][a-z0-9_]*$"
         },
-        "tool": {
+        "inputs": {
+          "$ref": "#/definitions/TypeSchema",
+          "description": "Input contract (parameter types)"
+        },
+        "outputs": {
+          "$ref": "#/definitions/TypeSchema",
+          "description": "Output contract (return value types)"
+        },
+        "instructions": {
           "type": "string",
-          "description": "Tool name to execute in this step"
+          "description": "Natural language instructions for neural implementation (optional)"
         },
-        "params": {
-          "type": "object",
-          "description": "Parameters to pass to the tool",
-          "additionalProperties": true
-        },
-        "depends_on": {
-          "oneOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          ],
-          "description": "Step dependencies (must complete before this step)"
-        },
-        "prompt": {
+        "implementation_type": {
           "type": "string",
-          "description": "LLM prompt template for this step"
+          "description": "Implementation approach",
+          "enum": [
+            "neural",
+            "symbolic",
+            "hybrid",
+            "undefined"
+          ]
         }
       },
       "required": [
-        "name"
+        "name",
+        "inputs",
+        "outputs"
+      ]
+    },
+    "MainDefinition": {
+      "type": "object",
+      "description": "Imperative entry point for agent execution",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Block type",
+          "enum": [
+            "main"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Main block executes tasks using execute_task() with Ruby control flow"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TypeSchema": {
+      "type": "object",
+      "description": "Type schema for task contract validation",
+      "patternProperties": {
+        "^[a-z_][a-z0-9_]*$": {
+          "type": "string",
+          "description": "Parameter type",
+          "enum": [
+            "string",
+            "integer",
+            "number",
+            "boolean",
+            "array",
+            "hash",
+            "any"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "user_id": "integer",
+          "name": "string",
+          "active": "boolean"
+        },
+        {
+          "data": "array",
+          "metadata": "hash"
+        }
       ]
     },
     "ConstraintsDefinition": {

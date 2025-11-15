@@ -13,14 +13,14 @@ module LanguageOperator
     #
     #     schedule "0 12 * * *"
     #
-    #     objectives [
-    #       "Search for recent news",
-    #       "Summarize findings"
-    #     ]
+    #     task :search,
+    #       instructions: "search for recent news",
+    #       inputs: {},
+    #       outputs: { results: 'array' }
     #
-    #     workflow do
-    #       step :search, tool: "web_search"
-    #       step :summarize, depends_on: :search
+    #     main do |inputs|
+    #       results = execute_task(:search)
+    #       results
     #     end
     #   end
     class AgentContext
