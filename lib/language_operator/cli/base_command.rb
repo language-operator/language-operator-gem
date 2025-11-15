@@ -6,7 +6,6 @@ module LanguageOperator
   module CLI
     # Base class for all CLI commands providing shared functionality
     class BaseCommand < Thor
-      # rubocop:disable Metrics/BlockLength
       no_commands do
         # Lazy-initialized cluster context from options
         # @return [Helpers::ClusterContext]

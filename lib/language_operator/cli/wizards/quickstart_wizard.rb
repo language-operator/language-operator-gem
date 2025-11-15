@@ -413,7 +413,6 @@ module LanguageOperator
         end
 
         def create_model_resource(cluster_info, name, provider, model, api_key = nil, endpoint = nil)
-          # rubocop:disable Metrics/BlockLength
           Formatters::ProgressFormatter.with_spinner("Creating model '#{name}'") do
             k8s = Kubernetes::Client.new(
               kubeconfig: cluster_info[:kubeconfig],

@@ -12,13 +12,7 @@ AllCops:
 
 # Metrics
 Metrics/BlockLength:
-  Max: 30
-  Exclude:
-    - 'spec/**/*'
-    - 'Rakefile'
-    - '*.gemspec'
-    - 'test_*.rb'
-    - 'examples/**/*'
+  Enabled: false
 
 Metrics/MethodLength:
   Max: 35

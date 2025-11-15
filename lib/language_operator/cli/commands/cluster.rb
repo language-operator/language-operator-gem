@@ -118,7 +118,6 @@ module LanguageOperator
             end
 
             # Build table data
-            # rubocop:disable Metrics/BlockLength
             table_data = clusters.map do |cluster|
               k8s = Helpers::ClusterValidator.kubernetes_client(cluster[:name])
 
@@ -169,7 +168,6 @@ module LanguageOperator
                 status: 'Error'
               }
             end
-            # rubocop:enable Metrics/BlockLength
 
             Formatters::TableFormatter.clusters(table_data)
 

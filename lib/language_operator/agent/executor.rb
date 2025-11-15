@@ -61,7 +61,6 @@ module LanguageOperator
       # @param task [String] The task to execute
       # @param agent_definition [LanguageOperator::Dsl::AgentDefinition, nil] Optional agent definition (unused in DSL v1)
       # @return [String] The result
-      # rubocop:disable Metrics/BlockLength
       def execute(task, agent_definition: nil)
         with_span('agent.execute_goal', attributes: {
                     'agent.goal_description' => task[0...500]
