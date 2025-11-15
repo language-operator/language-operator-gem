@@ -195,7 +195,7 @@ module LanguageOperator
           prompt.keypress('Press any key to continue...')
 
           default_system_prompt = base_persona&.dig('spec', 'systemPrompt') || ''
-          system_prompt = edit_in_editor(default_system_prompt, 'persona-system-prompt')
+          system_prompt = Helpers::EditorHelper.edit_content(default_system_prompt, 'persona-system-prompt', '.txt')
 
           if system_prompt.strip.empty?
             Formatters::ProgressFormatter.error('System prompt cannot be empty')
@@ -209,7 +209,7 @@ module LanguageOperator
           prompt.keypress('Press any key to continue...')
 
           default_capabilities = base_persona&.dig('spec', 'capabilities')&.join("\n") || ''
-          capabilities_text = edit_in_editor(default_capabilities, 'persona-capabilities')
+          capabilities_text = Helpers::EditorHelper.edit_content(default_capabilities, 'persona-capabilities', '.txt')
           capabilities = capabilities_text.strip.empty? ? [] : capabilities_text.strip.split("\n").map(&:strip).reject(&:empty?)
 
           # Build persona resource
@@ -282,7 +282,7 @@ module LanguageOperator
 
           # Open in editor
           original_yaml = YAML.dump(persona)
-          edited_yaml = edit_in_editor(original_yaml, "persona-#{name}")
+          edited_yaml = Helpers::EditorHelper.edit_content(original_yaml, "persona-#{name}", '.txt')
 
           # Check if changed
           if edited_yaml.strip == original_yaml.strip
@@ -380,12 +380,6 @@ module LanguageOperator
           raise if ENV['DEBUG']
 
           exit 1
-        end
-
-        private
-
-        def edit_in_editor(content, filename_prefix)
-          Helpers::EditorHelper.edit_content(content, filename_prefix, '.txt')
         end
       end
     end

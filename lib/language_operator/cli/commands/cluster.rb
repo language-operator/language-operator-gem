@@ -95,7 +95,6 @@ module LanguageOperator
             puts "  aictl use #{name}"
           end
 
-          pastel = Pastel.new
           puts "\nCluster Details"
           puts '----------------'
           puts "Name: #{pastel.bold.white(name)}"
@@ -261,7 +260,6 @@ module LanguageOperator
 
           # Confirm deletion
           unless options[:force]
-            pastel = Pastel.new
             puts "This will delete cluster #{pastel.bold.red(name)} and all its resources (agents, models, tools, personas)."
             puts
             return unless Helpers::UserPrompts.confirm('Are you sure?')

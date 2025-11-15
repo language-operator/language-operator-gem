@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'thor'
+require_relative '../base_command'
 require_relative '../formatters/progress_formatter'
 require_relative '../formatters/table_formatter'
 require_relative '../formatters/value_formatter'
@@ -20,7 +21,7 @@ module LanguageOperator
   module CLI
     module Commands
       # Agent management commands
-      class Agent < Thor
+      class Agent < BaseCommand
         include Helpers::ClusterValidator
         include Helpers::PastelHelper
 
@@ -302,9 +303,6 @@ module LanguageOperator
           mode = agent.dig('spec', 'mode') || 'autonomous'
 
           # Build kubectl command for log streaming
-          kubeconfig_arg = ctx.config[:kubeconfig] ? "--kubeconfig=#{ctx.config[:kubeconfig]}" : ''
-          context_arg = ctx.config[:context] ? "--context=#{ctx.config[:context]}" : ''
-          namespace_arg = "-n #{ctx.namespace}"
           tail_arg = "--tail=#{options[:tail]}"
           follow_arg = options[:follow] ? '-f' : ''
 
@@ -318,7 +316,7 @@ module LanguageOperator
           label_selector = "app.kubernetes.io/name=#{name}"
 
           # Use kubectl logs with label selector
-          cmd = "kubectl #{kubeconfig_arg} #{context_arg} #{namespace_arg} logs -l #{label_selector} #{tail_arg} #{follow_arg} --prefix --all-containers"
+          cmd = "#{ctx.kubectl_prefix} logs -l #{label_selector} #{tail_arg} #{follow_arg} --prefix --all-containers"
 
           Formatters::ProgressFormatter.info("Streaming logs for agent '#{name}'...")
           puts
@@ -434,7 +432,7 @@ module LanguageOperator
           agent['spec']['instructions'] = new_instructions
 
           Formatters::ProgressFormatter.with_spinner('Updating agent instructions') do
-            k8s.apply_resource(agent)
+            ctx.client.apply_resource(agent)
           end
 
           Formatters::ProgressFormatter.success('Agent instructions updated')
@@ -475,14 +473,11 @@ module LanguageOperator
           # Suspend the CronJob by setting spec.suspend = true
           # This is done by patching the underlying CronJob resource
           cronjob_name = name
-          namespace = ctx.namespace
+          ctx.namespace
 
           Formatters::ProgressFormatter.with_spinner("Pausing agent '#{name}'") do
             # Use kubectl to patch the cronjob
-            kubeconfig_arg = ctx.config[:kubeconfig] ? "--kubeconfig=#{ctx.config[:kubeconfig]}" : ''
-            context_arg = ctx.config[:context] ? "--context=#{ctx.config[:context]}" : ''
-
-            cmd = "kubectl #{kubeconfig_arg} #{context_arg} -n #{namespace} patch cronjob #{cronjob_name} -p '{\"spec\":{\"suspend\":true}}'"
+            cmd = "#{ctx.kubectl_prefix} patch cronjob #{cronjob_name} -p '{\"spec\":{\"suspend\":true}}'"
             system(cmd)
           end
 
@@ -522,14 +517,11 @@ module LanguageOperator
 
           # Resume the CronJob by setting spec.suspend = false
           cronjob_name = name
-          namespace = ctx.namespace
+          ctx.namespace
 
           Formatters::ProgressFormatter.with_spinner("Resuming agent '#{name}'") do
             # Use kubectl to patch the cronjob
-            kubeconfig_arg = ctx.config[:kubeconfig] ? "--kubeconfig=#{ctx.config[:kubeconfig]}" : ''
-            context_arg = ctx.config[:context] ? "--context=#{ctx.config[:context]}" : ''
-
-            cmd = "kubectl #{kubeconfig_arg} #{context_arg} -n #{namespace} patch cronjob #{cronjob_name} -p '{\"spec\":{\"suspend\":false}}'"
+            cmd = "#{ctx.kubectl_prefix} patch cronjob #{cronjob_name} -p '{\"spec\":{\"suspend\":false}}'"
             system(cmd)
           end
 

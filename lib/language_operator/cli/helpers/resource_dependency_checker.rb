@@ -50,24 +50,6 @@ module LanguageOperator
         def self.tool_usage_count(agents, tool_name)
           agents_using_tool(agents, tool_name).size
         end
-
-        # Count how many agents use a specific model
-        #
-        # @param agents [Array<Hash>] Array of agent resources
-        # @param model_name [String] Name of the model
-        # @return [Integer] Count of agents using this model
-        def self.model_usage_count(agents, model_name)
-          agents_using_model(agents, model_name).size
-        end
-
-        # Count how many agents use a specific persona
-        #
-        # @param agents [Array<Hash>] Array of agent resources
-        # @param persona_name [String] Name of the persona
-        # @return [Integer] Count of agents using this persona
-        def self.persona_usage_count(agents, persona_name)
-          agents_using_persona(agents, persona_name).size
-        end
       end
     end
   end
