@@ -46,234 +46,218 @@ module LanguageOperator
         option :dry_run, type: :boolean, default: false, desc: 'Preview what would be created without applying'
         option :wizard, type: :boolean, default: false, desc: 'Use interactive wizard mode'
         def create(description = nil)
-          # Activate wizard mode if --wizard flag or no description provided
-          if options[:wizard] || description.nil?
-            require_relative '../wizards/agent_wizard'
-            wizard = Wizards::AgentWizard.new
-            description = wizard.run
+          handle_command_error('create agent') do
+            # Activate wizard mode if --wizard flag or no description provided
+            if options[:wizard] || description.nil?
+              require_relative '../wizards/agent_wizard'
+              wizard = Wizards::AgentWizard.new
+              description = wizard.run
 
-            # User cancelled wizard
-            unless description
-              Formatters::ProgressFormatter.info('Agent creation cancelled')
+              # User cancelled wizard
+              unless description
+                Formatters::ProgressFormatter.info('Agent creation cancelled')
+                return
+              end
+            end
+
+            # Handle --create-cluster flag
+            if options[:create_cluster]
+              cluster_name = options[:create_cluster]
+              unless Config::ClusterConfig.cluster_exists?(cluster_name)
+                Formatters::ProgressFormatter.info("Creating cluster '#{cluster_name}'...")
+                # Delegate to cluster create command
+                require_relative 'cluster'
+                Cluster.new.invoke(:create, [cluster_name], switch: true)
+              end
+              cluster = cluster_name
+            else
+              # Validate cluster selection (this will exit if none selected)
+              cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
+            end
+
+            ctx = Helpers::ClusterContext.from_options(options.merge(cluster: cluster))
+
+            Formatters::ProgressFormatter.info("Creating agent in cluster '#{ctx.name}'")
+            puts
+
+            # Generate agent name from description if not provided
+            agent_name = options[:name] || generate_agent_name(description)
+
+            # Get models: use specified models, or default to all available models in cluster
+            models = options[:models]
+            if models.nil? || models.empty?
+              available_models = ctx.client.list_resources('LanguageModel', namespace: ctx.namespace)
+              models = available_models.map { |m| m.dig('metadata', 'name') }
+
+              Errors::Handler.handle_no_models_available(cluster: ctx.name) if models.empty?
+            end
+
+            # Build LanguageAgent resource
+            agent_resource = Kubernetes::ResourceBuilder.language_agent(
+              agent_name,
+              instructions: description,
+              cluster: ctx.namespace,
+              persona: options[:persona],
+              tools: options[:tools] || [],
+              models: models
+            )
+
+            # Dry-run mode: preview without applying
+            if options[:dry_run]
+              display_dry_run_preview(agent_resource, ctx.name, description)
               return
             end
-          end
 
-          # Handle --create-cluster flag
-          if options[:create_cluster]
-            cluster_name = options[:create_cluster]
-            unless Config::ClusterConfig.cluster_exists?(cluster_name)
-              Formatters::ProgressFormatter.info("Creating cluster '#{cluster_name}'...")
-              # Delegate to cluster create command
-              require_relative 'cluster'
-              Cluster.new.invoke(:create, [cluster_name], switch: true)
+            # Apply resource to cluster
+            Formatters::ProgressFormatter.with_spinner("Creating agent '#{agent_name}'") do
+              ctx.client.apply_resource(agent_resource)
             end
-            cluster = cluster_name
-          else
-            # Validate cluster selection (this will exit if none selected)
-            cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
+
+            # Watch synthesis status
+            synthesis_result = watch_synthesis_status(ctx.client, agent_name, ctx.namespace)
+
+            # Exit if synthesis failed
+            exit 1 unless synthesis_result[:success]
+
+            # Fetch the updated agent to get complete details
+            agent = ctx.client.get_resource('LanguageAgent', agent_name, ctx.namespace)
+
+            # Display enhanced success output
+            display_agent_created(agent, ctx.name, description, synthesis_result)
           end
-
-          ctx = Helpers::ClusterContext.from_options(options.merge(cluster: cluster))
-
-          Formatters::ProgressFormatter.info("Creating agent in cluster '#{ctx.name}'")
-          puts
-
-          # Generate agent name from description if not provided
-          agent_name = options[:name] || generate_agent_name(description)
-
-          # Get models: use specified models, or default to all available models in cluster
-          models = options[:models]
-          if models.nil? || models.empty?
-            available_models = ctx.client.list_resources('LanguageModel', namespace: ctx.namespace)
-            models = available_models.map { |m| m.dig('metadata', 'name') }
-
-            Errors::Handler.handle_no_models_available(cluster: ctx.name) if models.empty?
-          end
-
-          # Build LanguageAgent resource
-          agent_resource = Kubernetes::ResourceBuilder.language_agent(
-            agent_name,
-            instructions: description,
-            cluster: ctx.namespace,
-            persona: options[:persona],
-            tools: options[:tools] || [],
-            models: models
-          )
-
-          # Dry-run mode: preview without applying
-          if options[:dry_run]
-            display_dry_run_preview(agent_resource, ctx.name, description)
-            return
-          end
-
-          # Apply resource to cluster
-          Formatters::ProgressFormatter.with_spinner("Creating agent '#{agent_name}'") do
-            ctx.client.apply_resource(agent_resource)
-          end
-
-          # Watch synthesis status
-          synthesis_result = watch_synthesis_status(ctx.client, agent_name, ctx.namespace)
-
-          # Exit if synthesis failed
-          exit 1 unless synthesis_result[:success]
-
-          # Fetch the updated agent to get complete details
-          agent = ctx.client.get_resource('LanguageAgent', agent_name, ctx.namespace)
-
-          # Display enhanced success output
-          display_agent_created(agent, ctx.name, description, synthesis_result)
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Failed to create agent: #{e.message}")
-          raise if ENV['DEBUG']
-
-          exit 1
         end
 
         desc 'list', 'List all agents in current cluster'
         option :cluster, type: :string, desc: 'Override current cluster context'
         option :all_clusters, type: :boolean, default: false, desc: 'Show agents across all clusters'
         def list
-          if options[:all_clusters]
-            list_all_clusters
-          else
-            ctx = Helpers::ClusterContext.from_options(options)
-            list_cluster_agents(ctx.name)
+          handle_command_error('list agents') do
+            if options[:all_clusters]
+              list_all_clusters
+            else
+              ctx = Helpers::ClusterContext.from_options(options)
+              list_cluster_agents(ctx.name)
+            end
           end
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Failed to list agents: #{e.message}")
-          raise if ENV['DEBUG']
-
-          exit 1
         end
 
         desc 'inspect NAME', 'Show detailed agent information'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def inspect(name)
-          ctx = Helpers::ClusterContext.from_options(options)
+          handle_command_error('inspect agent') do
+            ctx = Helpers::ClusterContext.from_options(options)
 
-          agent = ctx.client.get_resource('LanguageAgent', name, ctx.namespace)
-
-          puts "Agent: #{name}"
-          puts "  Cluster:   #{ctx.name}"
-          puts "  Namespace: #{ctx.namespace}"
-          puts
-
-          # Status
-          status = agent.dig('status', 'phase') || 'Unknown'
-          puts "Status: #{format_status(status)}"
-          puts
-
-          # Spec details
-          puts 'Configuration:'
-          puts "  Mode:         #{agent.dig('spec', 'mode') || 'autonomous'}"
-          puts "  Schedule:     #{agent.dig('spec', 'schedule') || 'N/A'}" if agent.dig('spec', 'schedule')
-          puts "  Persona:      #{agent.dig('spec', 'persona') || '(auto-selected)'}"
-          puts
-
-          # Instructions
-          instructions = agent.dig('spec', 'instructions')
-          if instructions
-            puts 'Instructions:'
-            puts "  #{instructions}"
-            puts
-          end
-
-          # Tools
-          tools = agent.dig('spec', 'tools') || []
-          if tools.any?
-            puts "Tools (#{tools.length}):"
-            tools.each { |tool| puts "  - #{tool}" }
-            puts
-          end
-
-          # Models
-          model_refs = agent.dig('spec', 'modelRefs') || []
-          if model_refs.any?
-            puts "Models (#{model_refs.length}):"
-            model_refs.each { |ref| puts "  - #{ref['name']}" }
-            puts
-          end
-
-          # Synthesis info
-          synthesis = agent.dig('status', 'synthesis')
-          if synthesis
-            puts 'Synthesis:'
-            puts "  Status:       #{synthesis['status']}"
-            puts "  Model:        #{synthesis['model']}" if synthesis['model']
-            puts "  Completed:    #{synthesis['completedAt']}" if synthesis['completedAt']
-            puts "  Duration:     #{synthesis['duration']}" if synthesis['duration']
-            puts "  Token Count:  #{synthesis['tokenCount']}" if synthesis['tokenCount']
-            puts
-          end
-
-          # Execution stats
-          execution_count = agent.dig('status', 'executionCount') || 0
-          last_execution = agent.dig('status', 'lastExecution')
-          next_run = agent.dig('status', 'nextRun')
-
-          puts 'Execution:'
-          puts "  Total Runs:   #{execution_count}"
-          puts "  Last Run:     #{last_execution || 'Never'}"
-          puts "  Next Run:     #{next_run || 'N/A'}" if agent.dig('spec', 'schedule')
-          puts
-
-          # Conditions
-          conditions = agent.dig('status', 'conditions') || []
-          if conditions.any?
-            puts "Conditions (#{conditions.length}):"
-            conditions.each do |condition|
-              status_icon = condition['status'] == 'True' ? '✓' : '✗'
-              puts "  #{status_icon} #{condition['type']}: #{condition['message'] || condition['reason']}"
+            begin
+              agent = ctx.client.get_resource('LanguageAgent', name, ctx.namespace)
+            rescue K8s::Error::NotFound
+              handle_agent_not_found(name, ctx)
+              return
             end
+
+            puts "Agent: #{name}"
+            puts "  Cluster:   #{ctx.name}"
+            puts "  Namespace: #{ctx.namespace}"
             puts
+
+            # Status
+            status = agent.dig('status', 'phase') || 'Unknown'
+            puts "Status: #{format_status(status)}"
+            puts
+
+            # Spec details
+            puts 'Configuration:'
+            puts "  Mode:         #{agent.dig('spec', 'mode') || 'autonomous'}"
+            puts "  Schedule:     #{agent.dig('spec', 'schedule') || 'N/A'}" if agent.dig('spec', 'schedule')
+            puts "  Persona:      #{agent.dig('spec', 'persona') || '(auto-selected)'}"
+            puts
+
+            # Instructions
+            instructions = agent.dig('spec', 'instructions')
+            if instructions
+              puts 'Instructions:'
+              puts "  #{instructions}"
+              puts
+            end
+
+            # Tools
+            tools = agent.dig('spec', 'tools') || []
+            if tools.any?
+              puts "Tools (#{tools.length}):"
+              tools.each { |tool| puts "  - #{tool}" }
+              puts
+            end
+
+            # Models
+            model_refs = agent.dig('spec', 'modelRefs') || []
+            if model_refs.any?
+              puts "Models (#{model_refs.length}):"
+              model_refs.each { |ref| puts "  - #{ref['name']}" }
+              puts
+            end
+
+            # Synthesis info
+            synthesis = agent.dig('status', 'synthesis')
+            if synthesis
+              puts 'Synthesis:'
+              puts "  Status:       #{synthesis['status']}"
+              puts "  Model:        #{synthesis['model']}" if synthesis['model']
+              puts "  Completed:    #{synthesis['completedAt']}" if synthesis['completedAt']
+              puts "  Duration:     #{synthesis['duration']}" if synthesis['duration']
+              puts "  Token Count:  #{synthesis['tokenCount']}" if synthesis['tokenCount']
+              puts
+            end
+
+            # Execution stats
+            execution_count = agent.dig('status', 'executionCount') || 0
+            last_execution = agent.dig('status', 'lastExecution')
+            next_run = agent.dig('status', 'nextRun')
+
+            puts 'Execution:'
+            puts "  Total Runs:   #{execution_count}"
+            puts "  Last Run:     #{last_execution || 'Never'}"
+            puts "  Next Run:     #{next_run || 'N/A'}" if agent.dig('spec', 'schedule')
+            puts
+
+            # Conditions
+            conditions = agent.dig('status', 'conditions') || []
+            if conditions.any?
+              puts "Conditions (#{conditions.length}):"
+              conditions.each do |condition|
+                status_icon = condition['status'] == 'True' ? '✓' : '✗'
+                puts "  #{status_icon} #{condition['type']}: #{condition['message'] || condition['reason']}"
+              end
+              puts
+            end
+
+            # Recent events (if available)
+            # This would require querying events, which we can add later
           end
-
-          # Recent events (if available)
-          # This would require querying events, which we can add later
-        rescue K8s::Error::NotFound
-          handle_agent_not_found(name, ctx)
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Failed to inspect agent: #{e.message}")
-          raise if ENV['DEBUG']
-
-          exit 1
         end
 
         desc 'delete NAME', 'Delete an agent'
         option :cluster, type: :string, desc: 'Override current cluster context'
         option :force, type: :boolean, default: false, desc: 'Skip confirmation'
         def delete(name)
-          ctx = Helpers::ClusterContext.from_options(options)
+          handle_command_error('delete agent') do
+            ctx = Helpers::ClusterContext.from_options(options)
 
-          # Get agent to show details before deletion
-          begin
-            agent = ctx.client.get_resource('LanguageAgent', name, ctx.namespace)
-          rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{ctx.name}'")
-            exit 1
+            # Get agent to show details before deletion
+            agent = get_resource_or_exit('LanguageAgent', name)
+
+            # Confirm deletion
+            details = {
+              'Instructions' => agent.dig('spec', 'instructions'),
+              'Mode' => agent.dig('spec', 'mode') || 'autonomous'
+            }
+            return unless confirm_deletion('agent', name, ctx.name, details: details, force: options[:force])
+
+            # Delete the agent
+            Formatters::ProgressFormatter.with_spinner("Deleting agent '#{name}'") do
+              ctx.client.delete_resource('LanguageAgent', name, ctx.namespace)
+            end
+
+            Formatters::ProgressFormatter.success("Agent '#{name}' deleted successfully")
           end
-
-          # Confirm deletion using UserPrompts helper
-          unless options[:force]
-            puts "This will delete agent '#{name}' from cluster '#{ctx.name}':"
-            puts "  Instructions: #{agent.dig('spec', 'instructions')}"
-            puts "  Mode:         #{agent.dig('spec', 'mode') || 'autonomous'}"
-            puts
-            return unless Helpers::UserPrompts.confirm('Are you sure?')
-          end
-
-          # Delete the agent
-          Formatters::ProgressFormatter.with_spinner("Deleting agent '#{name}'") do
-            ctx.client.delete_resource('LanguageAgent', name, ctx.namespace)
-          end
-
-          Formatters::ProgressFormatter.success("Agent '#{name}' deleted successfully")
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Failed to delete agent: #{e.message}")
-          raise if ENV['DEBUG']
-
-          exit 1
         end
 
         desc 'logs NAME', 'Show agent execution logs'
@@ -290,252 +274,217 @@ module LanguageOperator
         option :follow, type: :boolean, aliases: '-f', default: false, desc: 'Follow logs'
         option :tail, type: :numeric, default: 100, desc: 'Number of lines to show from the end'
         def logs(name)
-          ctx = Helpers::ClusterContext.from_options(options)
+          handle_command_error('get logs') do
+            ctx = Helpers::ClusterContext.from_options(options)
 
-          # Get agent to determine the pod name
-          begin
-            agent = ctx.client.get_resource('LanguageAgent', name, ctx.namespace)
-          rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{ctx.name}'")
-            exit 1
-          end
+            # Get agent to determine the pod name
+            agent = get_resource_or_exit('LanguageAgent', name)
 
-          mode = agent.dig('spec', 'mode') || 'autonomous'
+            mode = agent.dig('spec', 'mode') || 'autonomous'
 
-          # Build kubectl command for log streaming
-          tail_arg = "--tail=#{options[:tail]}"
-          follow_arg = options[:follow] ? '-f' : ''
+            # Build kubectl command for log streaming
+            tail_arg = "--tail=#{options[:tail]}"
+            follow_arg = options[:follow] ? '-f' : ''
 
-          # For scheduled agents, logs come from CronJob pods
-          # For autonomous agents, logs come from Deployment pods
-          if mode == 'scheduled'
-          # Get most recent job from cronjob
-          else
-            # Get pod from deployment
-          end
-          label_selector = "app.kubernetes.io/name=#{name}"
-
-          # Use kubectl logs with label selector
-          cmd = "#{ctx.kubectl_prefix} logs -l #{label_selector} #{tail_arg} #{follow_arg} --prefix --all-containers"
-
-          Formatters::ProgressFormatter.info("Streaming logs for agent '#{name}'...")
-          puts
-
-          # Stream and format logs in real-time
-          require 'open3'
-          Open3.popen3(cmd) do |_stdin, stdout, stderr, wait_thr|
-            # Handle stdout (logs)
-            stdout_thread = Thread.new do
-              stdout.each_line do |line|
-                puts Formatters::LogFormatter.format_line(line.chomp)
-                $stdout.flush
-              end
+            # For scheduled agents, logs come from CronJob pods
+            # For autonomous agents, logs come from Deployment pods
+            if mode == 'scheduled'
+            # Get most recent job from cronjob
+            else
+              # Get pod from deployment
             end
+            label_selector = "app.kubernetes.io/name=#{name}"
 
-            # Handle stderr (errors)
-            stderr_thread = Thread.new do
-              stderr.each_line do |line|
-                warn line
+            # Use kubectl logs with label selector
+            cmd = "#{ctx.kubectl_prefix} logs -l #{label_selector} #{tail_arg} #{follow_arg} --prefix --all-containers"
+
+            Formatters::ProgressFormatter.info("Streaming logs for agent '#{name}'...")
+            puts
+
+            # Stream and format logs in real-time
+            require 'open3'
+            Open3.popen3(cmd) do |_stdin, stdout, stderr, wait_thr|
+              # Handle stdout (logs)
+              stdout_thread = Thread.new do
+                stdout.each_line do |line|
+                  puts Formatters::LogFormatter.format_line(line.chomp)
+                  $stdout.flush
+                end
               end
+
+              # Handle stderr (errors)
+              stderr_thread = Thread.new do
+                stderr.each_line do |line|
+                  warn line
+                end
+              end
+
+              # Wait for both streams to complete
+              stdout_thread.join
+              stderr_thread.join
+
+              # Check exit status
+              exit_status = wait_thr.value
+              exit exit_status.exitstatus unless exit_status.success?
             end
-
-            # Wait for both streams to complete
-            stdout_thread.join
-            stderr_thread.join
-
-            # Check exit status
-            exit_status = wait_thr.value
-            exit exit_status.exitstatus unless exit_status.success?
           end
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Failed to get logs: #{e.message}")
-          raise if ENV['DEBUG']
-
-          exit 1
         end
 
         desc 'code NAME', 'Display synthesized agent code'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def code(name)
-          require_relative '../formatters/code_formatter'
+          handle_command_error('get code') do
+            require_relative '../formatters/code_formatter'
 
-          ctx = Helpers::ClusterContext.from_options(options)
+            ctx = Helpers::ClusterContext.from_options(options)
 
-          # Get the code ConfigMap for this agent
-          configmap_name = "#{name}-code"
-          begin
-            configmap = ctx.client.get_resource('ConfigMap', configmap_name, ctx.namespace)
-          rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Synthesized code not found for agent '#{name}'")
+            # Get the code ConfigMap for this agent
+            configmap_name = "#{name}-code"
+            begin
+              configmap = ctx.client.get_resource('ConfigMap', configmap_name, ctx.namespace)
+            rescue K8s::Error::NotFound
+              Formatters::ProgressFormatter.error("Synthesized code not found for agent '#{name}'")
+              puts
+              puts 'Possible reasons:'
+              puts '  - Agent synthesis not yet complete'
+              puts '  - Agent synthesis failed'
+              puts
+              puts 'Check synthesis status with:'
+              puts "  aictl agent inspect #{name}"
+              exit 1
+            end
+
+            # Get the agent.rb code from the ConfigMap
+            code_content = configmap.dig('data', 'agent.rb')
+            unless code_content
+              Formatters::ProgressFormatter.error('Code content not found in ConfigMap')
+              exit 1
+            end
+
+            # Display with syntax highlighting
+            Formatters::CodeFormatter.display_ruby_code(
+              code_content,
+              title: "Synthesized Code for Agent: #{name}"
+            )
+
             puts
-            puts 'Possible reasons:'
-            puts '  - Agent synthesis not yet complete'
-            puts '  - Agent synthesis failed'
-            puts
-            puts 'Check synthesis status with:'
-            puts "  aictl agent inspect #{name}"
-            exit 1
+            puts 'This code was automatically synthesized from the agent instructions.'
+            puts "View full agent details with: aictl agent inspect #{name}"
           end
-
-          # Get the agent.rb code from the ConfigMap
-          code_content = configmap.dig('data', 'agent.rb')
-          unless code_content
-            Formatters::ProgressFormatter.error('Code content not found in ConfigMap')
-            exit 1
-          end
-
-          # Display with syntax highlighting
-          Formatters::CodeFormatter.display_ruby_code(
-            code_content,
-            title: "Synthesized Code for Agent: #{name}"
-          )
-
-          puts
-          puts 'This code was automatically synthesized from the agent instructions.'
-          puts "View full agent details with: aictl agent inspect #{name}"
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Failed to get code: #{e.message}")
-          raise if ENV['DEBUG']
-
-          exit 1
         end
 
         desc 'edit NAME', 'Edit agent instructions'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def edit(name)
-          ctx = Helpers::ClusterContext.from_options(options)
+          handle_command_error('edit agent') do
+            ctx = Helpers::ClusterContext.from_options(options)
 
-          # Get current agent
-          begin
-            agent = ctx.client.get_resource('LanguageAgent', name, ctx.namespace)
-          rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{ctx.name}'")
-            exit 1
+            # Get current agent
+            agent = get_resource_or_exit('LanguageAgent', name)
+
+            current_instructions = agent.dig('spec', 'instructions')
+
+            # Edit instructions in user's editor
+            new_instructions = Helpers::EditorHelper.edit_content(
+              current_instructions,
+              'agent-instructions-',
+              '.txt'
+            ).strip
+
+            # Check if changed
+            if new_instructions == current_instructions
+              Formatters::ProgressFormatter.info('No changes made')
+              return
+            end
+
+            # Update agent resource
+            agent['spec']['instructions'] = new_instructions
+
+            Formatters::ProgressFormatter.with_spinner('Updating agent instructions') do
+              ctx.client.apply_resource(agent)
+            end
+
+            Formatters::ProgressFormatter.success('Agent instructions updated')
+            puts
+            puts 'The operator will automatically re-synthesize the agent code.'
+            puts
+            puts 'Watch synthesis progress with:'
+            puts "  aictl agent inspect #{name}"
           end
-
-          current_instructions = agent.dig('spec', 'instructions')
-
-          # Edit instructions in user's editor
-          new_instructions = Helpers::EditorHelper.edit_content(
-            current_instructions,
-            'agent-instructions-',
-            '.txt'
-          ).strip
-
-          # Check if changed
-          if new_instructions == current_instructions
-            Formatters::ProgressFormatter.info('No changes made')
-            return
-          end
-
-          # Update agent resource
-          agent['spec']['instructions'] = new_instructions
-
-          Formatters::ProgressFormatter.with_spinner('Updating agent instructions') do
-            ctx.client.apply_resource(agent)
-          end
-
-          Formatters::ProgressFormatter.success('Agent instructions updated')
-          puts
-          puts 'The operator will automatically re-synthesize the agent code.'
-          puts
-          puts 'Watch synthesis progress with:'
-          puts "  aictl agent inspect #{name}"
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Failed to edit agent: #{e.message}")
-          raise if ENV['DEBUG']
-
-          exit 1
         end
 
         desc 'pause NAME', 'Pause scheduled agent execution'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def pause(name)
-          ctx = Helpers::ClusterContext.from_options(options)
+          handle_command_error('pause agent') do
+            ctx = Helpers::ClusterContext.from_options(options)
 
-          # Get agent
-          begin
-            agent = ctx.client.get_resource('LanguageAgent', name, ctx.namespace)
-          rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{ctx.name}'")
-            exit 1
-          end
+            # Get agent
+            agent = get_resource_or_exit('LanguageAgent', name)
 
-          mode = agent.dig('spec', 'mode') || 'autonomous'
-          unless mode == 'scheduled'
-            Formatters::ProgressFormatter.warn("Agent '#{name}' is not a scheduled agent (mode: #{mode})")
+            mode = agent.dig('spec', 'mode') || 'autonomous'
+            unless mode == 'scheduled'
+              Formatters::ProgressFormatter.warn("Agent '#{name}' is not a scheduled agent (mode: #{mode})")
+              puts
+              puts 'Only scheduled agents can be paused.'
+              puts 'Autonomous agents can be stopped by deleting them.'
+              exit 1
+            end
+
+            # Suspend the CronJob by setting spec.suspend = true
+            # This is done by patching the underlying CronJob resource
+            cronjob_name = name
+            ctx.namespace
+
+            Formatters::ProgressFormatter.with_spinner("Pausing agent '#{name}'") do
+              # Use kubectl to patch the cronjob
+              cmd = "#{ctx.kubectl_prefix} patch cronjob #{cronjob_name} -p '{\"spec\":{\"suspend\":true}}'"
+              system(cmd)
+            end
+
+            Formatters::ProgressFormatter.success("Agent '#{name}' paused")
             puts
-            puts 'Only scheduled agents can be paused.'
-            puts 'Autonomous agents can be stopped by deleting them.'
-            exit 1
+            puts 'The agent will not execute on its schedule until resumed.'
+            puts
+            puts 'Resume with:'
+            puts "  aictl agent resume #{name}"
           end
-
-          # Suspend the CronJob by setting spec.suspend = true
-          # This is done by patching the underlying CronJob resource
-          cronjob_name = name
-          ctx.namespace
-
-          Formatters::ProgressFormatter.with_spinner("Pausing agent '#{name}'") do
-            # Use kubectl to patch the cronjob
-            cmd = "#{ctx.kubectl_prefix} patch cronjob #{cronjob_name} -p '{\"spec\":{\"suspend\":true}}'"
-            system(cmd)
-          end
-
-          Formatters::ProgressFormatter.success("Agent '#{name}' paused")
-          puts
-          puts 'The agent will not execute on its schedule until resumed.'
-          puts
-          puts 'Resume with:'
-          puts "  aictl agent resume #{name}"
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Failed to pause agent: #{e.message}")
-          raise if ENV['DEBUG']
-
-          exit 1
         end
 
         desc 'resume NAME', 'Resume paused agent'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def resume(name)
-          ctx = Helpers::ClusterContext.from_options(options)
+          handle_command_error('resume agent') do
+            ctx = Helpers::ClusterContext.from_options(options)
 
-          # Get agent
-          begin
-            agent = ctx.client.get_resource('LanguageAgent', name, ctx.namespace)
-          rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{ctx.name}'")
-            exit 1
-          end
+            # Get agent
+            agent = get_resource_or_exit('LanguageAgent', name)
 
-          mode = agent.dig('spec', 'mode') || 'autonomous'
-          unless mode == 'scheduled'
-            Formatters::ProgressFormatter.warn("Agent '#{name}' is not a scheduled agent (mode: #{mode})")
+            mode = agent.dig('spec', 'mode') || 'autonomous'
+            unless mode == 'scheduled'
+              Formatters::ProgressFormatter.warn("Agent '#{name}' is not a scheduled agent (mode: #{mode})")
+              puts
+              puts 'Only scheduled agents can be resumed.'
+              exit 1
+            end
+
+            # Resume the CronJob by setting spec.suspend = false
+            cronjob_name = name
+            ctx.namespace
+
+            Formatters::ProgressFormatter.with_spinner("Resuming agent '#{name}'") do
+              # Use kubectl to patch the cronjob
+              cmd = "#{ctx.kubectl_prefix} patch cronjob #{cronjob_name} -p '{\"spec\":{\"suspend\":false}}'"
+              system(cmd)
+            end
+
+            Formatters::ProgressFormatter.success("Agent '#{name}' resumed")
             puts
-            puts 'Only scheduled agents can be resumed.'
-            exit 1
+            puts 'The agent will now execute according to its schedule.'
+            puts
+            puts 'View next execution time with:'
+            puts "  aictl agent inspect #{name}"
           end
-
-          # Resume the CronJob by setting spec.suspend = false
-          cronjob_name = name
-          ctx.namespace
-
-          Formatters::ProgressFormatter.with_spinner("Resuming agent '#{name}'") do
-            # Use kubectl to patch the cronjob
-            cmd = "#{ctx.kubectl_prefix} patch cronjob #{cronjob_name} -p '{\"spec\":{\"suspend\":false}}'"
-            system(cmd)
-          end
-
-          Formatters::ProgressFormatter.success("Agent '#{name}' resumed")
-          puts
-          puts 'The agent will now execute according to its schedule.'
-          puts
-          puts 'View next execution time with:'
-          puts "  aictl agent inspect #{name}"
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Failed to resume agent: #{e.message}")
-          raise if ENV['DEBUG']
-
-          exit 1
         end
 
         desc 'workspace NAME', 'Browse agent workspace files'
@@ -554,41 +503,33 @@ module LanguageOperator
         option :path, type: :string, desc: 'View specific file contents'
         option :clean, type: :boolean, desc: 'Clear workspace (with confirmation)'
         def workspace(name)
-          ctx = Helpers::ClusterContext.from_options(options)
+          handle_command_error('access workspace') do
+            ctx = Helpers::ClusterContext.from_options(options)
 
-          # Get agent to verify it exists
-          begin
-            agent = ctx.client.get_resource('LanguageAgent', name, ctx.namespace)
-          rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Agent '#{name}' not found in cluster '#{ctx.name}'")
-            exit 1
+            # Get agent to verify it exists
+            agent = get_resource_or_exit('LanguageAgent', name)
+
+            # Check if workspace is enabled
+            workspace_enabled = agent.dig('spec', 'workspace', 'enabled')
+            unless workspace_enabled
+              Formatters::ProgressFormatter.warn("Workspace is not enabled for agent '#{name}'")
+              puts
+              puts 'Enable workspace in agent configuration:'
+              puts '  spec:'
+              puts '    workspace:'
+              puts '      enabled: true'
+              puts '      size: 10Gi'
+              exit 1
+            end
+
+            if options[:path]
+              view_workspace_file(ctx, name, options[:path])
+            elsif options[:clean]
+              clean_workspace(ctx, name)
+            else
+              list_workspace_files(ctx, name)
+            end
           end
-
-          # Check if workspace is enabled
-          workspace_enabled = agent.dig('spec', 'workspace', 'enabled')
-          unless workspace_enabled
-            Formatters::ProgressFormatter.warn("Workspace is not enabled for agent '#{name}'")
-            puts
-            puts 'Enable workspace in agent configuration:'
-            puts '  spec:'
-            puts '    workspace:'
-            puts '      enabled: true'
-            puts '      size: 10Gi'
-            exit 1
-          end
-
-          if options[:path]
-            view_workspace_file(ctx, name, options[:path])
-          elsif options[:clean]
-            clean_workspace(ctx, name)
-          else
-            list_workspace_files(ctx, name)
-          end
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Failed to access workspace: #{e.message}")
-          raise if ENV['DEBUG']
-
-          exit 1
         end
 
         private
