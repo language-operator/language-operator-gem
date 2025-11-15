@@ -4,6 +4,7 @@ require 'timeout'
 require 'socket'
 require_relative '../loggable'
 require_relative 'instrumentation'
+require_relative '../instrumentation/task_tracer'
 
 module LanguageOperator
   module Agent
@@ -42,6 +43,7 @@ module LanguageOperator
     class TaskExecutor
       include LanguageOperator::Loggable
       include Instrumentation
+      include LanguageOperator::Instrumentation::TaskTracer
 
       # Error types that should be retried
       RETRYABLE_ERRORS = [
@@ -144,16 +146,33 @@ module LanguageOperator
         # Build prompt for LLM
         prompt = build_neural_prompt(task, validated_inputs)
 
-        # Call LLM with full tool access
-        response = @agent.send_message(prompt)
-        response_text = response.is_a?(String) ? response : response.content
+        # Execute LLM call within traced span
+        outputs = tracer.in_span('gen_ai.chat', attributes: neural_task_attributes(task, prompt, validated_inputs)) do |span|
+          # Call LLM with full tool access
+          response = @agent.send_message(prompt)
+          response_text = response.is_a?(String) ? response : response.content
 
-        logger.debug('Neural task response received',
-                     task: task.name,
-                     response_length: response_text.length)
+          logger.debug('Neural task response received',
+                       task: task.name,
+                       response_length: response_text.length)
 
-        # Parse response and extract outputs
-        outputs = parse_neural_response(response_text, task)
+          # Record token usage and response metadata
+          record_token_usage(response, span)
+
+          # Record tool calls if available
+          record_tool_calls(response, span)
+
+          # Parse response within child span
+          parsed_outputs = tracer.in_span('task_executor.parse_response') do |parse_span|
+            record_parse_metadata(response_text, parse_span)
+            parse_neural_response(response_text, task)
+          end
+
+          # Record output metadata
+          record_output_metadata(parsed_outputs, span)
+
+          parsed_outputs
+        end
 
         # Validate outputs against schema
         task.validate_outputs(outputs)
@@ -434,9 +453,18 @@ module LanguageOperator
           # Neural execution: LLM with tool access
           execute_neural(task, inputs)
         else
-          # Symbolic execution: Direct Ruby code
-          # Pass self as context so symbolic tasks can call execute_task, execute_tool, etc.
-          task.call(inputs, self)
+          # Symbolic execution: Direct Ruby code within traced span
+          tracer.in_span('task_executor.symbolic', attributes: symbolic_task_attributes(task)) do |span|
+            validated_inputs = task.validate_inputs(inputs)
+            span.set_attribute('task.input.keys', validated_inputs.keys.map(&:to_s).join(','))
+            span.set_attribute('task.input.count', validated_inputs.size)
+
+            # Pass self as context so symbolic tasks can call execute_task, execute_tool, etc.
+            outputs = task.call(validated_inputs, self)
+
+            record_output_metadata(outputs, span) if outputs.is_a?(Hash)
+            outputs
+          end
         end
       end
 
