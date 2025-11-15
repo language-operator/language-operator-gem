@@ -355,17 +355,22 @@ RSpec.configure do |config|
       # When mocking, we still need to unmock RubyLLM to allow test configuration
       RSpec::Mocks.space.reset_all
 
-      # Create a proper mock that responds to all configuration methods
-      mock_config = double('RubyLLM::Config',
-                           openai_api_key: nil,
-                           openai_api_key=: nil,
-                           anthropic_api_key=: nil,
-                           anthropic_api_key=: nil,
-                           request_timeout: nil,
-                           request_timeout=: nil,
-                           respond_to?: true)
-      allow(RubyLLM).to receive(:configure).and_yield(mock_config)
-      allow(RubyLLM::MCP).to receive(:configure).and_yield(double(request_timeout: nil, respond_to?: true))
+      # Create a proper mock that accepts all configuration calls
+      allow(RubyLLM).to receive(:configure) do |&block|
+        mock_config = double('RubyLLM::Config')
+        allow(mock_config).to receive(:openai_api_key=)
+        allow(mock_config).to receive(:anthropic_api_key=)
+        allow(mock_config).to receive(:request_timeout=)
+        allow(mock_config).to receive(:respond_to?).and_return(true)
+        block.call(mock_config) if block
+      end
+
+      allow(RubyLLM::MCP).to receive(:configure) do |&block|
+        mock_config = double('RubyLLM::MCP::Config')
+        allow(mock_config).to receive(:request_timeout=)
+        allow(mock_config).to receive(:respond_to?).and_return(true)
+        block.call(mock_config) if block
+      end
     end
 
     setup_llm_mocks
