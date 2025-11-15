@@ -12,8 +12,7 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
           # Symbolic data extraction
           task :extract_data,
             inputs: { sources: 'array' },
-            outputs: { raw_data: 'array', metadata: 'hash' }
-          do |inputs|
+            outputs: { raw_data: 'array', metadata: 'hash' } do |inputs|
             raw_data = []
             inputs[:sources].each_with_index do |source, i|
               # Simulate data extraction
@@ -36,7 +35,7 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
               metadata: {
                 total_records: raw_data.length,
                 sources_processed: inputs[:sources].length,
-                extraction_timestamp: Time.now.iso8601
+                extraction_timestamp: '2024-01-01T00:00:00Z'
               }
             }
           end
@@ -54,8 +53,7 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
           # Symbolic data transformation
           task :transform_data,
             inputs: { clean_data: 'array', transformation_rules: 'hash' },
-            outputs: { transformed_data: 'array', transformation_summary: 'hash' }
-          do |inputs|
+            outputs: { transformed_data: 'array', transformation_summary: 'hash' } do |inputs|
             transformed = inputs[:clean_data].map do |record|
               transformed_record = record.dup
               
@@ -114,11 +112,10 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
               metadata: 'hash',
               transformation_summary: 'hash'
             },
-            outputs: { report: 'string', executive_summary: 'hash' }
-          do |inputs|
+            outputs: { report: 'string', executive_summary: 'hash' } do |inputs|
             report_sections = [
               "# Data Processing Pipeline Report",
-              "Generated: #{Time.now.strftime('%Y-%m-%d %H:%M:%S')}",
+              "Generated: 2024-01-01 12:00:00",
               "",
               "## Data Overview",
               "- Total records processed: #{inputs[:metadata][:total_records]}",
@@ -239,8 +236,7 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
           # Symbolic intent classification
           task :classify_intent,
             inputs: { message: 'string', context: 'hash' },
-            outputs: { intent: 'string', confidence: 'number', entities: 'hash' }
-          do |inputs|
+            outputs: { intent: 'string', confidence: 'number', entities: 'hash' } do |inputs|
             message = inputs[:message].downcase
             
             # Simple keyword-based intent detection
@@ -283,8 +279,7 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
           # Symbolic knowledge base lookup
           task :lookup_knowledge,
             inputs: { intent: 'string', entities: 'hash' },
-            outputs: { knowledge: 'hash', suggestions: 'array' }
-          do |inputs|
+            outputs: { knowledge: 'hash', suggestions: 'array' } do |inputs|
             knowledge_base = {
               'order_inquiry' => {
                 info: 'Order information and tracking',
@@ -356,8 +351,7 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
               follow_up_questions: 'array',
               context: 'hash'
             },
-            outputs: { formatted_response: 'string', metadata: 'hash' }
-          do |inputs|
+            outputs: { formatted_response: 'string', metadata: 'hash' } do |inputs|
             response_parts = [
               inputs[:response],
               "",
@@ -378,7 +372,7 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
               metadata: {
                 response_length: inputs[:response].length,
                 suggestions_count: inputs[:suggestions].length,
-                timestamp: Time.now.iso8601,
+                timestamp: '2024-01-01T12:00:00Z',
                 agent: 'customer-service-bot'
               }
             }
@@ -469,8 +463,7 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
               valid_transactions: 'array',
               validation_errors: 'array',
               summary: 'hash'
-            }
-          do |inputs|
+            } do |inputs|
             valid_transactions = []
             errors = []
             
@@ -515,8 +508,7 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
               metrics: 'hash',
               account_summaries: 'array',
               trends: 'hash'
-            }
-          do |inputs|
+            } do |inputs|
             # Calculate overall metrics
             total_credits = inputs[:transactions].select { |tx| tx[:amount] > 0 }.sum { |tx| tx[:amount] }
             total_debits = inputs[:transactions].select { |tx| tx[:amount] < 0 }.sum { |tx| tx[:amount].abs }
@@ -539,7 +531,8 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
             
             # Simple trend analysis (monthly grouping)
             monthly_totals = inputs[:transactions].group_by do |tx|
-              Date.parse(tx[:date]).strftime('%Y-%m')
+              # Simple month extraction for mocking (tx[:date] format: '2024-01-15')
+              tx[:date][0..6] # Gets '2024-01' from '2024-01-15'
             end.transform_values do |txs|
               txs.sum { |tx| tx[:amount] }
             end
@@ -585,12 +578,11 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
               risk_assessment: 'hash',
               period: 'string'
             },
-            outputs: { report: 'string', dashboard_data: 'hash' }
-          do |inputs|
+            outputs: { report: 'string', dashboard_data: 'hash' } do |inputs|
             report_sections = [
               "# Financial Analysis Report",
               "Period: #{inputs[:period]}",
-              "Generated: #{Time.now.strftime('%Y-%m-%d %H:%M:%S')}",
+              "Generated: 2024-01-01 12:00:00",
               "",
               "## Executive Summary",
               "- Total Credits: $#{inputs[:metrics][:total_credits].round(2)}",

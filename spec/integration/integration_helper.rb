@@ -37,8 +37,8 @@ module Integration
       File.write(agent_file, dsl_code)
 
       # Load agent definition
-      definition = LanguageOperator::Dsl.load_file(agent_file)
-      agent_def = definition.agents[agent_name.to_sym]
+      agent_registry = LanguageOperator::Dsl.load_agent_file(agent_file)
+      agent_def = agent_registry.get(agent_name)
 
       raise "Agent '#{agent_name}' not found in DSL" unless agent_def
 
@@ -46,6 +46,9 @@ module Integration
       config = create_mock_config
       agent = LanguageOperator::Agent::Base.new(config)
       agent.instance_variable_set(:@definition, agent_def)
+      
+      # For testing, we'll skip agent connection and let the tasks work directly
+      # The LLM mocking should handle neural task execution
 
       # Clean up temporary file
       FileUtils.rm_f(agent_file)
@@ -55,13 +58,20 @@ module Integration
 
     # Create mock configuration for testing
     def create_mock_config
-      LanguageOperator::Client::Config.new({
-                                             'model' => 'test-model',
-                                             'persona_name' => 'test-persona',
-                                             'mcp_servers' => [],
-                                             'max_tokens' => 1000,
-                                             'temperature' => 0.7
-                                           })
+      {
+        'model' => 'test-model',
+        'persona_name' => 'test-persona',
+        'mcp_servers' => [],
+        'max_tokens' => 1000,
+        'temperature' => 0.7,
+        'llm' => {
+          'provider' => 'openai',
+          'model' => 'gpt-4o-mini',
+          'api_key' => 'test-api-key',
+          'base_url' => 'https://api.openai.com/v1',
+          'timeout' => 300
+        }
+      }
     end
 
     # Execute a main block with performance measurement
