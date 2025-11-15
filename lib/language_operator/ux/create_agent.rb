@@ -44,7 +44,7 @@ module LanguageOperator
       private
 
       def show_welcome
-        heading("Model quick start")
+        heading('Model quick start')
       end
 
       def ask_task_description

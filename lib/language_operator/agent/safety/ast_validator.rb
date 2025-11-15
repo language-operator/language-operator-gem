@@ -260,7 +260,7 @@ module LanguageOperator
           # node is a CallNode for require/require_relative
           # We're looking for a string literal argument like 'language_operator' or "language_operator"
           args = node.arguments
-          return nil unless args && args.arguments.any?
+          return nil unless args&.arguments&.any?
 
           arg_node = args.arguments.first
           return nil unless arg_node

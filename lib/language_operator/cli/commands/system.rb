@@ -666,9 +666,7 @@ module LanguageOperator
         def extract_methods_from_ast(node, methods)
           return unless node
 
-          if node.is_a?(Prism::CallNode)
-            methods << node.name.to_s
-          end
+          methods << node.name.to_s if node.is_a?(Prism::CallNode)
 
           node.compact_child_nodes.each do |child|
             extract_methods_from_ast(child, methods)

@@ -20,7 +20,7 @@ module LanguageOperator
       #   end
       module Headings
         def title(text)
-          puts 
+          puts
           puts pastel.bold.green("LANGUAGE OPERATOR v#{LanguageOperator::VERSION}")
           puts pastel.dim("↪ #{text}")
         end
