@@ -104,6 +104,22 @@ module LanguageOperator
               return ::LanguageOperator::Dsl::Shell
             end
 
+            # Allow basic Ruby type constants that are safe for DSL use
+            safe_constants = {
+              Numeric: ::Numeric,
+              Integer: ::Integer,
+              Float: ::Float,
+              String: ::String,
+              Array: ::Array,
+              Hash: ::Hash,
+              TrueClass: ::TrueClass,
+              FalseClass: ::FalseClass,
+              Time: ::Time,
+              Date: ::Date
+            }
+            
+            return safe_constants[name] if safe_constants.key?(name)
+
             # Otherwise delegate to the context's module
             @__context__.class.const_get(name)
           rescue ::NameError

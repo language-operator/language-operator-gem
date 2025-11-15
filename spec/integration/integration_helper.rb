@@ -47,8 +47,16 @@ module Integration
       agent = LanguageOperator::Agent::Base.new(config)
       agent.instance_variable_set(:@definition, agent_def)
       
-      # For testing, we'll skip agent connection and let the tasks work directly
-      # The LLM mocking should handle neural task execution
+      # Connect agent for neural task execution using SYNTHESIS_* env vars
+      begin
+        puts "Attempting to connect agent..." if ENV['DEBUG']
+        agent.connect!
+        puts "Agent connected successfully" if ENV['DEBUG']
+      rescue StandardError => e
+        puts "Agent connection failed in test: #{e.message}"
+        puts "  Backtrace: #{e.backtrace.first(3).join("\n  ")}" if ENV['DEBUG']
+        # Try to continue anyway for symbolic-only tests
+      end
 
       # Clean up temporary file
       FileUtils.rm_f(agent_file)
@@ -65,10 +73,10 @@ module Integration
         'max_tokens' => 1000,
         'temperature' => 0.7,
         'llm' => {
-          'provider' => 'openai',
-          'model' => 'gpt-4o-mini',
-          'api_key' => 'test-api-key',
-          'base_url' => 'https://api.openai.com/v1',
+          'provider' => ENV['SYNTHESIS_ENDPOINT'] ? 'openai_compatible' : 'openai',
+          'model' => ENV['SYNTHESIS_MODEL'] || 'gpt-4o-mini',
+          'api_key' => ENV['SYNTHESIS_API_KEY'] || 'test-api-key',
+          'endpoint' => ENV['SYNTHESIS_ENDPOINT'],
           'timeout' => 300
         }
       }
@@ -104,8 +112,9 @@ module Integration
 
       raise 'Agent has no main block' unless main_def
 
-      # Create task executor
-      task_executor = LanguageOperator::Agent::TaskExecutor.new(agent, agent_def.tasks)
+      # Create task executor with agent configuration
+      executor_config = LanguageOperator::Agent.build_executor_config(agent_def)
+      task_executor = LanguageOperator::Agent::TaskExecutor.new(agent, agent_def.tasks, executor_config)
 
       # Execute main block with task executor as context
       main_def.call(inputs, task_executor)
@@ -166,6 +175,12 @@ module Integration
   module LLMMocks
     def setup_llm_mocks
       return unless Integration::Config.mock_llm_responses?
+      
+      # If using local SYNTHESIS model, don't mock HTTP requests
+      if ENV['SYNTHESIS_ENDPOINT']
+        puts "Using real local model at #{ENV['SYNTHESIS_ENDPOINT']}" if ENV['DEBUG']
+        return
+      end
 
       WebMock.enable!
       WebMock.reset!
@@ -177,6 +192,7 @@ module Integration
 
     def teardown_llm_mocks
       return unless Integration::Config.mock_llm_responses?
+      return if ENV['SYNTHESIS_ENDPOINT'] # Skip if using real model
 
       WebMock.reset!
       WebMock.disable!
@@ -302,6 +318,18 @@ RSpec.configure do |config|
   config.include Integration::Performance, type: :integration
 
   config.before(:each, type: :integration) do
+    # If using real local SYNTHESIS model, unmock RubyLLM and allow HTTP
+    if ENV['SYNTHESIS_ENDPOINT']
+      RSpec::Mocks.space.reset_all
+      allow(RubyLLM).to receive(:configure).and_call_original
+      allow(RubyLLM::MCP).to receive(:configure).and_call_original
+      
+      # Allow HTTP connections to the local model
+      synthesis_host = URI(ENV['SYNTHESIS_ENDPOINT']).host
+      synthesis_port = URI(ENV['SYNTHESIS_ENDPOINT']).port
+      WebMock.disable_net_connect!(allow: "#{synthesis_host}:#{synthesis_port}")
+    end
+    
     setup_llm_mocks
   end
 

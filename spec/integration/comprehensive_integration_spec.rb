@@ -9,6 +9,10 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
         agent "data-pipeline" do
           description "Comprehensive data processing pipeline"
           
+          constraints do
+            timeout 120 # 2 minutes for slower local models
+          end
+          
           # Symbolic data extraction
           task :extract_data,
             inputs: { sources: 'array' },
