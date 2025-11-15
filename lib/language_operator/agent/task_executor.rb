@@ -161,6 +161,51 @@ module LanguageOperator
         response.is_a?(String) ? response : response.content
       end
 
+      # Execute multiple tasks in parallel
+      #
+      # Provides explicit parallelism for task execution. Users specify which tasks
+      # should run in parallel, and this method handles the concurrent execution.
+      #
+      # @param tasks [Array<Hash>] Array of task specifications
+      # @param in_threads [Integer] Number of threads to use (default: 4)
+      # @return [Array] Results from all tasks in the same order as input
+      # @raise [RuntimeError] If any task fails
+      #
+      # @example Execute multiple independent tasks
+      #   results = execute_parallel([
+      #     { name: :fetch_source1 },
+      #     { name: :fetch_source2 }
+      #   ])
+      #   # => [result1, result2]
+      #
+      # @example With inputs
+      #   results = execute_parallel([
+      #     { name: :process, inputs: { data: data1 } },
+      #     { name: :analyze, inputs: { data: data2 } }
+      #   ])
+      #
+      def execute_parallel(tasks, in_threads: 4)
+        require 'parallel'
+
+        logger.info('Executing tasks in parallel', count: tasks.size, threads: in_threads)
+
+        results = Parallel.map(tasks, in_threads: in_threads) do |task_spec|
+          task_name = task_spec[:name]
+          task_inputs = task_spec[:inputs] || {}
+
+          execute_task(task_name, inputs: task_inputs)
+        end
+
+        logger.info('Parallel execution complete', results_count: results.size)
+        results
+      rescue Parallel::DeadWorker => e
+        logger.error('Parallel execution failed - worker died', error: e.message)
+        raise "Parallel task execution failed: #{e.message}"
+      rescue StandardError => e
+        logger.error('Parallel execution failed', error: e.class.name, message: e.message)
+        raise
+      end
+
       private
 
       def logger_component

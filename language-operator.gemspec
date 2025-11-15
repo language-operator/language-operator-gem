@@ -43,6 +43,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'rackup', '~> 2.0'
 
   # Agent dependencies
+  spec.add_dependency 'parallel', '~> 1.26'
   spec.add_dependency 'rufus-scheduler', '~> 3.9'
 
   # Code security and AST parsing
