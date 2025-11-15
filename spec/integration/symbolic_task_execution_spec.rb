@@ -68,9 +68,9 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
         agent "text-analyzer" do
           task :analyze_text,
             inputs: { text: 'string' },
-            outputs: { 
+            outputs: {
               word_count: 'integer',
-              char_count: 'integer', 
+              char_count: 'integer',
               sentences: 'integer',
               summary: 'hash'
             }
@@ -78,7 +78,7 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
             text = inputs[:text]
             words = text.split(/\s+/).reject(&:empty?)
             sentences = text.split(/[.!?]+/).reject(&:empty?)
-            
+
             {
               word_count: words.length,
               char_count: text.length,
@@ -90,7 +90,7 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
               }
             }
           end
-          
+
           main do |inputs|
             execute_task(:analyze_text, inputs: inputs)
           end
@@ -407,7 +407,7 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
       agent_dsl = <<~'RUBY'
         agent "type-coercion" do
           task :process_types,
-            inputs: { 
+            inputs: {
               count: 'integer',
               rate: 'number',
               active: 'boolean',
@@ -420,7 +420,7 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
                       "rate=#{inputs[:rate]}, active=#{inputs[:active]}"
             }
           end
-          
+
           main do |inputs|
             execute_task(:process_types, inputs: inputs)
           end

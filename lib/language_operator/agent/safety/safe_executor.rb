@@ -52,7 +52,14 @@ module LanguageOperator
           # Step 4: Execute using instance_eval with safe constants prepended
           # Note: We still use instance_eval but with validated code
           # and wrapped context
-          sandbox.instance_eval(safe_constants_code + "\n" + code, file_path)
+          #
+          # The string interpolation below evaluates to:
+          #   sandbox.instance_eval("Numeric = ::Numeric\nInteger = ::Integer\nFloat = ::Float\n
+          #     String = ::String\nArray = ::Array\nHash = ::Hash\nTrueClass = ::TrueClass\n
+          #     FalseClass = ::FalseClass\nTime = ::Time\nDate = ::Date\n<user code>", __FILE__, __LINE__)
+          # rubocop:disable Style/DocumentDynamicEvalDefinition
+          sandbox.instance_eval("#{safe_constants_code}\n#{code}", __FILE__, __LINE__)
+          # rubocop:enable Style/DocumentDynamicEvalDefinition
         rescue ASTValidator::SecurityError => e
           # Re-raise validation errors as executor errors for clarity
           raise SecurityError, "Code validation failed: #{e.message}"

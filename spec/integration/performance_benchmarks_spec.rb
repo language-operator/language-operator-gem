@@ -18,13 +18,13 @@ RSpec.describe 'Performance Benchmarks', type: :integration do
           do |inputs|
             { result: inputs[:a] + inputs[:b] }
           end
-          
+
           # Complex computational task
           task :complex_math,
             inputs: { numbers: 'array' },
-            outputs: { 
-              sum: 'number', 
-              average: 'number', 
+            outputs: {
+              sum: 'number',
+              average: 'number',
               median: 'number',
               std_dev: 'number'
             }
@@ -33,11 +33,11 @@ RSpec.describe 'Performance Benchmarks', type: :integration do
             n = inputs[:numbers].length
             sum = inputs[:numbers].sum
             avg = sum.to_f / n
-            
+
             # Calculate standard deviation
             variance = inputs[:numbers].sum { |x| (x - avg) ** 2 } / n
             std_dev = Math.sqrt(variance)
-            
+
             {
               sum: sum,
               average: avg,
@@ -45,11 +45,11 @@ RSpec.describe 'Performance Benchmarks', type: :integration do
               std_dev: std_dev
             }
           end
-          
+
           # String processing task
           task :string_processing,
             inputs: { text: 'string' },
-            outputs: { 
+            outputs: {
               word_count: 'integer',
               unique_words: 'integer',
               avg_word_length: 'number'
@@ -57,14 +57,14 @@ RSpec.describe 'Performance Benchmarks', type: :integration do
           do |inputs|
             words = inputs[:text].downcase.scan(/\w+/)
             unique = words.uniq
-            
+
             {
               word_count: words.length,
               unique_words: unique.length,
               avg_word_length: words.empty? ? 0 : words.sum(&:length).to_f / words.length
             }
           end
-          
+
           main do |inputs|
             case inputs[:benchmark_type]
             when 'simple'
@@ -250,18 +250,18 @@ RSpec.describe 'Performance Benchmarks', type: :integration do
             start_time = Time.now
             sleep(inputs[:delay])
             end_time = Time.now
-            
+
             {
               result: "Task #{inputs[:id]} completed",
               actual_delay: ((end_time - start_time) * 1000).round(2)
             }
           end
-          
+
           main do |inputs|
             task_count = inputs[:task_count]
             delay = inputs[:delay] || 0.05  # 50ms
             mode = inputs[:mode]
-            
+
             if mode == 'sequential'
               # Sequential execution
               results = []
@@ -327,31 +327,31 @@ RSpec.describe 'Performance Benchmarks', type: :integration do
             outputs: { allocated_mb: 'number', peak_objects: 'integer' }
           do |inputs|
             gc_start = GC.stat
-            
+
             # Allocate memory
             large_arrays = []
             inputs[:size].times do |i|
               large_arrays << Array.new(1000, "data_#{i}")
             end
-            
+
             gc_end = GC.stat
-            
+
             # Estimate memory usage (rough approximation)
             allocated_mb = (large_arrays.flatten.sum(&:bytesize)) / (1024.0 * 1024.0)
             object_delta = gc_end[:heap_live_slots] - gc_start[:heap_live_slots]
-            
+
             {
               allocated_mb: allocated_mb.round(2),
               peak_objects: object_delta
             }
           end
-          
+
           main do |inputs|
             result = execute_task(:memory_intensive, inputs: inputs)
-            
+
             # Force garbage collection
             GC.start
-            
+
             result
           end
         end
@@ -400,18 +400,18 @@ RSpec.describe 'Performance Benchmarks', type: :integration do
             # Do actual computation
             result = ""
             work_counter = 0
-            
+
             1000.times do |i|
               result += "#{inputs[:input]}_#{i}_"
               work_counter += i
             end
-            
+
             {
               output: result[0..100],  # Truncate for output
               work_done: work_counter
             }
           end
-          
+
           main do |inputs|
             execute_task(:substantial_task, inputs: inputs)
           end

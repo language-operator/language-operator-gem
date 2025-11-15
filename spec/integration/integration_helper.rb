@@ -46,19 +46,9 @@ module Integration
       config = create_mock_config
       agent = LanguageOperator::Agent::Base.new(config)
       agent.instance_variable_set(:@definition, agent_def)
-      
+
       # Connect agent for neural task execution if not mocking
-      unless Integration::Config.mock_llm_responses?
-        begin
-          puts "Attempting to connect agent..." if ENV['DEBUG']
-          agent.connect!
-          puts "Agent connected successfully" if ENV['DEBUG']
-        rescue StandardError => e
-          puts "Agent connection failed in test: #{e.message}"
-          puts "  Backtrace: #{e.backtrace.first(3).join("\n  ")}" if ENV['DEBUG']
-          raise "Failed to connect agent for real LLM testing" unless ENV['CI']
-        end
-      else
+      if Integration::Config.mock_llm_responses?
         # When mocking, create a mock chat object
         mock_chat = double('Chat')
         allow(mock_chat).to receive(:ask) do |message|
@@ -69,6 +59,16 @@ module Integration
 
         agent.instance_variable_set(:@chat, mock_chat)
         agent.instance_variable_set(:@connected, true)
+      else
+        begin
+          puts 'Attempting to connect agent...' if ENV['DEBUG']
+          agent.connect!
+          puts 'Agent connected successfully' if ENV['DEBUG']
+        rescue StandardError => e
+          puts "Agent connection failed in test: #{e.message}"
+          puts "  Backtrace: #{e.backtrace.first(3).join("\n  ")}" if ENV['DEBUG']
+          raise 'Failed to connect agent for real LLM testing' unless ENV['CI']
+        end
       end
 
       # Clean up temporary file
@@ -95,7 +95,7 @@ module Integration
                         end,
           'model' => ENV['ANTHROPIC_MODEL'] || ENV['SYNTHESIS_MODEL'] || 'gpt-4o-mini',
           'api_key' => ENV['ANTHROPIC_API_KEY'] || ENV['SYNTHESIS_API_KEY'] || 'test-api-key',
-          'endpoint' => ENV['SYNTHESIS_ENDPOINT'],
+          'endpoint' => ENV.fetch('SYNTHESIS_ENDPOINT', nil),
           'timeout' => 600 # 10 minutes to match task timeout
         }
       }
@@ -153,6 +153,7 @@ module Integration
     end
 
     # Verify task output schema matches expected types
+    # rubocop:disable Naming/PredicateMethod
     def verify_task_output(output, expected_schema)
       return false unless output.is_a?(Hash)
 
@@ -165,6 +166,7 @@ module Integration
 
       true
     end
+    # rubocop:enable Naming/PredicateMethod
 
     # Generate mock response for neural tasks
     def mock_neural_response(message)
@@ -228,7 +230,7 @@ module Integration
         { total: 42.5 }.to_json
       when /analyze.*sentiment/i
         # Mock sentiment analysis
-        { sentiment: 'positive', confidence: 0.85, keywords: ['good', 'excellent'] }.to_json
+        { sentiment: 'positive', confidence: 0.85, keywords: %w[good excellent] }.to_json
       when /summarize|summary/i
         # Mock summarization
         { summary: 'This is a comprehensive summary of the analyzed data.' }.to_json
@@ -266,10 +268,10 @@ module Integration
   module LLMMocks
     def setup_llm_mocks
       return unless Integration::Config.mock_llm_responses?
-      
+
       # If using local SYNTHESIS model, don't mock HTTP requests
       if ENV['SYNTHESIS_ENDPOINT']
-        puts "Using real local model at #{ENV['SYNTHESIS_ENDPOINT']}" if ENV['DEBUG']
+        puts "Using real local model at #{ENV.fetch('SYNTHESIS_ENDPOINT', nil)}" if ENV['DEBUG']
         return
       end
 
@@ -410,8 +412,27 @@ RSpec.configure do |config|
 
   config.before(:each, type: :integration) do
     # If using real LLM (not mocked), unmock RubyLLM and allow HTTP
-    unless Integration::Config.mock_llm_responses?
-      RSpec::Mocks.space.reset_all
+    RSpec::Mocks.space.reset_all
+    if Integration::Config.mock_llm_responses?
+      # When mocking, we still need to unmock RubyLLM to allow test configuration
+
+      # Create a proper mock that accepts all configuration calls
+      allow(RubyLLM).to receive(:configure) do |&block|
+        mock_config = double('RubyLLM::Config')
+        allow(mock_config).to receive(:openai_api_key=)
+        allow(mock_config).to receive(:anthropic_api_key=)
+        allow(mock_config).to receive(:request_timeout=)
+        allow(mock_config).to receive(:respond_to?).and_return(true)
+        block&.call(mock_config)
+      end
+
+      allow(RubyLLM::MCP).to receive(:configure) do |&block|
+        mock_config = double('RubyLLM::MCP::Config')
+        allow(mock_config).to receive(:request_timeout=)
+        allow(mock_config).to receive(:respond_to?).and_return(true)
+        block&.call(mock_config)
+      end
+    else
       allow(RubyLLM).to receive(:configure).and_call_original
       allow(RubyLLM::MCP).to receive(:configure).and_call_original
 
@@ -426,36 +447,12 @@ RSpec.configure do |config|
       end
 
       # Add Anthropic API if using Claude
-      if ENV['ANTHROPIC_API_KEY']
-        allowed_hosts << 'api.anthropic.com:443'
-      end
+      allowed_hosts << 'api.anthropic.com:443' if ENV['ANTHROPIC_API_KEY']
 
       # Add OpenAI API if using OpenAI
-      if ENV['OPENAI_API_KEY']
-        allowed_hosts << 'api.openai.com:443'
-      end
+      allowed_hosts << 'api.openai.com:443' if ENV['OPENAI_API_KEY']
 
       WebMock.disable_net_connect!(allow: allowed_hosts) if allowed_hosts.any?
-    else
-      # When mocking, we still need to unmock RubyLLM to allow test configuration
-      RSpec::Mocks.space.reset_all
-
-      # Create a proper mock that accepts all configuration calls
-      allow(RubyLLM).to receive(:configure) do |&block|
-        mock_config = double('RubyLLM::Config')
-        allow(mock_config).to receive(:openai_api_key=)
-        allow(mock_config).to receive(:anthropic_api_key=)
-        allow(mock_config).to receive(:request_timeout=)
-        allow(mock_config).to receive(:respond_to?).and_return(true)
-        block.call(mock_config) if block
-      end
-
-      allow(RubyLLM::MCP).to receive(:configure) do |&block|
-        mock_config = double('RubyLLM::MCP::Config')
-        allow(mock_config).to receive(:request_timeout=)
-        allow(mock_config).to receive(:respond_to?).and_return(true)
-        block.call(mock_config) if block
-      end
     end
 
     setup_llm_mocks

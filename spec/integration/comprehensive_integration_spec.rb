@@ -8,11 +8,11 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
       agent_dsl = <<~'RUBY'
         agent "data-pipeline" do
           description "Comprehensive data processing pipeline"
-          
+
           constraints do
             timeout 600 # 10 minutes for very slow local models
           end
-          
+
           # Symbolic data extraction
           task :extract_data,
             inputs: { sources: 'array' },
@@ -22,10 +22,10 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
               # Simulate data extraction
               case source[:type]
               when 'database'
-                raw_data.concat((1..source[:count]).map { |j| 
+                raw_data.concat((1..source[:count]).map { |j|
                   { id: "#{source[:name]}_#{j}", value: j * 10, source: source[:name] }
                 })
-              when 'api'  
+              when 'api'
                 raw_data.concat((1..source[:count]).map { |j|
                   { id: "api_#{j}", score: j * 0.5, category: ['A', 'B', 'C'][j % 3] }
                 })
@@ -33,7 +33,7 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
                 raw_data.concat(source[:data] || [])
               end
             end
-            
+
             {
               raw_data: raw_data,
               metadata: {
@@ -43,24 +43,24 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
               }
             }
           end
-          
+
           # Neural data cleaning and validation
           task :clean_and_validate,
             instructions: "Clean the raw data, identify anomalies, and validate data quality",
             inputs: { raw_data: 'array', metadata: 'hash' },
-            outputs: { 
+            outputs: {
               clean_data: 'array',
               anomalies: 'array',
               quality_score: 'number'
             }
-          
+
           # Symbolic data transformation
           task :transform_data,
             inputs: { clean_data: 'array', transformation_rules: 'hash' },
             outputs: { transformed_data: 'array', transformation_summary: 'hash' } do |inputs|
             transformed = inputs[:clean_data].map do |record|
               transformed_record = record.dup
-              
+
               # Apply transformation rules
               inputs[:transformation_rules].each do |field, rule|
                 case rule[:type]
@@ -70,11 +70,11 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
                   end
                 when 'categorize'
                   if transformed_record[field].is_a?(Numeric)
-                    transformed_record[:"#{field}_category"] = 
+                    transformed_record[:"#{field}_category"] =
                       case transformed_record[field]
                       when 0..rule[:low_threshold]
                         'low'
-                      when rule[:low_threshold]..rule[:high_threshold] 
+                      when rule[:low_threshold]..rule[:high_threshold]
                         'medium'
                       else
                         'high'
@@ -84,10 +84,10 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
                   transformed_record[field] = transformed_record[field].to_s.upcase
                 end
               end
-              
+
               transformed_record
             end
-            
+
             {
               transformed_data: transformed,
               transformation_summary: {
@@ -97,22 +97,22 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
               }
             }
           end
-          
+
           # Neural insight generation
           task :generate_insights,
             instructions: "Analyze the transformed data and generate business insights",
             inputs: { transformed_data: 'array', transformation_summary: 'hash' },
-            outputs: { 
+            outputs: {
               insights: 'array',
               recommendations: 'array',
               confidence: 'number'
             }
-          
+
           # Symbolic report compilation
           task :compile_report,
-            inputs: { 
+            inputs: {
               insights: 'array',
-              recommendations: 'array', 
+              recommendations: 'array',
               metadata: 'hash',
               transformation_summary: 'hash'
             },
@@ -129,14 +129,14 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
               "## Key Insights",
               *inputs[:insights].map.with_index { |insight, i| "#{i + 1}. #{insight}" },
               "",
-              "## Recommendations", 
+              "## Recommendations",
               *inputs[:recommendations].map.with_index { |rec, i| "#{i + 1}. #{rec}" },
               "",
               "## Technical Details",
               "- New fields added: #{inputs[:transformation_summary][:new_fields_added].join(', ')}",
               "- Transformation rules applied: #{inputs[:transformation_summary][:rules_applied].join(', ')}"
             ]
-            
+
             executive_summary = {
               total_records: inputs[:metadata][:total_records],
               insights_count: inputs[:insights].length,
@@ -144,41 +144,41 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
               data_quality: 'high',
               processing_status: 'complete'
             }
-            
+
             {
               report: report_sections.join("\n"),
               executive_summary: executive_summary
             }
           end
-          
+
           main do |inputs|
             # Step 1: Extract data from multiple sources
             extraction = execute_task(:extract_data, inputs: inputs)
-            
+
             # Step 2: Clean and validate data using neural task
             cleaning = execute_task(:clean_and_validate, inputs: {
               raw_data: extraction[:raw_data],
               metadata: extraction[:metadata]
             })
-            
+
             # Step 3: Transform data using business rules
             transformation_rules = {
               value: { type: 'normalize', max: 100.0 },
               score: { type: 'categorize', low_threshold: 5, high_threshold: 15 },
               source: { type: 'uppercase' }
             }
-            
+
             transformation = execute_task(:transform_data, inputs: {
               clean_data: cleaning[:clean_data],
               transformation_rules: transformation_rules
             })
-            
+
             # Step 4: Generate insights using neural task
             insights = execute_task(:generate_insights, inputs: {
               transformed_data: transformation[:transformed_data],
               transformation_summary: transformation[:transformation_summary]
             })
-            
+
             # Step 5: Compile final report
             execute_task(:compile_report, inputs: {
               insights: insights[:insights],
@@ -236,13 +236,13 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
       agent_dsl = <<~'RUBY'
         agent "customer-service-bot" do
           description "AI customer service agent with multiple capabilities"
-          
+
           # Symbolic intent classification
           task :classify_intent,
             inputs: { message: 'string', context: 'hash' },
             outputs: { intent: 'string', confidence: 'number', entities: 'hash' } do |inputs|
             message = inputs[:message].downcase
-            
+
             # Simple keyword-based intent detection
             intent = case message
             when /order|purchase|buy/
@@ -258,13 +258,13 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
             else
               'general_inquiry'
             end
-            
+
             # Extract entities
             entities = {}
             entities[:order_id] = message.match(/order\s*#?(\w+)/i)&.captures&.first
             entities[:product] = message.match(/product\s+(\w+)/i)&.captures&.first
             entities[:amount] = message.match(/\$?(\d+(?:\.\d{2})?)/i)&.captures&.first&.to_f
-            
+
             # Confidence based on keyword matches
             confidence = case intent
             when 'general_inquiry'
@@ -272,14 +272,14 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
             else
               0.8
             end
-            
+
             {
               intent: intent,
               confidence: confidence,
               entities: entities.compact
             }
           end
-          
+
           # Symbolic knowledge base lookup
           task :lookup_knowledge,
             inputs: { intent: 'string', entities: 'hash' },
@@ -311,9 +311,9 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
                 required_info: ['account_id', 'billing_period']
               }
             }
-            
+
             knowledge = knowledge_base[inputs[:intent]] || knowledge_base['general_inquiry']
-            
+
             suggestions = case inputs[:intent]
             when 'order_inquiry'
               ['Check order status', 'Track shipment', 'Modify order']
@@ -324,32 +324,32 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
             else
               ['Browse FAQ', 'Contact human agent', 'Leave feedback']
             end
-            
+
             {
               knowledge: knowledge || {},
               suggestions: suggestions
             }
           end
-          
+
           # Neural response generation
           task :generate_response,
             instructions: "Generate a helpful, professional customer service response",
-            inputs: { 
+            inputs: {
               intent: 'string',
               entities: 'hash',
               knowledge: 'hash',
               suggestions: 'array',
               customer_message: 'string'
             },
-            outputs: { 
+            outputs: {
               response: 'string',
               follow_up_questions: 'array',
               escalate_to_human: 'boolean'
             }
-          
+
           # Symbolic response formatting
           task :format_response,
-            inputs: { 
+            inputs: {
               response: 'string',
               suggestions: 'array',
               follow_up_questions: 'array',
@@ -362,7 +362,7 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
               "What can I help you with next?",
               *inputs[:suggestions].map.with_index { |s, i| "#{i + 1}. #{s}" }
             ]
-            
+
             if inputs[:follow_up_questions].any?
               response_parts += [
                 "",
@@ -370,7 +370,7 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
                 *inputs[:follow_up_questions].map { |q| "• #{q}" }
               ]
             end
-            
+
             {
               formatted_response: response_parts.join("\n"),
               metadata: {
@@ -381,23 +381,23 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
               }
             }
           end
-          
+
           main do |inputs|
             customer_message = inputs[:message]
             context = inputs[:context] || {}
-            
+
             # Step 1: Classify customer intent
             classification = execute_task(:classify_intent, inputs: {
               message: customer_message,
               context: context
             })
-            
+
             # Step 2: Look up relevant knowledge
             knowledge = execute_task(:lookup_knowledge, inputs: {
               intent: classification[:intent],
               entities: classification[:entities]
             })
-            
+
             # Step 3: Generate personalized response
             response = execute_task(:generate_response, inputs: {
               intent: classification[:intent],
@@ -406,7 +406,7 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
               suggestions: knowledge[:suggestions],
               customer_message: customer_message
             })
-            
+
             # Step 4: Format final response
             execute_task(:format_response, inputs: {
               response: response[:response],
@@ -459,40 +459,40 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
       agent_dsl = <<~'RUBY'
         agent "financial-analyzer" do
           description "Financial data analysis and reporting system"
-          
+
           # Symbolic data validation
           task :validate_financial_data,
             inputs: { transactions: 'array', accounts: 'array' },
-            outputs: { 
+            outputs: {
               valid_transactions: 'array',
               validation_errors: 'array',
               summary: 'hash'
             } do |inputs|
             valid_transactions = []
             errors = []
-            
+
             inputs[:transactions].each_with_index do |tx, i|
               # Validate required fields
               if !tx[:amount] || !tx[:date] || !tx[:account_id]
                 errors << "Transaction #{i}: Missing required fields"
                 next
               end
-              
+
               # Validate amount
               if !tx[:amount].is_a?(Numeric) || tx[:amount] == 0
                 errors << "Transaction #{i}: Invalid amount #{tx[:amount]}"
                 next
               end
-              
+
               # Validate account exists
               unless inputs[:accounts].any? { |acc| acc[:id] == tx[:account_id] }
                 errors << "Transaction #{i}: Unknown account #{tx[:account_id]}"
                 next
               end
-              
+
               valid_transactions << tx
             end
-            
+
             {
               valid_transactions: valid_transactions,
               validation_errors: errors,
@@ -504,11 +504,11 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
               }
             }
           end
-          
+
           # Symbolic financial calculations
           task :calculate_metrics,
             inputs: { transactions: 'array', accounts: 'array', period: 'string' },
-            outputs: { 
+            outputs: {
               metrics: 'hash',
               account_summaries: 'array',
               trends: 'hash'
@@ -517,11 +517,11 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
             total_credits = inputs[:transactions].select { |tx| tx[:amount] > 0 }.sum { |tx| tx[:amount] }
             total_debits = inputs[:transactions].select { |tx| tx[:amount] < 0 }.sum { |tx| tx[:amount].abs }
             net_flow = total_credits - total_debits
-            
+
             # Per-account summaries
             account_summaries = inputs[:accounts].map do |account|
               account_txs = inputs[:transactions].select { |tx| tx[:account_id] == account[:id] }
-              
+
               {
                 account_id: account[:id],
                 account_name: account[:name],
@@ -532,7 +532,7 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
                 average_transaction: account_txs.empty? ? 0 : account_txs.sum { |tx| tx[:amount] } / account_txs.length
               }
             end
-            
+
             # Simple trend analysis (monthly grouping)
             monthly_totals = inputs[:transactions].group_by do |tx|
               # Simple month extraction for mocking (tx[:date] format: '2024-01-15')
@@ -540,42 +540,42 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
             end.transform_values do |txs|
               txs.sum { |tx| tx[:amount] }
             end
-            
+
             {
               metrics: {
                 total_credits: total_credits,
                 total_debits: total_debits,
                 net_cash_flow: net_flow,
                 transaction_count: inputs[:transactions].length,
-                average_transaction_size: inputs[:transactions].empty? ? 0 : 
+                average_transaction_size: inputs[:transactions].empty? ? 0 :
                   inputs[:transactions].sum { |tx| tx[:amount].abs } / inputs[:transactions].length
               },
               account_summaries: account_summaries,
               trends: {
                 monthly_totals: monthly_totals,
-                trend_direction: monthly_totals.values.length > 1 ? 
+                trend_direction: monthly_totals.values.length > 1 ?
                   (monthly_totals.values.last > monthly_totals.values.first ? 'increasing' : 'decreasing') : 'stable'
               }
             }
           end
-          
+
           # Neural risk assessment
           task :assess_financial_risk,
             instructions: "Analyze financial metrics and identify potential risks or opportunities",
-            inputs: { 
+            inputs: {
               metrics: 'hash',
               account_summaries: 'array',
               trends: 'hash'
             },
-            outputs: { 
+            outputs: {
               risk_score: 'number',
               risk_factors: 'array',
               recommendations: 'array'
             }
-          
+
           # Symbolic report generation
           task :generate_financial_report,
-            inputs: { 
+            inputs: {
               metrics: 'hash',
               account_summaries: 'array',
               trends: 'hash',
@@ -612,7 +612,7 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
               "## Recommendations",
               *inputs[:risk_assessment][:recommendations].map { |rec| "- 💡 #{rec}" }
             ]
-            
+
             dashboard_data = {
               summary: inputs[:metrics],
               accounts: inputs[:account_summaries],
@@ -620,17 +620,17 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
               trend_data: inputs[:trends][:monthly_totals],
               alerts: inputs[:risk_assessment][:risk_factors].length
             }
-            
+
             {
               report: report_sections.join("\n"),
               dashboard_data: dashboard_data
             }
           end
-          
+
           main do |inputs|
             # Step 1: Validate input data
             validation = execute_task(:validate_financial_data, inputs: inputs)
-            
+
             if validation[:validation_errors].any?
               return {
                 error: 'validation_failed',
@@ -638,17 +638,17 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
                 summary: validation[:summary]
               }
             end
-            
+
             # Step 2: Calculate financial metrics
             calculations = execute_task(:calculate_metrics, inputs: {
               transactions: validation[:valid_transactions],
               accounts: inputs[:accounts],
               period: inputs[:period] || 'Q1 2024'
             })
-            
+
             # Step 3: Assess financial risk using neural analysis
             risk_assessment = execute_task(:assess_financial_risk, inputs: calculations)
-            
+
             # Step 4: Generate comprehensive report
             execute_task(:generate_financial_report, inputs: {
               **calculations,

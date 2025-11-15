@@ -8,36 +8,36 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
       agent_dsl = <<~'RUBY'
         agent "hybrid-processor" do
           description "Agent with both neural and symbolic tasks"
-          
+
           # Symbolic task - fast, deterministic data fetch
           task :fetch_user_data,
             inputs: { user_id: 'integer' },
             outputs: { user: 'hash', preferences: 'hash' }
           do |inputs|
             {
-              user: { 
-                id: inputs[:user_id], 
-                name: "User #{inputs[:user_id]}", 
-                email: "user#{inputs[:user_id]}@example.com" 
+              user: {
+                id: inputs[:user_id],
+                name: "User #{inputs[:user_id]}",
+                email: "user#{inputs[:user_id]}@example.com"
               },
-              preferences: { 
-                theme: 'dark', 
+              preferences: {
+                theme: 'dark',
                 notifications: true,
                 language: 'en'
               }
             }
           end
-          
+
           # Neural task - creative content generation
           task :generate_welcome_message,
             instructions: "Generate a personalized welcome message for the user",
             inputs: { user: 'hash', preferences: 'hash' },
             outputs: { message: 'string', tone: 'string' }
-          
+
           # Symbolic task - deterministic message formatting
           task :format_response,
             inputs: { message: 'string', user: 'hash', tone: 'string' },
-            outputs: { 
+            outputs: {
               formatted_message: 'string',
               metadata: 'hash'
             }
@@ -51,14 +51,14 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
               }
             }
           end
-          
+
           main do |inputs|
             # Step 1: Symbolic data fetch
             user_data = execute_task(:fetch_user_data, inputs: { user_id: inputs[:user_id] })
-            
+
             # Step 2: Neural content generation
             welcome = execute_task(:generate_welcome_message, inputs: user_data)
-            
+
             # Step 3: Symbolic formatting
             execute_task(:format_response, inputs: {
               message: welcome[:message],
@@ -98,13 +98,13 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
               }
             }
           end
-          
+
           # Neural analysis
           task :analyze_patterns,
             instructions: "Analyze the cleaned data and identify patterns or insights",
             inputs: { cleaned_data: 'array', stats: 'hash' },
             outputs: { insights: 'array', confidence: 'number' }
-          
+
           # Symbolic report generation
           task :generate_report,
             inputs: { insights: 'array', confidence: 'number', stats: 'hash' },
@@ -122,7 +122,7 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
               "",
               "Confidence Level: #{(inputs[:confidence] * 100).round(1)}%"
             ]
-            
+
             {
               report: report_lines.join("\n"),
               summary: {
@@ -132,14 +132,14 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
               }
             }
           end
-          
+
           main do |inputs|
             # Symbolic preprocessing
             processed = execute_task(:preprocess_data, inputs: inputs)
-            
+
             # Neural analysis
             analysis = execute_task(:analyze_patterns, inputs: processed)
-            
+
             # Symbolic report generation
             execute_task(:generate_report, inputs: {
               insights: analysis[:insights],
@@ -169,9 +169,9 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
           # Fast symbolic computation
           task :calculate_statistics,
             inputs: { numbers: 'array' },
-            outputs: { 
-              sum: 'number', 
-              average: 'number', 
+            outputs: {
+              sum: 'number',
+              average: 'number',
               median: 'number',
               count: 'integer'
             }
@@ -184,21 +184,21 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
               count: inputs[:numbers].length
             }
           end
-          
+
           # Creative neural interpretation
           task :interpret_results,
             instructions: "Interpret the statistical results and provide business insights",
-            inputs: { 
+            inputs: {
               sum: 'number',
-              average: 'number', 
+              average: 'number',
               median: 'number',
               count: 'integer'
             },
             outputs: { interpretation: 'string', recommendations: 'array' }
-          
+
           # Fast symbolic summary
           task :create_executive_summary,
-            inputs: { 
+            inputs: {
               interpretation: 'string',
               recommendations: 'array',
               stats: 'hash'
@@ -223,14 +223,14 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
               ].join("\n")
             }
           end
-          
+
           main do |inputs|
             # Fast symbolic computation
             stats = execute_task(:calculate_statistics, inputs: inputs)
-            
+
             # Creative neural interpretation
             insights = execute_task(:interpret_results, inputs: stats)
-            
+
             # Fast symbolic summary
             execute_task(:create_executive_summary, inputs: {
               interpretation: insights[:interpretation],
@@ -269,23 +269,23 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
           do |inputs|
             errors = []
             data = inputs[:data]
-            
+
             errors << 'Missing name' unless data[:name] && !data[:name].empty?
             errors << 'Invalid age' unless data[:age] && data[:age] > 0
             errors << 'Missing email' unless data[:email] && data[:email].include?('@')
-            
+
             {
               valid: errors.empty?,
               errors: errors
             }
           end
-          
+
           # Neural content generation (only for valid data)
           task :generate_profile,
             instructions: "Generate a professional profile description for the person",
             inputs: { data: 'hash' },
             outputs: { profile: 'string', keywords: 'array' }
-          
+
           # Symbolic error formatting
           task :format_errors,
             inputs: { errors: 'array' },
@@ -295,11 +295,11 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
               error_message: "Validation failed:\n" + inputs[:errors].map { |e| "- #{e}" }.join("\n")
             }
           end
-          
+
           main do |inputs|
             # Always validate first
             validation = execute_task(:validate_input, inputs: inputs)
-            
+
             if validation[:valid]
               # Generate profile for valid data
               execute_task(:generate_profile, inputs: inputs)
@@ -349,25 +349,25 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
           do |inputs|
             items = inputs[:items]
             batch_size = inputs[:batch_size]
-            
+
             batches = items.each_slice(batch_size).to_a
-            
+
             {
               batches: batches,
               total_batches: batches.length
             }
           end
-          
+
           # Neural processing for each batch
           task :process_batch,
             instructions: "Process and enhance each item in the batch",
             inputs: { batch: 'array', batch_number: 'integer' },
             outputs: { processed_items: 'array', insights: 'string' }
-          
+
           # Symbolic result aggregation
           task :aggregate_results,
             inputs: { all_results: 'array' },
-            outputs: { 
+            outputs: {
               total_processed: 'integer',
               summary: 'string',
               performance_stats: 'hash'
@@ -375,7 +375,7 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
           do |inputs|
             all_items = inputs[:all_results].flat_map { |r| r[:processed_items] }
             all_insights = inputs[:all_results].map { |r| r[:insights] }
-            
+
             {
               total_processed: all_items.length,
               summary: "Processed #{all_items.length} items in #{inputs[:all_results].length} batches",
@@ -386,11 +386,11 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
               }
             }
           end
-          
+
           main do |inputs|
             # Prepare batches symbolically
             batch_info = execute_task(:prepare_batch, inputs: inputs)
-            
+
             # Process each batch with neural task
             results = []
             batch_info[:batches].each_with_index do |batch, index|
@@ -400,7 +400,7 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
               })
               results << result
             end
-            
+
             # Aggregate symbolically
             execute_task(:aggregate_results, inputs: { all_results: results })
           end

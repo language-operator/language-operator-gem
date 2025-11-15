@@ -15,7 +15,7 @@ RSpec.describe 'Error Handling in Task Execution', type: :integration, skip: 'Sy
             end
             { result: inputs[:numerator] / inputs[:denominator] }
           end
-          
+
           task :array_access_task,
             inputs: { array: 'array', index: 'integer' },
             outputs: { element: 'any' } do |inputs|
@@ -24,7 +24,7 @@ RSpec.describe 'Error Handling in Task Execution', type: :integration, skip: 'Sy
             end
             { element: inputs[:array][inputs[:index]] }
           end
-          
+
           main do |inputs|
             case inputs[:operation]
             when 'divide'
@@ -118,14 +118,14 @@ RSpec.describe 'Error Handling in Task Execution', type: :integration, skip: 'Sy
               if inputs[:size] > 1_000_000
                 raise NoMemoryError, "Insufficient memory for array of size #{inputs[:size]}"
               end
-              
+
               large_array = Array.new(inputs[:size], 'data')
               { result: "Created array of size #{large_array.length}" }
             rescue NoMemoryError => e
               raise e  # Re-raise to be caught by main
             end
           end
-          
+
           main do |inputs|
             begin
               execute_task(:memory_intensive_task, inputs: inputs)
@@ -210,7 +210,7 @@ RSpec.describe 'Error Handling in Task Execution', type: :integration, skip: 'Sy
       agent_dsl = <<~'RUBY'
         agent "type-validation" do
           task :type_strict_task,
-            inputs: { 
+            inputs: {
               must_be_array: 'array',
               must_be_hash: 'hash',
               must_be_integer: 'integer'
@@ -222,7 +222,7 @@ RSpec.describe 'Error Handling in Task Execution', type: :integration, skip: 'Sy
                       "number: #{inputs[:must_be_integer]}"
             }
           end
-          
+
           main do |inputs|
             begin
               execute_task(:type_strict_task, inputs: inputs)
@@ -470,19 +470,19 @@ RSpec.describe 'Error Handling in Task Execution', type: :integration, skip: 'Sy
             end
             { result: "#{inputs[:input]}_step1" }
           end
-          
+
           task :step_two,
             inputs: { input: 'string' },
             outputs: { result: 'string' } do |inputs|
             { result: "#{inputs[:input]}_step2" }
           end
-          
+
           task :step_three,
             inputs: { input: 'string' },
             outputs: { result: 'string' } do |inputs|
             { result: "#{inputs[:input]}_step3" }
           end
-          
+
           main do |inputs|
             begin
               result1 = execute_task(:step_one, inputs: inputs)
@@ -530,23 +530,23 @@ RSpec.describe 'Error Handling in Task Execution', type: :integration, skip: 'Sy
               attempts: inputs[:attempt]
             }
           end
-          
+
           main do |inputs|
             max_attempts = inputs[:max_attempts] || 3
             last_error = nil
-            
+
             (1..max_attempts).each do |attempt|
               begin
-                return execute_task(:flaky_task, inputs: { 
+                return execute_task(:flaky_task, inputs: {
                   attempt: attempt,
-                  max_attempts: max_attempts 
+                  max_attempts: max_attempts
                 })
               rescue => e
                 last_error = e
                 sleep(0.01) if attempt < max_attempts  # Brief delay between retries
               end
             end
-            
+
             # All attempts failed
             {
               error: 'max_retries_exceeded',
@@ -584,7 +584,7 @@ RSpec.describe 'Error Handling in Task Execution', type: :integration, skip: 'Sy
             outputs: { processed: 'hash' } do |inputs|
             # Simulate complex processing that might fail
             data = inputs[:data]
-            
+
             begin
               processed = {
                 user_id: data.fetch(:user_id),
@@ -592,11 +592,11 @@ RSpec.describe 'Error Handling in Task Execution', type: :integration, skip: 'Sy
                 age: Integer(data.fetch(:age)),
                 preferences: data.fetch(:preferences, {})
               }
-              
+
               if processed[:age] < 0
                 raise ArgumentError, "Age cannot be negative: #{processed[:age]}"
               end
-              
+
               { processed: processed }
             rescue KeyError => e
               raise LanguageOperator::Agent::TaskExecutionError.new(
@@ -610,7 +610,7 @@ RSpec.describe 'Error Handling in Task Execution', type: :integration, skip: 'Sy
               )
             end
           end
-          
+
           main do |inputs|
             begin
               execute_task(:context_task, inputs: inputs)
@@ -669,14 +669,14 @@ RSpec.describe 'Error Handling in Task Execution', type: :integration, skip: 'Sy
               raise StandardError, "Random failure on iteration #{inputs[:iteration]}"
             end
           end
-          
+
           main do |inputs|
             success_rate = inputs[:success_rate] || 0.5
             iterations = inputs[:iterations] || 10
-            
+
             results = []
             errors = []
-            
+
             iterations.times do |i|
               begin
                 result = execute_task(:error_prone_task, inputs: {
@@ -688,7 +688,7 @@ RSpec.describe 'Error Handling in Task Execution', type: :integration, skip: 'Sy
                 errors << e.message
               end
             end
-            
+
             {
               successful_iterations: results.length,
               failed_iterations: errors.length,

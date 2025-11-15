@@ -107,11 +107,11 @@ RSpec.describe 'Parallel Execution', type: :integration do
           task :init_a do |inputs|
             { result: 'A', level: 1 }
           end
-          
+
           task :init_b do |inputs|
             { result: 'B', level: 1 }
           end
-          
+
           # Level 2: Depends on init_a
           task :process_a,
             inputs: { init_result: 'hash' },
@@ -122,18 +122,18 @@ RSpec.describe 'Parallel Execution', type: :integration do
               level: 2
             }
           end
-          
+
           # Level 2: Depends on init_b
           task :process_b,
             inputs: { init_result: 'hash' },
             outputs: { result: 'string', level: 'integer' }
           do |inputs|
             {
-              result: "Processed_#{inputs[:init_result][:result]}", 
+              result: "Processed_#{inputs[:init_result][:result]}",
               level: 2
             }
           end
-          
+
           # Level 3: Depends on both process_a and process_b
           task :final_merge,
             inputs: { a_result: 'hash', b_result: 'hash' },
@@ -144,16 +144,16 @@ RSpec.describe 'Parallel Execution', type: :integration do
               level: 3
             }
           end
-          
+
           main do |inputs|
             # Level 1: These can run in parallel
             result_a = execute_task(:init_a)
             result_b = execute_task(:init_b)
-            
+
             # Level 2: These can run in parallel after level 1 completes
             processed_a = execute_task(:process_a, inputs: { init_result: result_a })
             processed_b = execute_task(:process_b, inputs: { init_result: result_b })
-            
+
             # Level 3: This must wait for level 2 to complete
             execute_task(:final_merge, inputs: {
               a_result: processed_a,
@@ -185,13 +185,13 @@ RSpec.describe 'Parallel Execution', type: :integration do
             start_time = Time.now
             sleep(inputs[:delay] / 1000.0) if inputs[:delay] > 0
             end_time = Time.now
-            
+
             {
               result: "Task #{inputs[:id]} completed",
               duration: ((end_time - start_time) * 1000).round(2)
             }
           end
-          
+
           # Task that processes results
           task :combine_results,
             inputs: { results: 'array' },
@@ -202,11 +202,11 @@ RSpec.describe 'Parallel Execution', type: :integration do
               total_duration: inputs[:results].sum { |r| r[:duration] }
             }
           end
-          
+
           main do |inputs|
             task_count = inputs[:task_count] || 3
             delay = inputs[:delay] || 50
-            
+
             # Explicit parallel execution
             parallel_results = execute_parallel(
               task_count.times.map do |i|
@@ -216,7 +216,7 @@ RSpec.describe 'Parallel Execution', type: :integration do
                 }
               end
             )
-            
+
             # Process combined results
             execute_task(:combine_results, inputs: { results: parallel_results })
           end
@@ -251,7 +251,7 @@ RSpec.describe 'Parallel Execution', type: :integration do
               batch_size: inputs[:config][:batch_size] || 2
             }
           end
-          
+
           # Parallel processing task
           task :process_batch,
             inputs: { batch: 'array', batch_id: 'integer' },
@@ -259,21 +259,21 @@ RSpec.describe 'Parallel Execution', type: :integration do
           do |inputs|
             processed = inputs[:batch].map { |item| "processed_#{item}" }
             sleep(0.02)  # Simulate processing time
-            
+
             {
               processed: processed,
               batch_id: inputs[:batch_id],
               count: processed.length
             }
           end
-          
+
           # Final aggregation task
           task :aggregate_results,
             inputs: { batch_results: 'array' },
             outputs: { all_items: 'array', summary: 'hash' }
           do |inputs|
             all_processed = inputs[:batch_results].flat_map { |br| br[:processed] }
-            
+
             {
               all_items: all_processed,
               summary: {
@@ -283,11 +283,11 @@ RSpec.describe 'Parallel Execution', type: :integration do
               }
             }
           end
-          
+
           main do |inputs|
             # Sequential setup
             setup_result = execute_task(:setup, inputs: inputs)
-            
+
             # Parallel batch processing
             batches = setup_result[:prepared_data].each_slice(setup_result[:batch_size]).to_a
             batch_results = execute_parallel(
@@ -298,7 +298,7 @@ RSpec.describe 'Parallel Execution', type: :integration do
                 }
               end
             )
-            
+
             # Sequential aggregation
             execute_task(:aggregate_results, inputs: { batch_results: batch_results })
           end
@@ -336,7 +336,7 @@ RSpec.describe 'Parallel Execution', type: :integration do
             sleep(0.05)  # 50ms I/O simulation
             { result: "Processed #{inputs[:id]}" }
           end
-          
+
           main do |inputs|
             results = []
             5.times do |i|
@@ -357,7 +357,7 @@ RSpec.describe 'Parallel Execution', type: :integration do
             sleep(0.05)  # 50ms I/O simulation
             { result: "Processed #{inputs[:id]}" }
           end
-          
+
           main do |inputs|
             results = execute_parallel(
               5.times.map do |i|
@@ -463,13 +463,13 @@ RSpec.describe 'Parallel Execution', type: :integration do
             if inputs[:should_fail]
               raise StandardError, "Task #{inputs[:id]} failed"
             end
-            
+
             {
               result: "Task #{inputs[:id]} succeeded",
               success: true
             }
           end
-          
+
           main do |inputs|
             begin
               results = execute_parallel([
@@ -478,7 +478,7 @@ RSpec.describe 'Parallel Execution', type: :integration do
                 { name: :potentially_failing_task, inputs: { id: 3, should_fail: false } },
                 { name: :potentially_failing_task, inputs: { id: 4, should_fail: false } }
               ])
-              
+
               { success: true, results: results }
             rescue => e
               {
@@ -522,7 +522,7 @@ RSpec.describe 'Parallel Execution', type: :integration do
               { result: "Task #{inputs[:id]} succeeded" }
             end
           end
-          
+
           main do |inputs|
             begin
               results = execute_parallel([
@@ -530,7 +530,7 @@ RSpec.describe 'Parallel Execution', type: :integration do
                 { name: :error_prone_task, inputs: { id: 2, error_type: 'exception' } },
                 { name: :error_prone_task, inputs: { id: 3, error_type: 'validation' } }
               ], timeout: 1.0)  # 1 second timeout
-              
+
               { success: true, results: results }
             rescue => e
               {

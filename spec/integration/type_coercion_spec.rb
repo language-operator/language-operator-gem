@@ -90,7 +90,7 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
       agent_dsl = <<~'RUBY'
         agent "boolean-coercion" do
           task :process_booleans,
-            inputs: { 
+            inputs: {
               true_string: 'boolean',
               false_string: 'boolean',
               yes_string: 'boolean',
@@ -98,7 +98,7 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
               one_string: 'boolean',
               zero_string: 'boolean'
             },
-            outputs: { 
+            outputs: {
               true_count: 'integer',
               false_count: 'integer',
               summary: 'string'
@@ -112,17 +112,17 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
               inputs[:one_string],
               inputs[:zero_string]
             ]
-            
+
             true_count = values.count(true)
             false_count = values.count(false)
-            
+
             {
               true_count: true_count,
               false_count: false_count,
               summary: "#{true_count} true, #{false_count} false"
             }
           end
-          
+
           main do |inputs|
             execute_task(:process_booleans, inputs: inputs)
           end
