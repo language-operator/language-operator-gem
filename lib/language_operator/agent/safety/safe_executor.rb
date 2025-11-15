@@ -34,10 +34,25 @@ module LanguageOperator
           # Step 2: Execute in sandboxed context
           sandbox = SandboxProxy.new(@context, self)
 
-          # Step 3: Execute using instance_eval
+          # Step 3: Prepend safe constant definitions to the code
+          # This makes Ruby type constants available in the evaluated scope
+          safe_constants_code = <<~RUBY
+            Numeric = ::Numeric
+            Integer = ::Integer
+            Float = ::Float
+            String = ::String
+            Array = ::Array
+            Hash = ::Hash
+            TrueClass = ::TrueClass
+            FalseClass = ::FalseClass
+            Time = ::Time
+            Date = ::Date
+          RUBY
+
+          # Step 4: Execute using instance_eval with safe constants prepended
           # Note: We still use instance_eval but with validated code
           # and wrapped context
-          sandbox.instance_eval(code, file_path)
+          sandbox.instance_eval(safe_constants_code + "\n" + code, file_path)
         rescue ASTValidator::SecurityError => e
           # Re-raise validation errors as executor errors for clarity
           raise SecurityError, "Code validation failed: #{e.message}"
@@ -104,21 +119,8 @@ module LanguageOperator
               return ::LanguageOperator::Dsl::Shell
             end
 
-            # Allow basic Ruby type constants that are safe for DSL use
-            safe_constants = {
-              Numeric: ::Numeric,
-              Integer: ::Integer,
-              Float: ::Float,
-              String: ::String,
-              Array: ::Array,
-              Hash: ::Hash,
-              TrueClass: ::TrueClass,
-              FalseClass: ::FalseClass,
-              Time: ::Time,
-              Date: ::Date
-            }
-            
-            return safe_constants[name] if safe_constants.key?(name)
+            # Ruby type constants are now injected at eval time (see SafeExecutor#eval)
+            # but keep this as fallback for dynamic constant access
 
             # Otherwise delegate to the context's module
             @__context__.class.const_get(name)

@@ -172,24 +172,41 @@ module Integration
       case message
       when /clean.*raw data.*identify anomalies.*validate data quality/i
         # Mock data cleaning response (comprehensive_integration_spec.rb - clean_and_validate task)
+        # Outputs: clean_data (array), anomalies (array), quality_score (number)
         {
           clean_data: [{ id: 1, value: 100 }, { id: 2, value: 200 }],
           anomalies: [],
           quality_score: 0.95
         }.to_json
-      when /generate.*response.*inquiry.*context/i
+      when /generate.*helpful.*professional customer service response/i
         # Mock customer service response (comprehensive_integration_spec.rb - generate_response task)
+        # Outputs: response (string), follow_up_questions (array), escalate_to_human (boolean)
         {
-          response: 'Thank you for contacting us. Your order will arrive within 3-5 business days.',
-          confidence: 0.9,
-          suggested_actions: ['check_order_status']
+          response: 'Thank you for contacting us. Your order #12345 will arrive within 3-5 business days.',
+          follow_up_questions: ['Would you like tracking information?', 'Do you need to update your delivery address?'],
+          escalate_to_human: false
         }.to_json
-      when /analyze.*risk.*financial data/i
-        # Mock risk analysis (comprehensive_integration_spec.rb - analyze_risk task)
+      when /analyze.*financial.*metric.*risk|assess.*financial.*risk/i
+        # Mock risk analysis (comprehensive_integration_spec.rb - assess_financial_risk task)
+        # Outputs: risk_score (number), risk_factors (array), recommendations (array)
         {
           risk_score: 0.25,
           risk_factors: ['market volatility', 'currency fluctuation'],
           recommendations: ['diversify portfolio', 'hedge currency risk']
+        }.to_json
+      when /analyze.*transformed data.*generate business insights/i
+        # Mock insights generation (comprehensive_integration_spec.rb - generate_insights task)
+        # Outputs: insights (array), recommendations (array), confidence (number)
+        {
+          insights: [
+            'Data quality has improved by 15% over the previous period',
+            'High-value category accounts for 60% of total volume'
+          ],
+          recommendations: [
+            'Focus marketing efforts on high-value category',
+            'Implement additional validation for low-quality sources'
+          ],
+          confidence: 0.87
         }.to_json
       when /analyze.*sentiment/i
         # Mock sentiment analysis
