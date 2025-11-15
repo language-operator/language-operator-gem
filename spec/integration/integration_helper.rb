@@ -73,11 +73,17 @@ module Integration
         'max_tokens' => 1000,
         'temperature' => 0.7,
         'llm' => {
-          'provider' => ENV['SYNTHESIS_ENDPOINT'] ? 'openai_compatible' : 'openai',
-          'model' => ENV['SYNTHESIS_MODEL'] || 'gpt-4o-mini',
-          'api_key' => ENV['SYNTHESIS_API_KEY'] || 'test-api-key',
+          'provider' => if ENV['ANTHROPIC_API_KEY']
+                          'anthropic'
+                        elsif ENV['SYNTHESIS_ENDPOINT']
+                          'openai_compatible'
+                        else
+                          'openai'
+                        end,
+          'model' => ENV['ANTHROPIC_MODEL'] || ENV['SYNTHESIS_MODEL'] || 'gpt-4o-mini',
+          'api_key' => ENV['ANTHROPIC_API_KEY'] || ENV['SYNTHESIS_API_KEY'] || 'test-api-key',
           'endpoint' => ENV['SYNTHESIS_ENDPOINT'],
-          'timeout' => 300
+          'timeout' => 600 # 10 minutes to match task timeout
         }
       }
     end
@@ -324,10 +330,22 @@ RSpec.configure do |config|
       allow(RubyLLM).to receive(:configure).and_call_original
       allow(RubyLLM::MCP).to receive(:configure).and_call_original
       
-      # Allow HTTP connections to the local model
-      synthesis_host = URI(ENV['SYNTHESIS_ENDPOINT']).host
-      synthesis_port = URI(ENV['SYNTHESIS_ENDPOINT']).port
-      WebMock.disable_net_connect!(allow: "#{synthesis_host}:#{synthesis_port}")
+      # Allow HTTP connections to local model and cloud APIs
+      allowed_hosts = []
+      
+      # Add local synthesis endpoint if available
+      if ENV['SYNTHESIS_ENDPOINT']
+        synthesis_host = URI(ENV['SYNTHESIS_ENDPOINT']).host
+        synthesis_port = URI(ENV['SYNTHESIS_ENDPOINT']).port
+        allowed_hosts << "#{synthesis_host}:#{synthesis_port}"
+      end
+      
+      # Add Anthropic API if using Claude
+      if ENV['ANTHROPIC_API_KEY']
+        allowed_hosts << 'api.anthropic.com:443'
+      end
+      
+      WebMock.disable_net_connect!(allow: allowed_hosts)
     end
     
     setup_llm_mocks

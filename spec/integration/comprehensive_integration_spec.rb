@@ -10,7 +10,7 @@ RSpec.describe 'Comprehensive DSL v1 Integration', type: :integration do
           description "Comprehensive data processing pipeline"
           
           constraints do
-            timeout 120 # 2 minutes for slower local models
+            timeout 600 # 10 minutes for very slow local models
           end
           
           # Symbolic data extraction
