@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative '../client'
+require_relative '../constants'
 require_relative 'telemetry'
 require_relative 'instrumentation'
 
@@ -43,22 +44,25 @@ module LanguageOperator
       #
       # @return [void]
       def run
+        # Normalize mode to canonical form
+        normalized_mode = Constants.normalize_mode(@mode)
+
         with_span('agent.run', attributes: {
                     'agent.name' => ENV.fetch('AGENT_NAME', nil),
-                    'agent.mode' => @mode,
+                    'agent.mode' => normalized_mode,
                     'agent.workspace_available' => workspace_available?
                   }) do
           connect!
 
-          case @mode
-          when 'autonomous', 'interactive'
+          case normalized_mode
+          when 'autonomous'
             run_autonomous
-          when 'scheduled', 'event-driven'
+          when 'scheduled'
             run_scheduled
-          when 'reactive', 'http', 'webhook'
+          when 'reactive'
             run_reactive
           else
-            raise "Unknown agent mode: #{@mode}"
+            raise "Unknown agent mode: #{normalized_mode}"
           end
         end
       end

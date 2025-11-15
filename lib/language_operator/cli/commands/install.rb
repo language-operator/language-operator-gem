@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'thor'
+require_relative '../base_command'
 require 'open3'
 require_relative '../formatters/progress_formatter'
 require_relative '../helpers/cluster_validator'
@@ -10,7 +10,7 @@ module LanguageOperator
   module CLI
     module Commands
       # Install, upgrade, and uninstall commands for the language-operator
-      class Install < Thor
+      class Install < BaseCommand
         HELM_REPO_NAME = 'language-operator'
         HELM_REPO_URL = 'https://language-operator.github.io/charts'
         CHART_NAME = 'language-operator/language-operator'
@@ -113,56 +113,53 @@ module LanguageOperator
         option :wait, type: :boolean, default: true, desc: 'Wait for deployment to complete'
         option :create_namespace, type: :boolean, default: true, desc: 'Create namespace if it does not exist'
         def install
-          # Check if helm is available
-          check_helm_installed!
+          handle_command_error('install') do
+            # Check if helm is available
+            check_helm_installed!
 
-          # Check if operator is already installed
-          if operator_installed? && !options[:dry_run]
-            Formatters::ProgressFormatter.warn('Language operator is already installed')
-            puts
-            puts 'To upgrade, use:'
-            puts '  aictl upgrade'
-            return
-          end
-
-          namespace = options[:namespace]
-
-          puts 'Installing language-operator...'
-          puts "  Namespace: #{namespace}"
-          puts "  Chart: #{CHART_NAME}"
-          puts
-
-          # Add Helm repository
-          add_helm_repo unless options[:dry_run]
-
-          # Build helm install command
-          cmd = build_helm_command('install', namespace)
-
-          # Execute helm install
-          if options[:dry_run]
-            puts 'Dry run - would execute:'
-            puts "  #{cmd}"
-            puts
-            success, output = run_helm_command(cmd)
-            puts output
-          else
-            Formatters::ProgressFormatter.with_spinner('Installing language-operator') do
-              success, output = run_helm_command(cmd)
-              raise "Helm install failed: #{output}" unless success
+            # Check if operator is already installed
+            if operator_installed? && !options[:dry_run]
+              Formatters::ProgressFormatter.warn('Language operator is already installed')
+              puts
+              puts 'To upgrade, use:'
+              puts '  aictl upgrade'
+              return
             end
 
-            Formatters::ProgressFormatter.success('Language operator installed successfully!')
-            puts
-            puts 'Next steps:'
-            puts '  1. Create a cluster: aictl cluster create my-cluster'
-            puts '  2. Create a model: aictl model create gpt4 --provider openai --model gpt-4-turbo'
-            puts '  3. Create an agent: aictl agent create "your agent description"'
-          end
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Installation failed: #{e.message}")
-          raise if ENV['DEBUG']
+            namespace = options[:namespace]
 
-          exit 1
+            puts 'Installing language-operator...'
+            puts "  Namespace: #{namespace}"
+            puts "  Chart: #{CHART_NAME}"
+            puts
+
+            # Add Helm repository
+            add_helm_repo unless options[:dry_run]
+
+            # Build helm install command
+            cmd = build_helm_command('install', namespace)
+
+            # Execute helm install
+            if options[:dry_run]
+              puts 'Dry run - would execute:'
+              puts "  #{cmd}"
+              puts
+              success, output = run_helm_command(cmd)
+              puts output
+            else
+              Formatters::ProgressFormatter.with_spinner('Installing language-operator') do
+                success, output = run_helm_command(cmd)
+                raise "Helm install failed: #{output}" unless success
+              end
+
+              Formatters::ProgressFormatter.success('Language operator installed successfully!')
+              puts
+              puts 'Next steps:'
+              puts '  1. Create a cluster: aictl cluster create my-cluster'
+              puts '  2. Create a model: aictl model create gpt4 --provider openai --model gpt-4-turbo'
+              puts '  3. Create an agent: aictl agent create "your agent description"'
+            end
+          end
         end
 
         desc 'upgrade', 'Upgrade the language-operator using Helm'
@@ -191,51 +188,48 @@ module LanguageOperator
         option :dry_run, type: :boolean, default: false, desc: 'Preview upgrade without applying'
         option :wait, type: :boolean, default: true, desc: 'Wait for deployment to complete'
         def upgrade
-          # Check if helm is available
-          check_helm_installed!
+          handle_command_error('upgrade') do
+            # Check if helm is available
+            check_helm_installed!
 
-          # Check if operator is installed
-          unless operator_installed?
-            Formatters::ProgressFormatter.error('Language operator is not installed')
-            puts
-            puts 'To install, use:'
-            puts '  aictl install'
-            exit 1
-          end
-
-          namespace = options[:namespace]
-
-          puts 'Upgrading language-operator...'
-          puts "  Namespace: #{namespace}"
-          puts "  Chart: #{CHART_NAME}"
-          puts
-
-          # Update Helm repository
-          update_helm_repo unless options[:dry_run]
-
-          # Build helm upgrade command
-          cmd = build_helm_command('upgrade', namespace)
-
-          # Execute helm upgrade
-          if options[:dry_run]
-            puts 'Dry run - would execute:'
-            puts "  #{cmd}"
-            puts
-            success, output = run_helm_command(cmd)
-            puts output
-          else
-            Formatters::ProgressFormatter.with_spinner('Upgrading language-operator') do
-              success, output = run_helm_command(cmd)
-              raise "Helm upgrade failed: #{output}" unless success
+            # Check if operator is installed
+            unless operator_installed?
+              Formatters::ProgressFormatter.error('Language operator is not installed')
+              puts
+              puts 'To install, use:'
+              puts '  aictl install'
+              exit 1
             end
 
-            Formatters::ProgressFormatter.success('Language operator upgraded successfully!')
-          end
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Upgrade failed: #{e.message}")
-          raise if ENV['DEBUG']
+            namespace = options[:namespace]
 
-          exit 1
+            puts 'Upgrading language-operator...'
+            puts "  Namespace: #{namespace}"
+            puts "  Chart: #{CHART_NAME}"
+            puts
+
+            # Update Helm repository
+            update_helm_repo unless options[:dry_run]
+
+            # Build helm upgrade command
+            cmd = build_helm_command('upgrade', namespace)
+
+            # Execute helm upgrade
+            if options[:dry_run]
+              puts 'Dry run - would execute:'
+              puts "  #{cmd}"
+              puts
+              success, output = run_helm_command(cmd)
+              puts output
+            else
+              Formatters::ProgressFormatter.with_spinner('Upgrading language-operator') do
+                success, output = run_helm_command(cmd)
+                raise "Helm upgrade failed: #{output}" unless success
+              end
+
+              Formatters::ProgressFormatter.success('Language operator upgraded successfully!')
+            end
+          end
         end
 
         desc 'uninstall', 'Uninstall the language-operator using Helm'
@@ -258,49 +252,46 @@ module LanguageOperator
         option :namespace, type: :string, default: DEFAULT_NAMESPACE, desc: 'Kubernetes namespace'
         option :force, type: :boolean, default: false, desc: 'Skip confirmation prompt'
         def uninstall
-          # Check if helm is available
-          check_helm_installed!
+          handle_command_error('uninstall') do
+            # Check if helm is available
+            check_helm_installed!
 
-          # Check if operator is installed
-          unless operator_installed?
-            Formatters::ProgressFormatter.warn('Language operator is not installed')
-            return
-          end
+            # Check if operator is installed
+            unless operator_installed?
+              Formatters::ProgressFormatter.warn('Language operator is not installed')
+              return
+            end
 
-          namespace = options[:namespace]
+            namespace = options[:namespace]
 
-          # Confirm deletion unless --force
-          unless options[:force]
-            puts "This will uninstall the language-operator from namespace '#{namespace}'"
+            # Confirm deletion unless --force
+            unless options[:force]
+              puts "This will uninstall the language-operator from namespace '#{namespace}'"
+              puts
+              puts 'WARNING: This will NOT delete:'
+              puts '  - CRDs (CustomResourceDefinitions)'
+              puts '  - LanguageAgent resources'
+              puts '  - LanguageTool resources'
+              puts '  - LanguageModel resources'
+              puts '  - LanguagePersona resources'
+              puts
+              return unless Helpers::UserPrompts.confirm('Continue with uninstall?')
+            end
+
+            # Build helm uninstall command
+            cmd = "helm uninstall #{RELEASE_NAME} --namespace #{namespace}"
+
+            # Execute helm uninstall
+            Formatters::ProgressFormatter.with_spinner('Uninstalling language-operator') do
+              success, output = run_helm_command(cmd)
+              raise "Helm uninstall failed: #{output}" unless success
+            end
+
+            Formatters::ProgressFormatter.success('Language operator uninstalled successfully!')
             puts
-            puts 'WARNING: This will NOT delete:'
-            puts '  - CRDs (CustomResourceDefinitions)'
-            puts '  - LanguageAgent resources'
-            puts '  - LanguageTool resources'
-            puts '  - LanguageModel resources'
-            puts '  - LanguagePersona resources'
-            puts
-            return unless Helpers::UserPrompts.confirm('Continue with uninstall?')
+            puts 'Note: CRDs and custom resources remain in the cluster.'
+            puts 'To completely remove all resources, you must manually delete them.'
           end
-
-          # Build helm uninstall command
-          cmd = "helm uninstall #{RELEASE_NAME} --namespace #{namespace}"
-
-          # Execute helm uninstall
-          Formatters::ProgressFormatter.with_spinner('Uninstalling language-operator') do
-            success, output = run_helm_command(cmd)
-            raise "Helm uninstall failed: #{output}" unless success
-          end
-
-          Formatters::ProgressFormatter.success('Language operator uninstalled successfully!')
-          puts
-          puts 'Note: CRDs and custom resources remain in the cluster.'
-          puts 'To completely remove all resources, you must manually delete them.'
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Uninstall failed: #{e.message}")
-          raise if ENV['DEBUG']
-
-          exit 1
         end
 
         private

@@ -2,6 +2,7 @@
 
 require 'language_operator/version'
 require 'language_operator/errors'
+require 'language_operator/constants'
 require 'language_operator/retry'
 require 'language_operator/config'
 require 'language_operator/validators'

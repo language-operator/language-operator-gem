@@ -1,13 +1,12 @@
 # frozen_string_literal: true
 
-require 'thor'
 require 'yaml'
 require 'erb'
 require 'net/http'
+require_relative '../base_command'
 require_relative '../formatters/progress_formatter'
 require_relative '../formatters/table_formatter'
 require_relative '../helpers/cluster_validator'
-require_relative '../helpers/cluster_context'
 require_relative '../helpers/user_prompts'
 require_relative '../helpers/resource_dependency_checker'
 require_relative '../../config/cluster_config'
@@ -18,113 +17,82 @@ module LanguageOperator
   module CLI
     module Commands
       # Tool management commands
-      class Tool < Thor
+      class Tool < BaseCommand
         include Helpers::ClusterValidator
 
         desc 'list', 'List all tools in current cluster'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def list
-          ctx = Helpers::ClusterContext.from_options(options)
+          handle_command_error('list tools') do
+            tools = list_resources_or_empty('LanguageTool') do
+              puts
+              puts 'Tools provide MCP server capabilities for agents.'
+              puts
+              puts 'Install a tool with:'
+              puts '  aictl tool install <name>'
+            end
 
-          tools = ctx.client.list_resources('LanguageTool', namespace: ctx.namespace)
+            return if tools.empty?
 
-          if tools.empty?
-            Formatters::ProgressFormatter.info("No tools found in cluster '#{ctx.name}'")
-            puts
-            puts 'Tools provide MCP server capabilities for agents.'
-            puts
-            puts 'Install a tool with:'
-            puts '  aictl tool install <name>'
-            return
+            # Get agents to count usage
+            agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
+
+            table_data = tools.map do |tool|
+              name = tool.dig('metadata', 'name')
+              type = tool.dig('spec', 'type') || 'unknown'
+              status = tool.dig('status', 'phase') || 'Unknown'
+
+              # Count agents using this tool
+              agents_using = Helpers::ResourceDependencyChecker.tool_usage_count(agents, name)
+
+              # Get health status
+              health = tool.dig('status', 'health') || 'unknown'
+              health_indicator = case health.downcase
+                                 when 'healthy' then '✓'
+                                 when 'unhealthy' then '✗'
+                                 else '?'
+                                 end
+
+              {
+                name: name,
+                type: type,
+                status: status,
+                agents_using: agents_using,
+                health: "#{health_indicator} #{health}"
+              }
+            end
+
+            Formatters::TableFormatter.tools(table_data)
           end
-
-          # Get agents to count usage
-          agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
-
-          table_data = tools.map do |tool|
-            name = tool.dig('metadata', 'name')
-            type = tool.dig('spec', 'type') || 'unknown'
-            status = tool.dig('status', 'phase') || 'Unknown'
-
-            # Count agents using this tool
-            agents_using = Helpers::ResourceDependencyChecker.tool_usage_count(agents, name)
-
-            # Get health status
-            health = tool.dig('status', 'health') || 'unknown'
-            health_indicator = case health.downcase
-                               when 'healthy' then '✓'
-                               when 'unhealthy' then '✗'
-                               else '?'
-                               end
-
-            {
-              name: name,
-              type: type,
-              status: status,
-              agents_using: agents_using,
-              health: "#{health_indicator} #{health}"
-            }
-          end
-
-          Formatters::TableFormatter.tools(table_data)
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Failed to list tools: #{e.message}")
-          raise if ENV['DEBUG']
-
-          exit 1
         end
 
         desc 'delete NAME', 'Delete a tool'
         option :cluster, type: :string, desc: 'Override current cluster context'
         option :force, type: :boolean, default: false, desc: 'Skip confirmation'
         def delete(name)
-          ctx = Helpers::ClusterContext.from_options(options)
+          handle_command_error('delete tool') do
+            tool = get_resource_or_exit('LanguageTool', name)
 
-          # Get tool
-          begin
-            tool = ctx.client.get_resource('LanguageTool', name, ctx.namespace)
-          rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Tool '#{name}' not found in cluster '#{ctx.name}'")
-            exit 1
-          end
+            # Check dependencies and get confirmation
+            return unless check_dependencies_and_confirm('tool', name, force: options[:force])
 
-          # Check for agents using this tool
-          agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
-          agents_using = Helpers::ResourceDependencyChecker.agents_using_tool(agents, name)
+            # Confirm deletion unless --force
+            if confirm_deletion(
+              'tool', name, ctx.name,
+              details: {
+                'Type' => tool.dig('spec', 'type'),
+                'Status' => tool.dig('status', 'phase')
+              },
+              force: options[:force]
+            )
+              # Delete tool
+              Formatters::ProgressFormatter.with_spinner("Deleting tool '#{name}'") do
+                ctx.client.delete_resource('LanguageTool', name, ctx.namespace)
+              end
 
-          if agents_using.any? && !options[:force]
-            Formatters::ProgressFormatter.warn("Tool '#{name}' is in use by #{agents_using.count} agent(s)")
-            puts
-            puts 'Agents using this tool:'
-            agents_using.each do |agent|
-              puts "  - #{agent.dig('metadata', 'name')}"
+              Formatters::ProgressFormatter.success("Tool '#{name}' deleted successfully")
             end
-            puts
-            puts 'Delete these agents first, or use --force to delete anyway.'
-            puts
-            return unless Helpers::UserPrompts.confirm('Are you sure?')
           end
-
-          # Confirm deletion using UserPrompts helper
-          unless options[:force] || agents_using.any?
-            puts "This will delete tool '#{name}' from cluster '#{ctx.name}':"
-            puts "  Type:   #{tool.dig('spec', 'type')}"
-            puts "  Status: #{tool.dig('status', 'phase')}"
-            puts
-            return unless Helpers::UserPrompts.confirm('Are you sure?')
-          end
-
-          # Delete tool
-          Formatters::ProgressFormatter.with_spinner("Deleting tool '#{name}'") do
-            ctx.client.delete_resource('LanguageTool', name, ctx.namespace)
-          end
-
-          Formatters::ProgressFormatter.success("Tool '#{name}' deleted successfully")
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Failed to delete tool: #{e.message}")
-          raise if ENV['DEBUG']
-
-          exit 1
         end
 
         desc 'install NAME', 'Install a tool from the registry'
@@ -133,349 +101,318 @@ module LanguageOperator
         option :replicas, type: :numeric, desc: 'Number of replicas'
         option :dry_run, type: :boolean, default: false, desc: 'Preview without installing'
         def install(tool_name)
-          # For dry-run mode, allow operation without a real cluster
-          if options[:dry_run]
-            cluster_name = options[:cluster] || 'preview'
-            namespace = 'default'
-          else
-            ctx = Helpers::ClusterContext.from_options(options)
-            cluster_name = ctx.name
-            namespace = ctx.namespace
-          end
-
-          # Load tool patterns registry
-          registry = Config::ToolRegistry.new
-          patterns = registry.fetch
-
-          # Resolve aliases
-          tool_key = tool_name
-          tool_key = patterns[tool_key]['alias'] while patterns[tool_key]&.key?('alias')
-
-          # Look up tool in registry
-          tool_config = patterns[tool_key]
-          unless tool_config
-            Formatters::ProgressFormatter.error("Tool '#{tool_name}' not found in registry")
-            puts
-            puts 'Available tools:'
-            patterns.each do |key, config|
-              next if config['alias']
-
-              puts "  #{key.ljust(15)} - #{config['description']}"
+          handle_command_error('install tool') do
+            # For dry-run mode, allow operation without a real cluster
+            if options[:dry_run]
+              cluster_name = options[:cluster] || 'preview'
+              namespace = 'default'
+            else
+              cluster_name = ctx.name
+              namespace = ctx.namespace
             end
-            exit 1
-          end
 
-          # Build template variables
-          vars = {
-            name: tool_name,
-            namespace: namespace,
-            deployment_mode: options[:deployment_mode] || tool_config['deploymentMode'],
-            replicas: options[:replicas] || 1,
-            auth_secret: nil, # Will be set by auth command
-            image: tool_config['image'],
-            port: tool_config['port'],
-            type: tool_config['type'],
-            egress: tool_config['egress'],
-            rbac: tool_config['rbac']
-          }
+            # Load tool patterns registry
+            registry = Config::ToolRegistry.new
+            patterns = registry.fetch
 
-          # Get template content - prefer registry manifest, fall back to generic template
-          if tool_config['manifest']
-            # Use manifest from registry (if provided in the future)
-            template_content = tool_config['manifest']
-          else
-            # Use generic template for all tools
-            template_path = File.join(__dir__, '..', 'templates', 'tools', 'generic.yaml')
-            template_content = File.read(template_path)
-          end
+            # Resolve aliases
+            tool_key = tool_name
+            tool_key = patterns[tool_key]['alias'] while patterns[tool_key]&.key?('alias')
 
-          # Render template
-          template = ERB.new(template_content)
-          yaml_content = template.result_with_hash(vars)
+            # Look up tool in registry
+            tool_config = patterns[tool_key]
+            unless tool_config
+              Formatters::ProgressFormatter.error("Tool '#{tool_name}' not found in registry")
+              puts
+              puts 'Available tools:'
+              patterns.each do |key, config|
+                next if config['alias']
 
-          # Dry run mode
-          if options[:dry_run]
-            puts "Would install tool '#{tool_name}' to cluster '#{cluster_name}':"
+                puts "  #{key.ljust(15)} - #{config['description']}"
+              end
+              exit 1
+            end
+
+            # Build template variables
+            vars = {
+              name: tool_name,
+              namespace: namespace,
+              deployment_mode: options[:deployment_mode] || tool_config['deploymentMode'],
+              replicas: options[:replicas] || 1,
+              auth_secret: nil, # Will be set by auth command
+              image: tool_config['image'],
+              port: tool_config['port'],
+              type: tool_config['type'],
+              egress: tool_config['egress'],
+              rbac: tool_config['rbac']
+            }
+
+            # Get template content - prefer registry manifest, fall back to generic template
+            if tool_config['manifest']
+              # Use manifest from registry (if provided in the future)
+              template_content = tool_config['manifest']
+            else
+              # Use generic template for all tools
+              template_path = File.join(__dir__, '..', 'templates', 'tools', 'generic.yaml')
+              template_content = File.read(template_path)
+            end
+
+            # Render template
+            template = ERB.new(template_content)
+            yaml_content = template.result_with_hash(vars)
+
+            # Dry run mode
+            if options[:dry_run]
+              puts "Would install tool '#{tool_name}' to cluster '#{cluster_name}':"
+              puts
+              puts "Display Name:    #{tool_config['displayName']}"
+              puts "Description:     #{tool_config['description']}"
+              puts "Deployment Mode: #{vars[:deployment_mode]}"
+              puts "Replicas:        #{vars[:replicas]}"
+              puts "Auth Required:   #{tool_config['authRequired'] ? 'Yes' : 'No'}"
+              puts
+              puts 'Generated YAML:'
+              puts '---'
+              puts yaml_content
+              puts
+              puts 'To install for real, run without --dry-run'
+              return
+            end
+
+            # Check if already exists
+            begin
+              ctx.client.get_resource('LanguageTool', tool_name, ctx.namespace)
+              Formatters::ProgressFormatter.warn("Tool '#{tool_name}' already exists in cluster '#{ctx.name}'")
+              puts
+              return unless Helpers::UserPrompts.confirm('Do you want to update it?')
+            rescue K8s::Error::NotFound
+              # Tool doesn't exist, proceed with creation
+            end
+
+            # Install tool
+            Formatters::ProgressFormatter.with_spinner("Installing tool '#{tool_name}'") do
+              resource = YAML.safe_load(yaml_content, permitted_classes: [Symbol])
+              ctx.client.apply_resource(resource)
+            end
+
+            Formatters::ProgressFormatter.success("Tool '#{tool_name}' installed successfully")
             puts
-            puts "Display Name:    #{tool_config['displayName']}"
-            puts "Description:     #{tool_config['description']}"
-            puts "Deployment Mode: #{vars[:deployment_mode]}"
-            puts "Replicas:        #{vars[:replicas]}"
-            puts "Auth Required:   #{tool_config['authRequired'] ? 'Yes' : 'No'}"
-            puts
-            puts 'Generated YAML:'
-            puts '---'
-            puts yaml_content
-            puts
-            puts 'To install for real, run without --dry-run'
-            return
+            puts "Tool '#{tool_name}' is now available in cluster '#{ctx.name}'"
+            if tool_config['authRequired']
+              puts
+              puts 'This tool requires authentication. Configure it with:'
+              puts "  aictl tool auth #{tool_name}"
+            end
           end
-
-          # Connect to cluster
-          ctx = Helpers::ClusterContext.from_options(options)
-
-          # Check if already exists
-          begin
-            ctx.client.get_resource('LanguageTool', tool_name, ctx.namespace)
-            Formatters::ProgressFormatter.warn("Tool '#{tool_name}' already exists in cluster '#{ctx.name}'")
-            puts
-            return unless Helpers::UserPrompts.confirm('Do you want to update it?')
-          rescue K8s::Error::NotFound
-            # Tool doesn't exist, proceed with creation
-          end
-
-          # Install tool
-          Formatters::ProgressFormatter.with_spinner("Installing tool '#{tool_name}'") do
-            resource = YAML.safe_load(yaml_content, permitted_classes: [Symbol])
-            ctx.client.apply_resource(resource)
-          end
-
-          Formatters::ProgressFormatter.success("Tool '#{tool_name}' installed successfully")
-          puts
-          puts "Tool '#{tool_name}' is now available in cluster '#{ctx.name}'"
-          if tool_config['authRequired']
-            puts
-            puts 'This tool requires authentication. Configure it with:'
-            puts "  aictl tool auth #{tool_name}"
-          end
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Failed to install tool: #{e.message}")
-          raise if ENV['DEBUG']
-
-          exit 1
         end
 
         desc 'auth NAME', 'Configure authentication for a tool'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def auth(tool_name)
-          ctx = Helpers::ClusterContext.from_options(options)
+          handle_command_error('configure auth') do
+            tool = get_resource_or_exit('LanguageTool', tool_name,
+                                        error_message: "Tool '#{tool_name}' not found. Install it first with: aictl tool install #{tool_name}")
 
-          # Check if tool exists
-          begin
-            tool = ctx.client.get_resource('LanguageTool', tool_name, ctx.namespace)
-          rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Tool '#{tool_name}' not found in cluster '#{ctx.name}'")
+            puts "Configure authentication for tool '#{tool_name}'"
             puts
-            puts 'Install the tool first with:'
-            puts "  aictl tool install #{tool_name}"
-            exit 1
+
+            # Determine auth type based on tool
+            case tool_name
+            when 'email', 'gmail'
+              puts 'Email/Gmail Configuration'
+              puts '-' * 40
+              print 'SMTP Server: '
+              smtp_server = $stdin.gets.chomp
+              print 'SMTP Port (587): '
+              smtp_port = $stdin.gets.chomp
+              smtp_port = '587' if smtp_port.empty?
+              print 'Email Address: '
+              email = $stdin.gets.chomp
+              print 'Password: '
+              password = $stdin.noecho(&:gets).chomp
+              puts
+
+              secret_data = {
+                'SMTP_SERVER' => smtp_server,
+                'SMTP_PORT' => smtp_port,
+                'EMAIL_ADDRESS' => email,
+                'EMAIL_PASSWORD' => password
+              }
+
+            when 'github'
+              puts 'GitHub Configuration'
+              puts '-' * 40
+              print 'GitHub Token: '
+              token = $stdin.noecho(&:gets).chomp
+              puts
+
+              secret_data = {
+                'GITHUB_TOKEN' => token
+              }
+
+            when 'slack'
+              puts 'Slack Configuration'
+              puts '-' * 40
+              print 'Slack Bot Token: '
+              token = $stdin.noecho(&:gets).chomp
+              puts
+
+              secret_data = {
+                'SLACK_BOT_TOKEN' => token
+              }
+
+            when 'gdrive'
+              puts 'Google Drive Configuration'
+              puts '-' * 40
+              puts 'Note: You need OAuth credentials from Google Cloud Console'
+              print 'Client ID: '
+              client_id = $stdin.gets.chomp
+              print 'Client Secret: '
+              client_secret = $stdin.noecho(&:gets).chomp
+              puts
+
+              secret_data = {
+                'GDRIVE_CLIENT_ID' => client_id,
+                'GDRIVE_CLIENT_SECRET' => client_secret
+              }
+
+            else
+              puts 'Generic API Key Configuration'
+              puts '-' * 40
+              print 'API Key: '
+              api_key = $stdin.noecho(&:gets).chomp
+              puts
+
+              secret_data = {
+                'API_KEY' => api_key
+              }
+            end
+
+            # Create secret
+            secret_name = "#{tool_name}-auth"
+            secret_resource = {
+              'apiVersion' => 'v1',
+              'kind' => 'Secret',
+              'metadata' => {
+                'name' => secret_name,
+                'namespace' => ctx.namespace
+              },
+              'type' => 'Opaque',
+              'stringData' => secret_data
+            }
+
+            Formatters::ProgressFormatter.with_spinner('Creating authentication secret') do
+              ctx.client.apply_resource(secret_resource)
+            end
+
+            # Update tool to use secret
+            tool['spec']['envFrom'] ||= []
+            tool['spec']['envFrom'] << { 'secretRef' => { 'name' => secret_name } }
+
+            Formatters::ProgressFormatter.with_spinner('Updating tool configuration') do
+              ctx.client.apply_resource(tool)
+            end
+
+            Formatters::ProgressFormatter.success('Authentication configured successfully')
+            puts
+            puts "Tool '#{tool_name}' is now authenticated and ready to use"
           end
-
-          puts "Configure authentication for tool '#{tool_name}'"
-          puts
-
-          # Determine auth type based on tool
-          case tool_name
-          when 'email', 'gmail'
-            puts 'Email/Gmail Configuration'
-            puts '-' * 40
-            print 'SMTP Server: '
-            smtp_server = $stdin.gets.chomp
-            print 'SMTP Port (587): '
-            smtp_port = $stdin.gets.chomp
-            smtp_port = '587' if smtp_port.empty?
-            print 'Email Address: '
-            email = $stdin.gets.chomp
-            print 'Password: '
-            password = $stdin.noecho(&:gets).chomp
-            puts
-
-            secret_data = {
-              'SMTP_SERVER' => smtp_server,
-              'SMTP_PORT' => smtp_port,
-              'EMAIL_ADDRESS' => email,
-              'EMAIL_PASSWORD' => password
-            }
-
-          when 'github'
-            puts 'GitHub Configuration'
-            puts '-' * 40
-            print 'GitHub Token: '
-            token = $stdin.noecho(&:gets).chomp
-            puts
-
-            secret_data = {
-              'GITHUB_TOKEN' => token
-            }
-
-          when 'slack'
-            puts 'Slack Configuration'
-            puts '-' * 40
-            print 'Slack Bot Token: '
-            token = $stdin.noecho(&:gets).chomp
-            puts
-
-            secret_data = {
-              'SLACK_BOT_TOKEN' => token
-            }
-
-          when 'gdrive'
-            puts 'Google Drive Configuration'
-            puts '-' * 40
-            puts 'Note: You need OAuth credentials from Google Cloud Console'
-            print 'Client ID: '
-            client_id = $stdin.gets.chomp
-            print 'Client Secret: '
-            client_secret = $stdin.noecho(&:gets).chomp
-            puts
-
-            secret_data = {
-              'GDRIVE_CLIENT_ID' => client_id,
-              'GDRIVE_CLIENT_SECRET' => client_secret
-            }
-
-          else
-            puts 'Generic API Key Configuration'
-            puts '-' * 40
-            print 'API Key: '
-            api_key = $stdin.noecho(&:gets).chomp
-            puts
-
-            secret_data = {
-              'API_KEY' => api_key
-            }
-          end
-
-          # Create secret
-          secret_name = "#{tool_name}-auth"
-          secret_resource = {
-            'apiVersion' => 'v1',
-            'kind' => 'Secret',
-            'metadata' => {
-              'name' => secret_name,
-              'namespace' => ctx.namespace
-            },
-            'type' => 'Opaque',
-            'stringData' => secret_data
-          }
-
-          Formatters::ProgressFormatter.with_spinner('Creating authentication secret') do
-            ctx.client.apply_resource(secret_resource)
-          end
-
-          # Update tool to use secret
-          tool['spec']['envFrom'] ||= []
-          tool['spec']['envFrom'] << { 'secretRef' => { 'name' => secret_name } }
-
-          Formatters::ProgressFormatter.with_spinner('Updating tool configuration') do
-            ctx.client.apply_resource(tool)
-          end
-
-          Formatters::ProgressFormatter.success('Authentication configured successfully')
-          puts
-          puts "Tool '#{tool_name}' is now authenticated and ready to use"
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Failed to configure auth: #{e.message}")
-          raise if ENV['DEBUG']
-
-          exit 1
         end
 
         desc 'test NAME', 'Test tool connectivity and health'
         option :cluster, type: :string, desc: 'Override current cluster context'
         def test(tool_name)
-          ctx = Helpers::ClusterContext.from_options(options)
+          handle_command_error('test tool') do
+            tool = get_resource_or_exit('LanguageTool', tool_name)
 
-          # Get tool
-          begin
-            tool = ctx.client.get_resource('LanguageTool', tool_name, ctx.namespace)
-          rescue K8s::Error::NotFound
-            Formatters::ProgressFormatter.error("Tool '#{tool_name}' not found in cluster '#{ctx.name}'")
-            exit 1
-          end
+            puts "Testing tool '#{tool_name}' in cluster '#{ctx.name}'"
+            puts
 
-          puts "Testing tool '#{tool_name}' in cluster '#{ctx.name}'"
-          puts
+            # Check phase
+            phase = tool.dig('status', 'phase') || 'Unknown'
+            status_indicator = case phase
+                               when 'Running' then '✓'
+                               when 'Pending' then '⏳'
+                               when 'Failed' then '✗'
+                               else '?'
+                               end
 
-          # Check phase
-          phase = tool.dig('status', 'phase') || 'Unknown'
-          status_indicator = case phase
-                             when 'Running' then '✓'
-                             when 'Pending' then '⏳'
-                             when 'Failed' then '✗'
-                             else '?'
-                             end
+            puts "Status:   #{status_indicator} #{phase}"
 
-          puts "Status:   #{status_indicator} #{phase}"
+            # Check replicas
+            ready_replicas = tool.dig('status', 'readyReplicas') || 0
+            desired_replicas = tool.dig('spec', 'replicas') || 1
+            puts "Replicas: #{ready_replicas}/#{desired_replicas} ready"
 
-          # Check replicas
-          ready_replicas = tool.dig('status', 'readyReplicas') || 0
-          desired_replicas = tool.dig('spec', 'replicas') || 1
-          puts "Replicas: #{ready_replicas}/#{desired_replicas} ready"
+            # Check endpoint
+            endpoint = tool.dig('status', 'endpoint')
+            if endpoint
+              puts "Endpoint: #{endpoint}"
+            else
+              puts 'Endpoint: Not available yet'
+            end
 
-          # Check endpoint
-          endpoint = tool.dig('status', 'endpoint')
-          if endpoint
-            puts "Endpoint: #{endpoint}"
-          else
-            puts 'Endpoint: Not available yet'
-          end
+            # Get pod status
+            puts
+            puts 'Pod Status:'
 
-          # Get pod status
-          puts
-          puts 'Pod Status:'
+            label_selector = "langop.io/tool=#{tool_name}"
+            pods = ctx.client.list_resources('Pod', namespace: ctx.namespace, label_selector: label_selector)
 
-          label_selector = "langop.io/tool=#{tool_name}"
-          pods = ctx.client.list_resources('Pod', namespace: ctx.namespace, label_selector: label_selector)
+            if pods.empty?
+              puts '  No pods found'
+            else
+              pods.each do |pod|
+                pod_name = pod.dig('metadata', 'name')
+                pod_phase = pod.dig('status', 'phase') || 'Unknown'
+                pod_indicator = case pod_phase
+                                when 'Running' then '✓'
+                                when 'Pending' then '⏳'
+                                when 'Failed' then '✗'
+                                else '?'
+                                end
 
-          if pods.empty?
-            puts '  No pods found'
-          else
-            pods.each do |pod|
-              pod_name = pod.dig('metadata', 'name')
-              pod_phase = pod.dig('status', 'phase') || 'Unknown'
-              pod_indicator = case pod_phase
-                              when 'Running' then '✓'
-                              when 'Pending' then '⏳'
-                              when 'Failed' then '✗'
-                              else '?'
-                              end
+                puts "  #{pod_indicator} #{pod_name}: #{pod_phase}"
 
-              puts "  #{pod_indicator} #{pod_name}: #{pod_phase}"
-
-              # Check container status
-              container_statuses = pod.dig('status', 'containerStatuses') || []
-              container_statuses.each do |status|
-                ready = status['ready'] ? '✓' : '✗'
-                puts "    #{ready} #{status['name']}: #{status['state']&.keys&.first || 'unknown'}"
+                # Check container status
+                container_statuses = pod.dig('status', 'containerStatuses') || []
+                container_statuses.each do |status|
+                  ready = status['ready'] ? '✓' : '✗'
+                  puts "    #{ready} #{status['name']}: #{status['state']&.keys&.first || 'unknown'}"
+                end
               end
             end
-          end
 
-          # Test connectivity if endpoint is available
-          if endpoint && phase == 'Running'
-            puts
-            puts 'Testing connectivity...'
-            begin
-              uri = URI(endpoint)
-              response = Net::HTTP.get_response(uri)
-              if response.code.to_i < 400
-                Formatters::ProgressFormatter.success('Connectivity test passed')
-              else
-                Formatters::ProgressFormatter.warn("HTTP #{response.code}: #{response.message}")
+            # Test connectivity if endpoint is available
+            if endpoint && phase == 'Running'
+              puts
+              puts 'Testing connectivity...'
+              begin
+                uri = URI(endpoint)
+                response = Net::HTTP.get_response(uri)
+                if response.code.to_i < 400
+                  Formatters::ProgressFormatter.success('Connectivity test passed')
+                else
+                  Formatters::ProgressFormatter.warn("HTTP #{response.code}: #{response.message}")
+                end
+              rescue StandardError => e
+                Formatters::ProgressFormatter.error("Connectivity test failed: #{e.message}")
               end
-            rescue StandardError => e
-              Formatters::ProgressFormatter.error("Connectivity test failed: #{e.message}")
+            end
+
+            # Overall health
+            puts
+            if phase == 'Running' && ready_replicas == desired_replicas
+              Formatters::ProgressFormatter.success("Tool '#{tool_name}' is healthy and operational")
+            elsif phase == 'Pending'
+              Formatters::ProgressFormatter.info("Tool '#{tool_name}' is starting up, please wait")
+            else
+              Formatters::ProgressFormatter.warn("Tool '#{tool_name}' has issues, check logs for details")
+              puts
+              puts 'View logs with:'
+              puts "  kubectl logs -n #{ctx.namespace} -l langop.io/tool=#{tool_name}"
             end
           end
-
-          # Overall health
-          puts
-          if phase == 'Running' && ready_replicas == desired_replicas
-            Formatters::ProgressFormatter.success("Tool '#{tool_name}' is healthy and operational")
-          elsif phase == 'Pending'
-            Formatters::ProgressFormatter.info("Tool '#{tool_name}' is starting up, please wait")
-          else
-            Formatters::ProgressFormatter.warn("Tool '#{tool_name}' has issues, check logs for details")
-            puts
-            puts 'View logs with:'
-            puts "  kubectl logs -n #{ctx.namespace} -l langop.io/tool=#{tool_name}"
-          end
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Failed to test tool: #{e.message}")
-          raise if ENV['DEBUG']
-
-          exit 1
         end
 
         desc 'search [PATTERN]', 'Search available tools in the registry'
@@ -491,45 +428,42 @@ module LanguageOperator
             aictl tool search email        # Find tools matching "email"
         DESC
         def search(pattern = nil)
-          # Load tool patterns registry
-          registry = Config::ToolRegistry.new
-          patterns = registry.fetch
+          handle_command_error('search tools') do
+            # Load tool patterns registry
+            registry = Config::ToolRegistry.new
+            patterns = registry.fetch
 
-          # Filter out aliases and match pattern
-          tools = patterns.select do |key, config|
-            next false if config['alias'] # Skip aliases
+            # Filter out aliases and match pattern
+            tools = patterns.select do |key, config|
+              next false if config['alias'] # Skip aliases
 
-            if pattern
-              # Case-insensitive match on name or description
-              key.downcase.include?(pattern.downcase) ||
-                config['description']&.downcase&.include?(pattern.downcase)
-            else
-              true
+              if pattern
+                # Case-insensitive match on name or description
+                key.downcase.include?(pattern.downcase) ||
+                  config['description']&.downcase&.include?(pattern.downcase)
+              else
+                true
+              end
+            end
+
+            if tools.empty?
+              if pattern
+                Formatters::ProgressFormatter.info("No tools found matching '#{pattern}'")
+              else
+                Formatters::ProgressFormatter.info('No tools found in registry')
+              end
+              return
+            end
+
+            # Display tools in a nice format
+            tools.each do |name, config|
+              description = config['description'] || 'No description'
+
+              # Bold the tool name (ANSI escape codes)
+              bold_name = "\e[1m#{name}\e[0m"
+              puts "#{bold_name} - #{description}"
             end
           end
-
-          if tools.empty?
-            if pattern
-              Formatters::ProgressFormatter.info("No tools found matching '#{pattern}'")
-            else
-              Formatters::ProgressFormatter.info('No tools found in registry')
-            end
-            return
-          end
-
-          # Display tools in a nice format
-          tools.each do |name, config|
-            description = config['description'] || 'No description'
-
-            # Bold the tool name (ANSI escape codes)
-            bold_name = "\e[1m#{name}\e[0m"
-            puts "#{bold_name} - #{description}"
-          end
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Failed to search tools: #{e.message}")
-          raise if ENV['DEBUG']
-
-          exit 1
         end
       end
     end

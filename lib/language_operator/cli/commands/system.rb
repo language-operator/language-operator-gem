@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require 'thor'
 require 'json'
 require 'yaml'
+require_relative '../base_command'
 require_relative '../formatters/progress_formatter'
 require_relative '../../dsl/schema'
 
@@ -10,7 +10,7 @@ module LanguageOperator
   module CLI
     module Commands
       # System commands for schema introspection and metadata
-      class System < Thor
+      class System < BaseCommand
         desc 'schema', 'Export the DSL schema in various formats'
         long_desc <<-DESC
           Export the Language Operator Agent DSL schema in various formats.
@@ -39,30 +39,29 @@ module LanguageOperator
         option :format, type: :string, default: 'json', desc: 'Output format (json, yaml, openapi)'
         option :version, type: :boolean, default: false, desc: 'Show schema version only'
         def schema
-          # Handle version flag
-          if options[:version]
-            puts Dsl::Schema.version
-            return
-          end
+          handle_command_error('generate schema') do
+            # Handle version flag
+            if options[:version]
+              puts Dsl::Schema.version
+              return
+            end
 
-          # Generate schema based on format
-          format = options[:format].downcase
-          case format
-          when 'json'
-            output_json_schema
-          when 'yaml'
-            output_yaml_schema
-          when 'openapi'
-            output_openapi_schema
-          else
-            Formatters::ProgressFormatter.error("Invalid format: #{format}")
-            puts
-            puts 'Supported formats: json, yaml, openapi'
-            exit 1
+            # Generate schema based on format
+            format = options[:format].downcase
+            case format
+            when 'json'
+              output_json_schema
+            when 'yaml'
+              output_yaml_schema
+            when 'openapi'
+              output_openapi_schema
+            else
+              Formatters::ProgressFormatter.error("Invalid format: #{format}")
+              puts
+              puts 'Supported formats: json, yaml, openapi'
+              exit 1
+            end
           end
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Failed to generate schema: #{e.message}")
-          exit 1
         end
 
         no_commands do
@@ -110,95 +109,93 @@ module LanguageOperator
         option :type, type: :string, default: 'agent', desc: 'Template type if using bundled template (agent, persona)'
         option :verbose, type: :boolean, default: false, desc: 'Show detailed violation information'
         def validate_template
-          # Determine template source
-          if options[:template]
-            # Load custom template from file
-            unless File.exist?(options[:template])
-              Formatters::ProgressFormatter.error("Template file not found: #{options[:template]}")
-              exit 1
-            end
-            template_content = File.read(options[:template])
-            template_name = File.basename(options[:template])
-          else
-            # Load bundled template
-            template_type = options[:type].downcase
-            unless %w[agent persona].include?(template_type)
-              Formatters::ProgressFormatter.error("Invalid template type: #{template_type}")
-              puts
-              puts 'Supported types: agent, persona'
-              exit 1
-            end
-            template_content = load_bundled_template(template_type)
-            template_name = "bundled #{template_type} template"
-          end
-
-          # Display header
-          puts "Validating template: #{template_name}"
-          puts '=' * 60
-          puts
-
-          # Extract code examples
-          code_examples = extract_code_examples(template_content)
-
-          if code_examples.empty?
-            Formatters::ProgressFormatter.warn('No Ruby code examples found in template')
-            puts
-            puts 'Templates should contain Ruby code blocks like:'
-            puts '```ruby'
-            puts 'agent "my-agent" do'
-            puts '  # ...'
-            puts 'end'
-            puts '```'
-            exit 1
-          end
-
-          puts "Found #{code_examples.size} code example(s)"
-          puts
-
-          # Validate each example
-          all_valid = true
-          code_examples.each_with_index do |example, idx|
-            puts "Example #{idx + 1} (starting at line #{example[:start_line]}):"
-            puts '-' * 40
-
-            result = validate_code_against_schema(example[:code])
-
-            if result[:valid] && result[:warnings].empty?
-              Formatters::ProgressFormatter.success('Valid - No issues found')
-            elsif result[:valid]
-              Formatters::ProgressFormatter.success('Valid - With warnings')
-              result[:warnings].each do |warn|
-                line = example[:start_line] + (warn[:location] || 0)
-                puts "  ⚠  Line #{line}: #{warn[:message]}"
+          handle_command_error('validate template') do
+            # Determine template source
+            if options[:template]
+              # Load custom template from file
+              unless File.exist?(options[:template])
+                Formatters::ProgressFormatter.error("Template file not found: #{options[:template]}")
+                exit 1
               end
+              template_content = File.read(options[:template])
+              template_name = File.basename(options[:template])
             else
-              Formatters::ProgressFormatter.error('Invalid - Violations detected')
-              result[:errors].each do |err|
-                line = example[:start_line] + (err[:location] || 0)
-                puts "  ✗ Line #{line}: #{err[:message]}"
-                puts "    Type: #{err[:type]}" if options[:verbose]
+              # Load bundled template
+              template_type = options[:type].downcase
+              unless %w[agent persona].include?(template_type)
+                Formatters::ProgressFormatter.error("Invalid template type: #{template_type}")
+                puts
+                puts 'Supported types: agent, persona'
+                exit 1
               end
-              all_valid = false
+              template_content = load_bundled_template(template_type)
+              template_name = "bundled #{template_type} template"
             end
 
+            # Display header
+            puts "Validating template: #{template_name}"
+            puts '=' * 60
             puts
-          end
 
-          # Final summary
-          puts '=' * 60
-          if all_valid
-            Formatters::ProgressFormatter.success('All examples are valid')
-            exit 0
-          else
-            Formatters::ProgressFormatter.error('Validation failed')
+            # Extract code examples
+            code_examples = extract_code_examples(template_content)
+
+            if code_examples.empty?
+              Formatters::ProgressFormatter.warn('No Ruby code examples found in template')
+              puts
+              puts 'Templates should contain Ruby code blocks like:'
+              puts '```ruby'
+              puts 'agent "my-agent" do'
+              puts '  # ...'
+              puts 'end'
+              puts '```'
+              exit 1
+            end
+
+            puts "Found #{code_examples.size} code example(s)"
             puts
-            puts 'Fix the violations above and run validation again.'
-            exit 1
+
+            # Validate each example
+            all_valid = true
+            code_examples.each_with_index do |example, idx|
+              puts "Example #{idx + 1} (starting at line #{example[:start_line]}):"
+              puts '-' * 40
+
+              result = validate_code_against_schema(example[:code])
+
+              if result[:valid] && result[:warnings].empty?
+                Formatters::ProgressFormatter.success('Valid - No issues found')
+              elsif result[:valid]
+                Formatters::ProgressFormatter.success('Valid - With warnings')
+                result[:warnings].each do |warn|
+                  line = example[:start_line] + (warn[:location] || 0)
+                  puts "  ⚠  Line #{line}: #{warn[:message]}"
+                end
+              else
+                Formatters::ProgressFormatter.error('Invalid - Violations detected')
+                result[:errors].each do |err|
+                  line = example[:start_line] + (err[:location] || 0)
+                  puts "  ✗ Line #{line}: #{err[:message]}"
+                  puts "    Type: #{err[:type]}" if options[:verbose]
+                end
+                all_valid = false
+              end
+
+              puts
+            end
+
+            # Final summary
+            puts '=' * 60
+            if all_valid
+              Formatters::ProgressFormatter.success('All examples are valid')
+              exit 0
+            else
+              Formatters::ProgressFormatter.error('Validation failed')
+              puts
+              puts 'Fix the violations above and run validation again.'
+              exit 1
+            end
           end
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Validation error: #{e.message}")
-          puts e.backtrace.first(5).join("\n") if options[:verbose]
-          exit 1
         end
 
         desc 'test-synthesis', 'Test agent synthesis from natural language instructions'
@@ -234,90 +231,88 @@ module LanguageOperator
         option :models, type: :string, desc: 'Comma-separated list of available models'
         option :dry_run, type: :boolean, default: false, desc: 'Show prompt without calling LLM'
         def test_synthesis
-          # Load synthesis template
-          template_content = load_bundled_template('agent')
+          handle_command_error('test synthesis') do
+            # Load synthesis template
+            template_content = load_bundled_template('agent')
 
-          # Detect temporal intent from instructions
-          temporal_intent = detect_temporal_intent(options[:instructions])
+            # Detect temporal intent from instructions
+            temporal_intent = detect_temporal_intent(options[:instructions])
 
-          # Prepare template data
-          template_data = {
-            'Instructions' => options[:instructions],
-            'AgentName' => options[:agent_name],
-            'ToolsList' => format_tools_list(options[:tools]),
-            'ModelsList' => format_models_list(options[:models]),
-            'TemporalIntent' => temporal_intent,
-            'PersonaSection' => '',
-            'ScheduleSection' => temporal_intent == 'scheduled' ? '  schedule "0 */1 * * *"  # Example hourly schedule' : '',
-            'ScheduleRules' => temporal_intent == 'scheduled' ? "\n2. Include schedule with cron expression\n3. Set mode to :scheduled\n4. " : "\n2. ",
-            'ConstraintsSection' => '',
-            'ErrorContext' => nil
-          }
+            # Prepare template data
+            template_data = {
+              'Instructions' => options[:instructions],
+              'AgentName' => options[:agent_name],
+              'ToolsList' => format_tools_list(options[:tools]),
+              'ModelsList' => format_models_list(options[:models]),
+              'TemporalIntent' => temporal_intent,
+              'PersonaSection' => '',
+              'ScheduleSection' => temporal_intent == 'scheduled' ? '  schedule "0 */1 * * *"  # Example hourly schedule' : '',
+              'ScheduleRules' => temporal_intent == 'scheduled' ? "\n2. Include schedule with cron expression\n3. Set mode to :scheduled\n4. " : "\n2. ",
+              'ConstraintsSection' => '',
+              'ErrorContext' => nil
+            }
 
-          # Render template (Go-style template syntax)
-          rendered_prompt = render_go_template(template_content, template_data)
+            # Render template (Go-style template syntax)
+            rendered_prompt = render_go_template(template_content, template_data)
 
-          if options[:dry_run]
-            # Show the prompt that would be sent
-            puts 'Synthesis Prompt Preview'
+            if options[:dry_run]
+              # Show the prompt that would be sent
+              puts 'Synthesis Prompt Preview'
+              puts '=' * 80
+              puts
+              puts rendered_prompt
+              puts
+              puts '=' * 80
+              Formatters::ProgressFormatter.success('Dry-run complete - prompt displayed above')
+              return
+            end
+
+            # Call LLM to generate code
+            puts 'Generating agent code from instructions...'
+            puts
+
+            llm_response = call_llm_for_synthesis(rendered_prompt)
+
+            # Extract Ruby code from response
+            generated_code = extract_ruby_code(llm_response)
+
+            if generated_code.nil?
+              Formatters::ProgressFormatter.error('Failed to extract Ruby code from LLM response')
+              puts
+              puts 'LLM Response:'
+              puts llm_response
+              exit 1
+            end
+
+            # Display generated code
+            puts 'Generated Code:'
+            puts '=' * 80
+            puts generated_code
             puts '=' * 80
             puts
-            puts rendered_prompt
-            puts
-            puts '=' * 80
-            Formatters::ProgressFormatter.success('Dry-run complete - prompt displayed above')
-            return
-          end
 
-          # Call LLM to generate code
-          puts 'Generating agent code from instructions...'
-          puts
+            # Validate generated code
+            puts 'Validating generated code...'
+            validation_result = validate_code_against_schema(generated_code)
 
-          llm_response = call_llm_for_synthesis(rendered_prompt)
-
-          # Extract Ruby code from response
-          generated_code = extract_ruby_code(llm_response)
-
-          if generated_code.nil?
-            Formatters::ProgressFormatter.error('Failed to extract Ruby code from LLM response')
-            puts
-            puts 'LLM Response:'
-            puts llm_response
-            exit 1
-          end
-
-          # Display generated code
-          puts 'Generated Code:'
-          puts '=' * 80
-          puts generated_code
-          puts '=' * 80
-          puts
-
-          # Validate generated code
-          puts 'Validating generated code...'
-          validation_result = validate_code_against_schema(generated_code)
-
-          if validation_result[:valid] && validation_result[:warnings].empty?
-            Formatters::ProgressFormatter.success('✅ Code is valid - No issues found')
-          elsif validation_result[:valid]
-            Formatters::ProgressFormatter.success('✅ Code is valid - With warnings')
-            puts
-            validation_result[:warnings].each do |warn|
-              puts "  ⚠  #{warn[:message]}"
+            if validation_result[:valid] && validation_result[:warnings].empty?
+              Formatters::ProgressFormatter.success('✅ Code is valid - No issues found')
+            elsif validation_result[:valid]
+              Formatters::ProgressFormatter.success('✅ Code is valid - With warnings')
+              puts
+              validation_result[:warnings].each do |warn|
+                puts "  ⚠  #{warn[:message]}"
+              end
+            else
+              Formatters::ProgressFormatter.error('❌ Code validation failed')
+              puts
+              validation_result[:errors].each do |err|
+                puts "  ✗ #{err[:message]}"
+              end
             end
-          else
-            Formatters::ProgressFormatter.error('❌ Code validation failed')
-            puts
-            validation_result[:errors].each do |err|
-              puts "  ✗ #{err[:message]}"
-            end
-          end
 
-          puts
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Test synthesis failed: #{e.message}")
-          puts e.backtrace.first(5).join("\n") if options[:verbose]
-          exit 1
+            puts
+          end
         end
 
         desc 'synthesis-template', 'Export synthesis templates for agent code generation'
@@ -352,62 +347,61 @@ module LanguageOperator
         option :with_schema, type: :boolean, default: false, desc: 'Include DSL schema in output'
         option :validate, type: :boolean, default: false, desc: 'Validate template syntax'
         def synthesis_template
-          # Validate type
-          template_type = options[:type].downcase
-          unless %w[agent persona].include?(template_type)
-            Formatters::ProgressFormatter.error("Invalid template type: #{template_type}")
-            puts
-            puts 'Supported types: agent, persona'
-            exit 1
-          end
-
-          # Load template
-          template_content = load_template(template_type)
-
-          # Validate if requested
-          if options[:validate]
-            validation_result = validate_template_content(template_content, template_type)
-
-            # Display warnings if any
-            unless validation_result[:warnings].empty?
-              Formatters::ProgressFormatter.warn('Template validation warnings:')
-              validation_result[:warnings].each do |warning|
-                puts "  ⚠  #{warning}"
-              end
+          handle_command_error('load template') do
+            # Validate type
+            template_type = options[:type].downcase
+            unless %w[agent persona].include?(template_type)
+              Formatters::ProgressFormatter.error("Invalid template type: #{template_type}")
               puts
+              puts 'Supported types: agent, persona'
+              exit 1
             end
 
-            # Display errors and exit if validation failed
-            if validation_result[:valid]
-              Formatters::ProgressFormatter.success('Template validation passed')
-              return
-            else
-              Formatters::ProgressFormatter.error('Template validation failed:')
-              validation_result[:errors].each do |error|
-                puts "  ✗ #{error}"
+            # Load template
+            template_content = load_template(template_type)
+
+            # Validate if requested
+            if options[:validate]
+              validation_result = validate_template_content(template_content, template_type)
+
+              # Display warnings if any
+              unless validation_result[:warnings].empty?
+                Formatters::ProgressFormatter.warn('Template validation warnings:')
+                validation_result[:warnings].each do |warning|
+                  puts "  ⚠  #{warning}"
+                end
+                puts
               end
+
+              # Display errors and exit if validation failed
+              if validation_result[:valid]
+                Formatters::ProgressFormatter.success('Template validation passed')
+                return
+              else
+                Formatters::ProgressFormatter.error('Template validation failed:')
+                validation_result[:errors].each do |error|
+                  puts "  ✗ #{error}"
+                end
+                exit 1
+              end
+            end
+
+            # Generate output based on format
+            format = options[:format].downcase
+            case format
+            when 'template'
+              output_template_format(template_content)
+            when 'json'
+              output_json_format(template_content, template_type)
+            when 'yaml'
+              output_yaml_format(template_content, template_type)
+            else
+              Formatters::ProgressFormatter.error("Invalid format: #{format}")
+              puts
+              puts 'Supported formats: template, json, yaml'
               exit 1
             end
           end
-
-          # Generate output based on format
-          format = options[:format].downcase
-          case format
-          when 'template'
-            output_template_format(template_content)
-          when 'json'
-            output_json_format(template_content, template_type)
-          when 'yaml'
-            output_yaml_format(template_content, template_type)
-          else
-            Formatters::ProgressFormatter.error("Invalid format: #{format}")
-            puts
-            puts 'Supported formats: template, json, yaml'
-            exit 1
-          end
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("Failed to load template: #{e.message}")
-          exit 1
         end
 
         private

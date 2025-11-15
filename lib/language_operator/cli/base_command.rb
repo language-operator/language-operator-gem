@@ -94,6 +94,23 @@ module LanguageOperator
 
           true
         end
+
+        # List resources or handle empty state
+        # @param type [String] Resource type (e.g., 'LanguageModel')
+        # @param empty_message [String, nil] Custom message when no resources found
+        # @yield Optional block to execute when list is empty (for guidance)
+        # @return [Array<Hash>] List of resources (empty array if none found)
+        def list_resources_or_empty(type, empty_message: nil)
+          resources = ctx.client.list_resources(type, namespace: ctx.namespace)
+
+          if resources.empty?
+            msg = empty_message || "No #{type} resources found in cluster '#{ctx.name}'"
+            Formatters::ProgressFormatter.info(msg)
+            yield if block_given?
+          end
+
+          resources
+        end
       end
       # rubocop:enable Metrics/BlockLength
     end

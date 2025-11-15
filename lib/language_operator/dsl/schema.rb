@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative '../version'
+require_relative '../constants'
 
 module LanguageOperator
   module Dsl
@@ -164,7 +165,7 @@ module LanguageOperator
           mode: {
             type: 'string',
             description: 'Execution mode for the agent',
-            enum: %w[autonomous scheduled reactive]
+            enum: Constants::PRIMARY_MODES
           },
           objectives: {
             type: 'array',

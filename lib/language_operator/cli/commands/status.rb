@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'thor'
+require_relative '../base_command'
 require_relative '../formatters/progress_formatter'
 require_relative '../formatters/table_formatter'
 require_relative '../formatters/status_formatter'
@@ -13,26 +13,26 @@ module LanguageOperator
   module CLI
     module Commands
       # System status and overview command
-      class Status < Thor
+      class Status < BaseCommand
         include Helpers::PastelHelper
 
         desc 'overview', 'Show system status and overview'
         def overview
-          current_cluster = Config::ClusterConfig.current_cluster
-          clusters = Config::ClusterConfig.list_clusters
+          handle_command_error('retrieve cluster status') do
+            current_cluster = Config::ClusterConfig.current_cluster
+            clusters = Config::ClusterConfig.list_clusters
 
-          # Current cluster context
-          if current_cluster
-            cluster_config = Config::ClusterConfig.get_cluster(current_cluster)
+            # Current cluster context
+            if current_cluster
+              cluster_config = Config::ClusterConfig.get_cluster(current_cluster)
 
-            puts "\nCluster Details"
-            puts '----------------'
-            puts "Name: #{pastel.bold.white(current_cluster)}"
-            puts "Namespace: #{pastel.bold.white(cluster_config[:namespace])}"
-            puts
+              puts "\nCluster Details"
+              puts '----------------'
+              puts "Name: #{pastel.bold.white(current_cluster)}"
+              puts "Namespace: #{pastel.bold.white(cluster_config[:namespace])}"
+              puts
 
-            # Check cluster health
-            begin
+              # Check cluster health
               k8s = Helpers::ClusterValidator.kubernetes_client(current_cluster)
 
               # Operator status
@@ -96,29 +96,25 @@ module LanguageOperator
               else
                 puts '  (none)'
               end
-            rescue StandardError => e
-              Formatters::ProgressFormatter.error("Connection failed: #{e.message}")
-              puts
-              puts 'Check your cluster connection and try again'
-            end
-          else
-            Formatters::ProgressFormatter.warn('No cluster selected')
-            puts
-            if clusters.any?
-              puts 'Available clusters:'
-              clusters.each do |cluster|
-                puts "  - #{cluster[:name]}"
-              end
-              puts
-              puts 'Select a cluster with:'
-              puts '  aictl use <cluster>'
             else
-              puts 'No clusters found. Create one with:'
-              puts '  aictl cluster create <name>'
+              Formatters::ProgressFormatter.warn('No cluster selected')
+              puts
+              if clusters.any?
+                puts 'Available clusters:'
+                clusters.each do |cluster|
+                  puts "  - #{cluster[:name]}"
+                end
+                puts
+                puts 'Select a cluster with:'
+                puts '  aictl use <cluster>'
+              else
+                puts 'No clusters found. Create one with:'
+                puts '  aictl cluster create <name>'
+              end
             end
-          end
 
-          puts
+            puts
+          end
         end
 
         default_task :overview
