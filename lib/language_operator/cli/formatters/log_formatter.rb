@@ -108,8 +108,8 @@ module LanguageOperator
               emoji_or_text = Regexp.last_match(1)
               rest = Regexp.last_match(2)
 
-              # Check if first part is an emoji (common log emojis)
-              if emoji_or_text =~ /[▶👤◆🤖→✓✅✗❌⚠️🔍ℹ🔄]/
+              # Check if first part is an emoji (common log emojis - ProgressFormatter standard)
+              if emoji_or_text =~ /[☰☢⚠✗✔✅]/
                 level = emoji_to_level(emoji_or_text)
                 # Message already has emoji, just format rest without adding another icon
                 message_text, metadata = extract_metadata(rest)
@@ -165,34 +165,34 @@ module LanguageOperator
           def determine_icon_and_color(message, level)
             case message
             when /Starting execution|Starting iteration|Starting autonomous/i
-              ['▶', :cyan]
-            when /Loading persona|Persona:/i
-              ['👤', :cyan]
+              ['☰', :cyan]
+            when /Loading persona|Persona:|Configuring|Configuration/i
+              ['☰', :cyan]
             when /Connecting to tool|Calling tool|MCP server/i
-              ['◆', :blue]
+              ['☰', :blue]
             when /LLM request|Prompt|🤖/i
-              ['🤖', :magenta]
+              ['☰', :magenta]
             when /Tool completed|result|response|found/i
-              ['→', :yellow]
+              ['☰', :yellow]
             when /Iteration completed|completed|finished/i
-              ['✓', :green]
+              ['✔', :green]
             when /Execution complete|✅|workflow.*completed/i
-              ['✅', :green]
+              ['✔', :green]
             when /error|fail|✗|❌/i
               ['✗', :red]
-            when /warn|⚠️/i
-              ['⚠️', :yellow]
+            when /warn|⚠/i
+              ['⚠', :yellow]
             else
               # Default based on level
               case level&.upcase
               when 'ERROR'
                 ['✗', :red]
               when 'WARN'
-                ['⚠️', :yellow]
+                ['⚠', :yellow]
               when 'DEBUG'
-                ['🔍', :dim]
+                ['☢', :dim]
               else
-                ['', :white]
+                ['☰', :white]
               end
             end
           end
@@ -249,19 +249,15 @@ module LanguageOperator
           # Convert emoji to log level
           def emoji_to_level(emoji)
             case emoji
-            when 'ℹ️', 'ℹ'
+            when 'ℹ️', 'ℹ', '☰'
               'INFO'
-            when '🔍'
+            when '🔍', '☢'
               'DEBUG'
             when '⚠️', '⚠'
               'WARN'
             when '❌', '✗'
               'ERROR'
-            when '▶', '👤', '◆'
-              'INFO'
-            when '🤖'
-              'INFO'
-            when '→', '✓', '✅'
+            when '✓', '✔', '✅'
               'INFO'
             else
               'INFO'

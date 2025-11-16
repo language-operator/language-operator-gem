@@ -198,7 +198,7 @@ module LanguageOperator
           end
         end
 
-        desc 'synthesize INSTRUCTIONS', 'Synthesize agent code from natural language instructions'
+        desc 'synthesize [INSTRUCTIONS]', 'Synthesize agent code from natural language instructions'
         long_desc <<-DESC
           Synthesize agent code by converting natural language instructions
           into Ruby DSL code without creating an actual agent.
@@ -206,6 +206,9 @@ module LanguageOperator
           This command uses a LanguageModel resource from your cluster to generate
           agent code. If --model is not specified, the first available model will
           be auto-selected.
+
+          Instructions can be provided either as a command argument or via STDIN.
+          If no argument is provided, the command will read from STDIN.
 
           This command helps you validate your instructions and understand how the
           synthesis engine interprets them. Use --dry-run to see the prompt that
@@ -224,6 +227,12 @@ module LanguageOperator
             # Output raw code without formatting (useful for piping to files)
             aictl system synthesize "Monitor logs" --raw > agent.rb
 
+            # Read instructions from STDIN
+            cat instructions.txt | aictl system synthesize > agent.rb
+
+            # Read from STDIN with pipe
+            echo "Monitor GitHub issues" | aictl system synthesize --raw
+
             # Specify custom agent name and tools
             aictl system synthesize "Process webhooks from GitHub" \\
               --agent-name github-processor \\
@@ -236,8 +245,29 @@ module LanguageOperator
         option :model, type: :string, desc: 'Model to use for synthesis (defaults to first available in cluster)'
         option :dry_run, type: :boolean, default: false, desc: 'Show prompt without calling LLM'
         option :raw, type: :boolean, default: false, desc: 'Output only the raw code without formatting'
-        def synthesize(instructions)
+        def synthesize(instructions = nil)
           handle_command_error('synthesize agent') do
+            # Read instructions from STDIN if not provided as argument
+            if instructions.nil? || instructions.strip.empty?
+              unless $stdin.tty?
+                instructions = $stdin.read.strip
+                if instructions.empty?
+                  Formatters::ProgressFormatter.error('No instructions provided')
+                  puts
+                  puts 'Provide instructions either as an argument or via STDIN:'
+                  puts '  aictl system synthesize "Your instructions here"'
+                  puts '  cat instructions.txt | aictl system synthesize'
+                  exit 1
+                end
+              else
+                Formatters::ProgressFormatter.error('No instructions provided')
+                puts
+                puts 'Provide instructions either as an argument or via STDIN:'
+                puts '  aictl system synthesize "Your instructions here"'
+                puts '  cat instructions.txt | aictl system synthesize'
+                exit 1
+              end
+            end
             # Select model to use for synthesis
             selected_model = select_synthesis_model
 
@@ -303,6 +333,140 @@ module LanguageOperator
             highlighted_code = formatter.format(lexer.lex(generated_code))
 
             puts highlighted_code
+          end
+        end
+
+        desc 'exec [AGENT_FILE]', 'Execute an agent file in a test pod on the cluster'
+        long_desc <<-DESC
+          Deploy and execute an agent file in a temporary test pod on the Kubernetes cluster.
+
+          This command creates a ConfigMap with the agent code, deploys a test pod,
+          streams the logs until completion, and cleans up all resources.
+
+          The agent code is mounted at /etc/agent/code/agent.rb as expected by the agent runtime.
+
+          Agent code can be provided either as a file path or via STDIN.
+          If no file path is provided, the command will read from STDIN.
+
+          Examples:
+            # Execute a synthesized agent file
+            aictl system exec agent.rb
+
+            # Execute with a custom agent name
+            aictl system exec agent.rb --agent-name my-test
+
+            # Keep the pod after execution for debugging
+            aictl system exec agent.rb --keep-pod
+
+            # Use a different agent image
+            aictl system exec agent.rb --image ghcr.io/language-operator/agent:v0.1.0
+
+            # Read agent code from STDIN
+            cat agent.rb | aictl system exec
+
+            # Pipe synthesized code directly to execution
+            cat agent.txt | aictl system synthesize | aictl system exec
+        DESC
+        option :agent_name, type: :string, default: 'test-agent', desc: 'Name for the test agent pod'
+        option :keep_pod, type: :boolean, default: false, desc: 'Keep the pod after execution (for debugging)'
+        option :image, type: :string, default: 'ghcr.io/language-operator/agent:latest', desc: 'Agent container image'
+        option :timeout, type: :numeric, default: 300, desc: 'Timeout in seconds for agent execution'
+        def exec(agent_file = nil)
+          handle_command_error('exec agent') do
+            # Verify cluster is selected
+            unless ctx.client
+              Formatters::ProgressFormatter.error('No cluster context available')
+              puts
+              puts 'Please configure kubectl with a valid cluster context:'
+              puts '  kubectl config get-contexts'
+              puts '  kubectl config use-context <context-name>'
+              exit 1
+            end
+
+            # Read agent code from file or STDIN
+            agent_code = if agent_file && !agent_file.strip.empty?
+                           # Read from file
+                           unless File.exist?(agent_file)
+                             Formatters::ProgressFormatter.error("Agent file not found: #{agent_file}")
+                             exit 1
+                           end
+                           File.read(agent_file)
+                         else
+                           # Read from STDIN
+                           unless $stdin.tty?
+                             code = $stdin.read.strip
+                             if code.empty?
+                               Formatters::ProgressFormatter.error('No agent code provided')
+                               puts
+                               puts 'Provide agent code either as a file or via STDIN:'
+                               puts '  aictl system exec agent.rb'
+                               puts '  cat agent.rb | aictl system exec'
+                               exit 1
+                             end
+                             code
+                           else
+                             Formatters::ProgressFormatter.error('No agent code provided')
+                             puts
+                             puts 'Provide agent code either as a file or via STDIN:'
+                             puts '  aictl system exec agent.rb'
+                             puts '  cat agent.rb | aictl system exec'
+                             exit 1
+                           end
+                         end
+
+            # Generate unique names
+            timestamp = Time.now.to_i
+            configmap_name = "#{options[:agent_name]}-code-#{timestamp}"
+            pod_name = "#{options[:agent_name]}-#{timestamp}"
+            source_desc = agent_file ? "file: #{agent_file}" : 'STDIN'
+
+            begin
+              # Create ConfigMap with agent code
+              Formatters::ProgressFormatter.with_spinner('Creating ConfigMap with agent code') do
+                create_agent_configmap(configmap_name, agent_code)
+              end
+
+              # Create test pod
+              Formatters::ProgressFormatter.with_spinner('Creating test pod') do
+                create_test_pod(pod_name, configmap_name, options[:image])
+              end
+
+              # Wait for pod to be ready or running
+              Formatters::ProgressFormatter.with_spinner('Waiting for pod to start') do
+                wait_for_pod_start(pod_name, timeout: 60)
+              end
+
+              # Stream logs until pod completes
+              stream_pod_logs(pod_name, timeout: options[:timeout])
+
+              # Wait for pod to fully terminate and get final status
+              exit_code = wait_for_pod_termination(pod_name)
+
+              if exit_code&.zero?
+                Formatters::ProgressFormatter.success('Agent completed successfully')
+              elsif exit_code
+                Formatters::ProgressFormatter.error("Agent failed with exit code: #{exit_code}")
+              else
+                Formatters::ProgressFormatter.warn('Unable to determine pod exit status')
+              end
+            ensure
+              # Clean up resources unless --keep-pod
+              unless options[:keep_pod]
+                puts
+                Formatters::ProgressFormatter.with_spinner('Cleaning up resources') do
+                  delete_pod(pod_name)
+                  delete_configmap(configmap_name)
+                end
+              else
+                puts
+                Formatters::ProgressFormatter.info('Resources kept for debugging:')
+                puts "  Pod: #{pod_name}"
+                puts "  ConfigMap: #{configmap_name}"
+                puts
+                puts "To view logs: kubectl logs -n #{ctx.namespace} #{pod_name}"
+                puts "To delete:    kubectl delete pod,configmap -n #{ctx.namespace} #{pod_name} #{configmap_name}"
+              end
+            end
           end
         end
 
@@ -893,6 +1057,202 @@ module LanguageOperator
           end
 
           puts YAML.dump(data)
+        end
+
+        # Create a ConfigMap with agent code
+        def create_agent_configmap(name, code)
+          configmap = {
+            'apiVersion' => 'v1',
+            'kind' => 'ConfigMap',
+            'metadata' => {
+              'name' => name,
+              'namespace' => ctx.namespace
+            },
+            'data' => {
+              'agent.rb' => code
+            }
+          }
+
+          ctx.client.create_resource(configmap)
+        end
+
+        # Create a test pod for running the agent
+        def create_test_pod(name, configmap_name, image)
+          # Detect available models in the cluster
+          model_env = detect_model_config
+
+          env_vars = [
+            { 'name' => 'AGENT_NAME', 'value' => name },
+            { 'name' => 'AGENT_MODE', 'value' => 'autonomous' },
+            { 'name' => 'AGENT_CODE_PATH', 'value' => '/etc/agent/code/agent.rb' },
+            { 'name' => 'CONFIG_PATH', 'value' => '/nonexistent/config.yaml' }
+          ]
+
+          # Add model configuration if available
+          env_vars += model_env if model_env
+
+          pod = {
+            'apiVersion' => 'v1',
+            'kind' => 'Pod',
+            'metadata' => {
+              'name' => name,
+              'namespace' => ctx.namespace,
+              'labels' => {
+                'app.kubernetes.io/name' => name,
+                'app.kubernetes.io/component' => 'test-agent'
+              }
+            },
+            'spec' => {
+              'restartPolicy' => 'Never',
+              'containers' => [
+                {
+                  'name' => 'agent',
+                  'image' => image,
+                  'env' => env_vars,
+                  'volumeMounts' => [
+                    {
+                      'name' => 'agent-code',
+                      'mountPath' => '/etc/agent/code',
+                      'readOnly' => true
+                    }
+                  ]
+                }
+              ],
+              'volumes' => [
+                {
+                  'name' => 'agent-code',
+                  'configMap' => {
+                    'name' => configmap_name
+                  }
+                }
+              ]
+            }
+          }
+
+          ctx.client.create_resource(pod)
+        end
+
+        # Detect model configuration from the cluster
+        def detect_model_config
+          models = ctx.client.list_resources('LanguageModel', namespace: ctx.namespace)
+          return nil if models.empty?
+
+          # Use first available model
+          model = models.first
+          model_name = model.dig('metadata', 'name')
+          model_id = model.dig('spec', 'modelName')
+
+          # Build endpoint URL (port 8000 is the model service port)
+          endpoint = "http://#{model_name}.#{ctx.namespace}.svc.cluster.local:8000"
+
+          [
+            { 'name' => 'MODEL_ENDPOINTS', 'value' => endpoint },
+            { 'name' => 'LLM_MODEL', 'value' => model_id },
+            { 'name' => 'OPENAI_API_KEY', 'value' => 'sk-dummy-key-for-local-proxy' }
+          ]
+        rescue StandardError
+          # If we can't detect models, return nil and let the agent handle it
+          nil
+        end
+
+        # Wait for pod to start (running or terminated)
+        def wait_for_pod_start(name, timeout: 60)
+          start_time = Time.now
+          loop do
+            pod = ctx.client.get_resource('Pod', name, ctx.namespace)
+            phase = pod.dig('status', 'phase')
+
+            return if %w[Running Succeeded Failed].include?(phase)
+
+            if Time.now - start_time > timeout
+              raise "Pod #{name} did not start within #{timeout} seconds"
+            end
+
+            sleep 1
+          end
+        end
+
+        # Stream pod logs until completion
+        def stream_pod_logs(name, timeout: 300)
+          require 'open3'
+
+          cmd = "kubectl logs -f -n #{ctx.namespace} #{name} 2>&1"
+          Open3.popen3(cmd) do |_stdin, stdout, _stderr, wait_thr|
+            # Set up timeout
+            start_time = Time.now
+
+            # Stream logs
+            stdout.each_line do |line|
+              puts line
+
+              # Check timeout
+              if Time.now - start_time > timeout
+                Process.kill('TERM', wait_thr.pid)
+                raise "Log streaming timed out after #{timeout} seconds"
+              end
+            end
+
+            # Wait for process to complete
+            wait_thr.value
+          end
+        rescue Errno::EPIPE
+          # Pod terminated, logs finished
+        end
+
+        # Wait for pod to terminate and get exit code
+        def wait_for_pod_termination(name, timeout: 10)
+          # Give the pod a moment to fully transition after logs complete
+          sleep 2
+
+          start_time = Time.now
+          loop do
+            begin
+              pod = ctx.client.get_resource('Pod', name, ctx.namespace)
+              phase = pod.dig('status', 'phase')
+              container_status = pod.dig('status', 'containerStatuses', 0)
+
+              # Pod completed successfully or failed
+              if phase == 'Succeeded' || phase == 'Failed'
+                if container_status && (terminated = container_status.dig('state', 'terminated'))
+                  return terminated['exitCode']
+                end
+              end
+
+              # Check timeout
+              if Time.now - start_time > timeout
+                # Try one last time
+                if container_status && (terminated = container_status.dig('state', 'terminated'))
+                  return terminated['exitCode']
+                end
+                return nil
+              end
+
+              sleep 0.5
+            rescue K8s::Error::NotFound
+              # Pod was deleted before we could get status
+              return nil
+            end
+          end
+        end
+
+        # Get pod status
+        def get_pod_status(name)
+          pod = ctx.client.get_resource('Pod', name, ctx.namespace)
+          pod.to_h.fetch('status', {})
+        end
+
+        # Delete a pod
+        def delete_pod(name)
+          ctx.client.delete_resource('Pod', name, ctx.namespace)
+        rescue K8s::Error::NotFound
+          # Already deleted
+        end
+
+        # Delete a ConfigMap
+        def delete_configmap(name)
+          ctx.client.delete_resource('ConfigMap', name, ctx.namespace)
+        rescue K8s::Error::NotFound
+          # Already deleted
         end
       end
     end

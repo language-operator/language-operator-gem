@@ -40,7 +40,6 @@ Metrics/ClassLength:
     - 'lib/language_operator/agent/**/*'
     - 'lib/language_operator/kubernetes/**/*'
     - 'lib/language_operator/dsl/**/*'
-    - 'lib/language_operator/synthesis_test_harness.rb'
 
 Metrics/ModuleLength:
   Max: 150
@@ -112,7 +111,6 @@ Naming/MethodParameterName:
 Naming/PredicateMethod:
   Exclude:
     - 'lib/language_operator/agent/webhook_authenticator.rb'
-    - 'lib/language_operator/synthesis_test_harness.rb'
 
 # Layout
 Layout/LineLength:
@@ -121,4 +119,3 @@ Layout/LineLength:
     - 'spec/**/*'
     - '*.gemspec'
     - 'lib/language_operator/agent/executor.rb'
-    - 'lib/language_operator/synthesis_test_harness.rb'

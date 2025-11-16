@@ -1,26 +1,18 @@
-# frozen_string_literal: true
-
 require 'language_operator'
 
-agent 'hello-world' do
-  description 'Logs a message to stdout'
+agent "test-agent" do
+  description "Log a message to stdout as per instructions"
 
-  task :log_message,
-       instructions: "log the message 'Hello, world!' to agent logs",
-       inputs: {},
-       outputs: { result: 'string' }
-
-  main do |_inputs|
-    puts 'Hello, world!'
-    { result: 'message logged' }
+  task :generate_log_message do |inputs|
+    { message: "Test agent is saying hello!" }
   end
 
-  constraints do
-    max_iterations 999_999
-    timeout '10m'
+  main do |inputs|
+    result = execute_task(:generate_log_message)
+    result
   end
 
-  output do
-    workspace 'results/output.txt'
+  output do |outputs|
+    puts outputs[:message]
   end
 end

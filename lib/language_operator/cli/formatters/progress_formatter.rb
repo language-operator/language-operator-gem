@@ -12,7 +12,7 @@ module LanguageOperator
           include Helpers::PastelHelper
 
           def with_spinner(message, success_msg: nil, &block)
-            spinner = TTY::Spinner.new("[:spinner] #{message}...", format: :dots, success_mark: pastel.green('✔'))
+            spinner = TTY::Spinner.new(":spinner #{message}...", format: :dots, success_mark: pastel.green('✔'))
             spinner.auto_spin
 
             result = block.call
@@ -28,19 +28,23 @@ module LanguageOperator
           end
 
           def success(message)
-            puts "[#{pastel.green('✔')}] #{message}"
+            puts "#{pastel.green('✔')} #{message}"
           end
 
           def error(message)
-            puts "[#{pastel.red('✗')}] #{message}"
+            puts "#{pastel.red('✗')} #{message}"
           end
 
           def info(message)
-            puts pastel.dim(message)
+            puts "#{pastel.white('☰')} #{pastel.dim(message)}"
+          end
+
+          def debug(message)
+            puts "#{pastel.white('☢')} #{pastel.dim(message)}"
           end
 
           def warn(message)
-            puts "[#{pastel.yellow('⚠')}] #{message}"
+            puts "#{pastel.yellow.bold('⚠')} #{message}"
           end
         end
       end

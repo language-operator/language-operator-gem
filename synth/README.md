@@ -159,13 +159,13 @@ end
 
 ### Implementation
 
-The test harness is implemented in:
+The synthesis functionality is now integrated directly into the `aictl` CLI:
 
-```
-lib/language_operator/synthesis_test_harness.rb
+```bash
+aictl system synthesize [INSTRUCTIONS]
 ```
 
-It replicates the Go operator's synthesis logic but runs locally in Ruby.
+This command uses LanguageModel resources from your cluster to generate agent code.
 
 ## Adding New Test Cases
 

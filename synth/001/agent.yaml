@@ -1,7 +1,0 @@
-apiVersion: langop.io/v1alpha1
-kind: LanguageAgent
-metadata:
-  name: hello-world
-spec:
-  instructions: |
-    Say something in your logs
