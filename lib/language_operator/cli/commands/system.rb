@@ -627,7 +627,7 @@ module LanguageOperator
         # Load bundled template from gem
         def load_bundled_template(type)
           filename = type == 'agent' ? 'agent_synthesis.tmpl' : 'persona_distillation.tmpl'
-          template_path = File.join(__dir__, '..', '..', 'templates', 'examples', filename)
+          template_path = File.join(__dir__, '..', '..', 'templates', filename)
           File.read(template_path)
         end
 
