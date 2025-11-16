@@ -5,18 +5,18 @@ FROM ghcr.io/language-operator/base:latest
 # Create application directory
 WORKDIR /app
 
-# Copy local gem if building in CI (will be downloaded from artifact)
-# Otherwise will use published gem from RubyGems
-COPY language-operator-*.gem /tmp/ 2>/dev/null || true
-
 # Copy Gemfile and install dependencies
 COPY Gemfile /app/
+
+# Copy local gem if building in CI (will be downloaded from artifact)
+# Use wildcard with --chown to avoid failure if file doesn't exist
+COPY --chown=root:root language-operator-*.gem* /tmp/
 
 # Install local gem first if it exists, then install bundle dependencies
 RUN if ls /tmp/language-operator-*.gem 1> /dev/null 2>&1; then \
         echo "Installing local language-operator gem..." && \
         gem install /tmp/language-operator-*.gem && \
-        rm /tmp/language-operator-*.gem; \
+        rm /tmp/language-operator-*.gem*; \
     fi && \
     bundle install --no-cache
 
