@@ -122,7 +122,7 @@ def fallback_to_autonomous
   agent = LanguageOperator::Agent::Base.new(config)
 
   # Get instructions from environment
-  instructions = ENV['AGENT_INSTRUCTIONS']
+  instructions = ENV.fetch('AGENT_INSTRUCTIONS', nil)
 
   if instructions && !instructions.empty?
     agent.connect!

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "language_operator"
+require 'language_operator'
 
 # Convenience - export LanguageOperator classes at top level for tool definitions
 #
@@ -17,4 +17,4 @@ require "language_operator"
 #   end
 
 # Alias ToolLoader at top level for convenience
-ToolLoader = ::LanguageOperator::ToolLoader
+ToolLoader = LanguageOperator::ToolLoader

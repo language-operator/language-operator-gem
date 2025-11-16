@@ -1,45 +1,47 @@
 # Example tool demonstrating all the new helper features
 
 # Example 1: Using built-in parameter validators
-tool "send_message" do
-  description "Send a message to an email or phone number"
+tool 'send_message' do
+  description 'Send a message to an email or phone number'
 
-  parameter "recipient" do
+  parameter 'recipient' do
     type :string
     required true
-    description "Email address or phone number"
+    description 'Email address or phone number'
     # You can use built-in validators
     # email_format or phone_format
   end
 
-  parameter "message" do
+  parameter 'message' do
     type :string
     required true
-    description "The message to send"
+    description 'The message to send'
   end
 
   execute do |params|
-    recipient = params["recipient"]
-    message = params["message"]
+    recipient = params['recipient']
+    message = params['message']
 
     # Use validation helpers
     if recipient.include?('@')
       error = validate_email(recipient)
       return error if error
+
       "Email sent to #{recipient}: #{message}"
     else
       error = validate_phone(recipient)
       return error if error
+
       "SMS sent to #{recipient}: #{message}"
     end
   end
 end
 
 # Example 2: Using Config helper for environment variables
-tool "check_smtp_config" do
-  description "Check SMTP configuration with fallback keys"
+tool 'check_smtp_config' do
+  description 'Check SMTP configuration with fallback keys'
 
-  execute do |params|
+  execute do |_params|
     # Get config with multiple fallback keys
     host = Config.get('SMTP_HOST', 'MAIL_HOST', default: 'localhost')
     port = Config.get_int('SMTP_PORT', 'MAIL_PORT', default: 587)
@@ -60,18 +62,18 @@ tool "check_smtp_config" do
 end
 
 # Example 3: Using HTTP helper
-tool "fetch_json" do
-  description "Fetch JSON data from a URL"
+tool 'fetch_json' do
+  description 'Fetch JSON data from a URL'
 
-  parameter "url" do
+  parameter 'url' do
     type :string
     required true
-    description "URL to fetch"
-    url_format  # Built-in validator
+    description 'URL to fetch'
+    url_format # Built-in validator
   end
 
   execute do |params|
-    url = params["url"]
+    url = params['url']
 
     # Use HTTP helper instead of curl
     response = HTTP.get(url, headers: { 'Accept' => 'application/json' })
@@ -89,74 +91,74 @@ tool "fetch_json" do
 end
 
 # Example 4: Using Shell helper for safe command execution
-tool "safe_grep" do
-  description "Safely search for a pattern in a file"
+tool 'safe_grep' do
+  description 'Safely search for a pattern in a file'
 
-  parameter "pattern" do
+  parameter 'pattern' do
     type :string
     required true
-    description "Search pattern"
+    description 'Search pattern'
   end
 
-  parameter "file" do
+  parameter 'file' do
     type :string
     required true
-    description "File to search in"
+    description 'File to search in'
   end
 
   execute do |params|
     # This is safe from injection attacks!
-    result = Shell.run('grep', params["pattern"], params["file"])
+    result = Shell.run('grep', params['pattern'], params['file'])
 
     if result[:success]
       "Found matches:\n#{result[:output]}"
     else
-      "No matches found"
+      'No matches found'
     end
   end
 end
 
 # Example 5: Using custom validation
-tool "restricted_command" do
-  description "Run a command from an allowed list"
+tool 'restricted_command' do
+  description 'Run a command from an allowed list'
 
-  parameter "command" do
+  parameter 'command' do
     type :string
     required true
-    description "Command to run (must be in allowed list)"
-    validate ->(cmd) {
-      allowed = ['ls', 'pwd', 'whoami', 'date']
+    description 'Command to run (must be in allowed list)'
+    validate lambda { |cmd|
+      allowed = %w[ls pwd whoami date]
       allowed.include?(cmd) || "Command '#{cmd}' not allowed. Allowed: #{allowed.join(', ')}"
     }
   end
 
   execute do |params|
-    result = Shell.run(params["command"])
+    result = Shell.run(params['command'])
     result[:output]
   end
 end
 
 # Example 6: Using multiple helpers together
-tool "web_health_check" do
-  description "Check if a web service is healthy"
+tool 'web_health_check' do
+  description 'Check if a web service is healthy'
 
-  parameter "url" do
+  parameter 'url' do
     type :string
     required true
-    description "Service URL to check"
+    description 'Service URL to check'
     url_format
   end
 
-  parameter "expected_status" do
+  parameter 'expected_status' do
     type :number
     required false
-    description "Expected HTTP status code"
+    description 'Expected HTTP status code'
     default 200
   end
 
   execute do |params|
-    url = params["url"]
-    expected = params["expected_status"] || 200
+    url = params['url']
+    expected = params['expected_status'] || 200
 
     # Use HTTP helper
     response = HTTP.head(url)
@@ -172,10 +174,10 @@ tool "web_health_check" do
 end
 
 # Example 7: Using env_required helper
-tool "database_info" do
-  description "Show database connection info"
+tool 'database_info' do
+  description 'Show database connection info'
 
-  execute do |params|
+  execute do |_params|
     # Check required env vars
     error = env_required('DATABASE_URL', 'DB_HOST')
     return error if error
