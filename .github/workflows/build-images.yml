@@ -88,17 +88,11 @@ jobs:
           context: ./components/base
           file: ./components/base/Dockerfile
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push != 'false') }}
+          load: ${{ github.event_name == 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          outputs: type=docker,dest=/tmp/base-image.tar
-
-      - name: Upload base image artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: base-image
-          path: /tmp/base-image.tar
 
   # Build component images (tool, agent) - depend on gem and base
   build-components:
@@ -123,22 +117,17 @@ jobs:
           name: gem-package
           path: ./components/${{ matrix.component }}
 
-      - name: Download base image
-        uses: actions/download-artifact@v4
-        with:
-          name: base-image
-          path: /tmp
-
-      - name: Load base image
-        run: docker load --input /tmp/base-image.tar
-
-      - name: Log in to Container Registry
-        if: github.event_name != 'pull_request'
+      - name: Log in to Container Registry (to pull base image)
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull base image
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/base:main
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/base:main ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/base:latest
 
       - name: Extract metadata
         id: meta
@@ -160,9 +149,8 @@ jobs:
           context: ./components/${{ matrix.component }}
           file: ./components/${{ matrix.component }}/Dockerfile
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push != 'false') }}
+          load: ${{ github.event_name == 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: |
-            GEM_FILE=language-operator-*.gem
