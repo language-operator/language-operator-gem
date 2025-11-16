@@ -23,10 +23,10 @@ module LanguageOperator
     }.freeze
 
     LEVEL_EMOJI = {
-      'DEBUG' => "\e[1;90m·\e[0m",   # Bold gray middot
-      'INFO' => "\e[1;36m·\e[0m",    # Bold cyan middot
-      'WARN' => "\e[1;33m·\e[0m",    # Bold yellow middot
-      'ERROR' => "\e[1;31m·\e[0m"    # Bold red middot
+      'DEBUG' => "\e[1;90m☢\e[0m",   # Bold gray radioactive symbol
+      'INFO' => "\e[1;36m☰\e[0m",    # Bold cyan trigram
+      'WARN' => "\e[1;33m⚠\e[0m",    # Bold yellow warning
+      'ERROR' => "\e[1;31m✗\e[0m"    # Bold red cross
     }.freeze
 
     attr_reader :logger, :format, :show_timing
