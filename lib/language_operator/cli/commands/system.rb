@@ -249,7 +249,14 @@ module LanguageOperator
           handle_command_error('synthesize agent') do
             # Read instructions from STDIN if not provided as argument
             if instructions.nil? || instructions.strip.empty?
-              unless $stdin.tty?
+              if $stdin.tty?
+                Formatters::ProgressFormatter.error('No instructions provided')
+                puts
+                puts 'Provide instructions either as an argument or via STDIN:'
+                puts '  aictl system synthesize "Your instructions here"'
+                puts '  cat instructions.txt | aictl system synthesize'
+                exit 1
+              else
                 instructions = $stdin.read.strip
                 if instructions.empty?
                   Formatters::ProgressFormatter.error('No instructions provided')
@@ -259,13 +266,6 @@ module LanguageOperator
                   puts '  cat instructions.txt | aictl system synthesize'
                   exit 1
                 end
-              else
-                Formatters::ProgressFormatter.error('No instructions provided')
-                puts
-                puts 'Provide instructions either as an argument or via STDIN:'
-                puts '  aictl system synthesize "Your instructions here"'
-                puts '  cat instructions.txt | aictl system synthesize'
-                exit 1
               end
             end
             # Select model to use for synthesis
@@ -391,20 +391,17 @@ module LanguageOperator
                              exit 1
                            end
                            File.read(agent_file)
-                         else
+                         elsif $stdin.tty?
                            # Read from STDIN
-                           unless $stdin.tty?
-                             code = $stdin.read.strip
-                             if code.empty?
-                               Formatters::ProgressFormatter.error('No agent code provided')
-                               puts
-                               puts 'Provide agent code either as a file or via STDIN:'
-                               puts '  aictl system exec agent.rb'
-                               puts '  cat agent.rb | aictl system exec'
-                               exit 1
-                             end
-                             code
-                           else
+                           Formatters::ProgressFormatter.error('No agent code provided')
+                           puts
+                           puts 'Provide agent code either as a file or via STDIN:'
+                           puts '  aictl system exec agent.rb'
+                           puts '  cat agent.rb | aictl system exec'
+                           exit 1
+                         else
+                           code = $stdin.read.strip
+                           if code.empty?
                              Formatters::ProgressFormatter.error('No agent code provided')
                              puts
                              puts 'Provide agent code either as a file or via STDIN:'
@@ -412,13 +409,13 @@ module LanguageOperator
                              puts '  cat agent.rb | aictl system exec'
                              exit 1
                            end
+                           code
                          end
 
             # Generate unique names
             timestamp = Time.now.to_i
             configmap_name = "#{options[:agent_name]}-code-#{timestamp}"
             pod_name = "#{options[:agent_name]}-#{timestamp}"
-            source_desc = agent_file ? "file: #{agent_file}" : 'STDIN'
 
             begin
               # Create ConfigMap with agent code
@@ -451,20 +448,20 @@ module LanguageOperator
               end
             ensure
               # Clean up resources unless --keep-pod
-              unless options[:keep_pod]
-                puts
-                Formatters::ProgressFormatter.with_spinner('Cleaning up resources') do
-                  delete_pod(pod_name)
-                  delete_configmap(configmap_name)
-                end
-              else
-                puts
+              puts
+              puts
+              if options[:keep_pod]
                 Formatters::ProgressFormatter.info('Resources kept for debugging:')
                 puts "  Pod: #{pod_name}"
                 puts "  ConfigMap: #{configmap_name}"
                 puts
                 puts "To view logs: kubectl logs -n #{ctx.namespace} #{pod_name}"
                 puts "To delete:    kubectl delete pod,configmap -n #{ctx.namespace} #{pod_name} #{configmap_name}"
+              else
+                Formatters::ProgressFormatter.with_spinner('Cleaning up resources') do
+                  delete_pod(pod_name)
+                  delete_configmap(configmap_name)
+                end
               end
             end
           end
@@ -1164,9 +1161,7 @@ module LanguageOperator
 
             return if %w[Running Succeeded Failed].include?(phase)
 
-            if Time.now - start_time > timeout
-              raise "Pod #{name} did not start within #{timeout} seconds"
-            end
+            raise "Pod #{name} did not start within #{timeout} seconds" if Time.now - start_time > timeout
 
             sleep 1
           end
@@ -1206,32 +1201,29 @@ module LanguageOperator
 
           start_time = Time.now
           loop do
-            begin
-              pod = ctx.client.get_resource('Pod', name, ctx.namespace)
-              phase = pod.dig('status', 'phase')
-              container_status = pod.dig('status', 'containerStatuses', 0)
+            pod = ctx.client.get_resource('Pod', name, ctx.namespace)
+            phase = pod.dig('status', 'phase')
+            container_status = pod.dig('status', 'containerStatuses', 0)
 
-              # Pod completed successfully or failed
-              if phase == 'Succeeded' || phase == 'Failed'
-                if container_status && (terminated = container_status.dig('state', 'terminated'))
-                  return terminated['exitCode']
-                end
+            # Pod completed successfully or failed
+            if %w[Succeeded Failed].include?(phase) && container_status && (terminated = container_status.dig('state', 'terminated'))
+              return terminated['exitCode']
+            end
+
+            # Check timeout
+            if Time.now - start_time > timeout
+              # Try one last time
+              if container_status && (terminated = container_status.dig('state', 'terminated'))
+                return terminated['exitCode']
               end
 
-              # Check timeout
-              if Time.now - start_time > timeout
-                # Try one last time
-                if container_status && (terminated = container_status.dig('state', 'terminated'))
-                  return terminated['exitCode']
-                end
-                return nil
-              end
-
-              sleep 0.5
-            rescue K8s::Error::NotFound
-              # Pod was deleted before we could get status
               return nil
             end
+
+            sleep 0.5
+          rescue K8s::Error::NotFound
+            # Pod was deleted before we could get status
+            return nil
           end
         end
 
