@@ -494,7 +494,7 @@ module LanguageOperator
         # Call LLM to generate code from synthesis prompt using cluster model
         def call_llm_for_synthesis(prompt, model_name)
           require 'json'
-          require 'shellwords'
+          require 'faraday'
 
           # Get model resource
           model = get_resource_or_exit('LanguageModel', model_name)
@@ -504,44 +504,61 @@ module LanguageOperator
           pod = get_model_pod(model_name)
           pod_name = pod.dig('metadata', 'name')
 
-          # Build the JSON payload for the chat completion request
-          payload = JSON.generate({
-                                    model: model_id,
-                                    messages: [{ role: 'user', content: prompt }],
-                                    max_tokens: 4000,
-                                    temperature: 0.3
-                                  })
+          # Set up port-forward to access the model pod
+          port_forward_pid = nil
+          local_port = find_available_port
 
-          # Build curl command to call the model's chat endpoint
-          curl_command = "echo '#{payload}' | curl -s -X POST http://localhost:4000/v1/chat/completions " \
-                         "-H 'Content-Type: application/json' -d @- --max-time 120"
+          begin
+            # Start kubectl port-forward in background
+            port_forward_pid = start_port_forward(pod_name, local_port, 4000)
 
-          # Execute the curl command inside the pod
-          result = execute_in_pod(pod_name, curl_command)
+            # Wait for port-forward to be ready
+            wait_for_port(local_port)
 
-          # Parse the response
-          response = JSON.parse(result)
+            # Build the JSON payload for the chat completion request
+            payload = {
+              model: model_id,
+              messages: [{ role: 'user', content: prompt }],
+              max_tokens: 4000,
+              temperature: 0.3
+            }
 
-          if response['error']
-            error_msg = response['error']['message'] || response['error']
-            raise "Model error: #{error_msg}"
-          elsif !response['choices'] || response['choices'].empty?
-            raise "Unexpected response format: #{result.lines.first.strip}"
+            # Make HTTP request using Faraday
+            conn = Faraday.new(url: "http://localhost:#{local_port}") do |f|
+              f.request :json
+              f.response :json
+              f.adapter Faraday.default_adapter
+              f.options.timeout = 120
+              f.options.open_timeout = 10
+            end
+
+            response = conn.post('/v1/chat/completions', payload)
+
+            # Parse response
+            result = response.body
+
+            if result['error']
+              error_msg = result['error']['message'] || result['error']
+              raise "Model error: #{error_msg}"
+            elsif !result['choices'] || result['choices'].empty?
+              raise "Unexpected response format: #{result.inspect}"
+            end
+
+            # Extract the content from the first choice
+            result.dig('choices', 0, 'message', 'content')
+          rescue Faraday::TimeoutError
+            raise 'LLM request timed out after 120 seconds'
+          rescue Faraday::ConnectionFailed => e
+            raise "Failed to connect to model: #{e.message}"
+          rescue StandardError => e
+            Formatters::ProgressFormatter.error("LLM call failed: #{e.message}")
+            puts
+            puts "Make sure the model '#{model_name}' is running: kubectl get pods -n #{ctx.namespace}"
+            exit 1
+          ensure
+            # Clean up port-forward process
+            cleanup_port_forward(port_forward_pid) if port_forward_pid
           end
-
-          # Extract the content from the first choice
-          response.dig('choices', 0, 'message', 'content')
-        rescue JSON::ParserError => e
-          Formatters::ProgressFormatter.error("Failed to parse LLM response: #{e.message}")
-          puts
-          puts 'Raw response:'
-          puts result
-          exit 1
-        rescue StandardError => e
-          Formatters::ProgressFormatter.error("LLM call failed: #{e.message}")
-          puts
-          puts "Make sure the model '#{model_name}' is running: kubectl get pods -n #{ctx.namespace}"
-          exit 1
         end
 
         # Get the pod for a model
@@ -577,17 +594,67 @@ module LanguageOperator
           raise "Model deployment '#{model_name}' not found"
         end
 
-        # Execute command in a pod using kubectl exec
-        def execute_in_pod(pod_name, command)
-          require 'shellwords'
+        # Find an available local port for port-forwarding
+        def find_available_port
+          require 'socket'
+
+          # Try ports in the range 14000-14999
+          (14_000..14_999).each do |port|
+            begin
+              server = TCPServer.new('127.0.0.1', port)
+              server.close
+              return port
+            rescue Errno::EADDRINUSE
+              # Port in use, try next
+              next
+            end
+          end
+
+          raise 'No available ports found in range 14000-14999'
+        end
+
+        # Start kubectl port-forward in background
+        def start_port_forward(pod_name, local_port, remote_port)
           require 'English'
 
-          kubectl_command = "kubectl exec -n #{ctx.namespace} #{pod_name} -- sh -c #{Shellwords.escape(command)}"
-          output = `#{kubectl_command} 2>&1`
+          cmd = "kubectl port-forward -n #{ctx.namespace} #{pod_name} #{local_port}:#{remote_port}"
+          pid = spawn(cmd, out: '/dev/null', err: '/dev/null')
 
-          raise "kubectl exec failed: #{output}" unless $CHILD_STATUS.success?
+          # Detach so it runs in background
+          Process.detach(pid)
 
-          output
+          pid
+        end
+
+        # Wait for port-forward to be ready
+        def wait_for_port(port, max_attempts: 30)
+          require 'socket'
+
+          max_attempts.times do
+            begin
+              socket = TCPSocket.new('127.0.0.1', port)
+              socket.close
+              return true
+            rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH
+              sleep 0.1
+            end
+          end
+
+          raise "Port-forward to localhost:#{port} failed to become ready after #{max_attempts} attempts"
+        end
+
+        # Clean up port-forward process
+        def cleanup_port_forward(pid)
+          return unless pid
+
+          begin
+            Process.kill('TERM', pid)
+            Process.wait(pid, Process::WNOHANG)
+          rescue Errno::ESRCH
+            # Process already gone
+          rescue Errno::ECHILD
+            # Process already reaped
+          end
         end
 
         # Extract Ruby code from LLM response
