@@ -151,7 +151,7 @@ module LanguageOperator
 
       # Check if agent uses DSL v1 (task/main) or v0 (workflow/step)
       uses_dsl_v1 = agent_def.main&.defined?
-      uses_dsl_v0 = agent_def.workflow
+      uses_dsl_v0 = agent_def.respond_to?(:workflow) && agent_def.workflow
 
       case agent.mode
       when 'autonomous', 'interactive'
