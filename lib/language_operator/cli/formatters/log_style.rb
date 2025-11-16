@@ -23,7 +23,7 @@ module LanguageOperator
         # @return [Hash] Mapping of log levels to icon and color
         STYLES = {
           debug: { icon: '☢', color: :dim },
-          info: { icon: '☰', color: :cyan },
+          info: { icon: '⚬', color: :cyan },
           success: { icon: '✔', color: :green },
           warn: { icon: '⚠', color: :yellow },
           error: { icon: '✗', color: :red }

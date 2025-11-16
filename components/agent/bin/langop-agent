@@ -54,8 +54,6 @@ end
 code_path = ENV.fetch('AGENT_CODE_PATH', '/etc/agent/code/agent.rb')
 fallback_mode = ENV.fetch('AGENT_FALLBACK_MODE', 'error') # error | autonomous | interactive
 
-puts "📁 #{code_path}"
-
 # Check if synthesized code exists
 if File.exist?(code_path)
   begin

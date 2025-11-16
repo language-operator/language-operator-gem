@@ -7,10 +7,10 @@
 [1;36m☰[0m Executing main block (agent=test-agent, task_count=1)
 [1;36m☰[0m Executing main block (inputs_keys=[])
 [1;36m☰[0m Executing task (task=generate_log_message, type=symbolic, timeout=30.0, max_retries=3)
-[1;36m☰[0m Main execution (0.0s)
+[1;36m☰[0m Main execution (0.001s)
 [1;36m☰[0m Main block completed
 [1;36m☰[0m Main block execution completed (result={message: "Test agent is saying hello!"})
 Test agent is saying hello!
-[32m✔[0m Agent completed successfully
+[32m✔ Agent completed successfully[0m
 
 
