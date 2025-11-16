@@ -257,11 +257,33 @@ module LanguageOperator
       config = {}
 
       if agent_def.constraints
-        config[:timeout] = agent_def.constraints[:timeout] if agent_def.constraints[:timeout]
+        if agent_def.constraints[:timeout]
+          timeout = agent_def.constraints[:timeout]
+          config[:timeout] = timeout.is_a?(String) ? parse_duration(timeout) : timeout
+        end
         config[:max_retries] = agent_def.constraints[:max_retries] if agent_def.constraints[:max_retries]
       end
 
       config
+    end
+
+    # Parse duration string to seconds
+    #
+    # @param duration [String] Duration string (e.g., "10m", "2h", "30s")
+    # @return [Numeric] Duration in seconds
+    def self.parse_duration(duration)
+      case duration
+      when /^(\d+)s$/
+        ::Regexp.last_match(1).to_i
+      when /^(\d+)m$/
+        ::Regexp.last_match(1).to_i * 60
+      when /^(\d+)h$/
+        ::Regexp.last_match(1).to_i * 3600
+      when Numeric
+        duration
+      else
+        raise ArgumentError, "Invalid duration format: #{duration}. Use format like '10m', '2h', '30s'"
+      end
     end
   end
 end
