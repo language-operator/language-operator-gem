@@ -76,7 +76,9 @@ module LanguageOperator
         @config = default_config.merge(config)
         logger.debug('TaskExecutor initialized',
                      task_count: @tasks.size,
-                     timeout: @config[:timeout],
+                     timeout_symbolic: @config[:timeout_symbolic],
+                     timeout_neural: @config[:timeout_neural],
+                     timeout_hybrid: @config[:timeout_hybrid],
                      max_retries: @config[:max_retries])
       end
 
@@ -95,13 +97,11 @@ module LanguageOperator
       # @raise [TaskExecutionError] If task execution fails after retries
       def execute_task(task_name, inputs: {}, timeout: nil, max_retries: nil)
         execution_start = Time.now
-        timeout ||= @config[:timeout]
         max_retries ||= @config[:max_retries]
 
         with_span('task_executor.execute_task', attributes: {
                     'task.name' => task_name.to_s,
                     'task.inputs' => inputs.keys.map(&:to_s).join(','),
-                    'task.timeout' => timeout,
                     'task.max_retries' => max_retries
                   }) do
           # Find task definition
@@ -109,11 +109,18 @@ module LanguageOperator
           raise ArgumentError, "Task not found: #{task_name}. Available tasks: #{@tasks.keys.join(', ')}" unless task
 
           task_type = determine_task_type(task)
+
+          # Determine timeout based on task type if not explicitly provided
+          timeout ||= task_timeout_for_type(task)
+
           logger.info('Executing task',
                       task: task_name,
                       type: task_type,
                       timeout: timeout,
                       max_retries: max_retries)
+
+          # Add timeout to span attributes after it's determined
+          OpenTelemetry::Trace.current_span&.set_attribute('task.timeout', timeout)
 
           # Execute with retry logic
           execute_with_retry(task, task_name, inputs, timeout, max_retries, execution_start)
@@ -335,10 +342,12 @@ module LanguageOperator
       # @return [Hash] Default configuration
       def default_config
         {
-          timeout: 30.0,           # Default timeout in seconds
-          max_retries: 3,          # Default max retry attempts
-          retry_delay_base: 1.0,   # Base delay for exponential backoff
-          retry_delay_max: 10.0    # Maximum delay between retries
+          timeout_symbolic: 30.0,     # Default timeout for symbolic tasks (seconds)
+          timeout_neural: 120.0,      # Default timeout for neural tasks (seconds)
+          timeout_hybrid: 120.0,      # Default timeout for hybrid tasks (seconds)
+          max_retries: 3,             # Default max retry attempts
+          retry_delay_base: 1.0,      # Base delay for exponential backoff
+          retry_delay_max: 10.0       # Maximum delay between retries
         }
       end
 
@@ -355,6 +364,29 @@ module LanguageOperator
           'symbolic'
         else
           'undefined'
+        end
+      end
+
+      # Determine appropriate timeout for a task based on its type
+      #
+      # Neural tasks typically require longer timeouts due to LLM API calls,
+      # while symbolic tasks (pure Ruby code) can use shorter timeouts.
+      #
+      # @param task [TaskDefinition] The task definition
+      # @return [Float] Timeout in seconds
+      def task_timeout_for_type(task)
+        if task.neural? && task.symbolic?
+          # Hybrid tasks use neural timeout (they may call LLM)
+          @config[:timeout_hybrid]
+        elsif task.neural?
+          # Neural tasks need longer timeout for LLM calls
+          @config[:timeout_neural]
+        elsif task.symbolic?
+          # Symbolic tasks use shorter timeout
+          @config[:timeout_symbolic]
+        else
+          # Default to symbolic timeout for undefined tasks
+          @config[:timeout_symbolic]
         end
       end
 
