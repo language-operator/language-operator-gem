@@ -23,6 +23,7 @@ module LanguageOperator
   # @example Creating a custom agent
   #   agent = LanguageOperator::Agent::Base.new(config)
   #   agent.execute_goal("Summarize daily news")
+  # rubocop:disable Metrics/ModuleLength
   module Agent
     # Module-level logger for Agent framework
     @logger = LanguageOperator::Logger.new(component: 'Agent')
@@ -286,4 +287,5 @@ module LanguageOperator
       end
     end
   end
+  # rubocop:enable Metrics/ModuleLength
 end
