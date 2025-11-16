@@ -108,7 +108,7 @@ agent "daily-report" do
   end
 
   output do |outputs|
-    File.write("/workspace/report.md", outputs[:report])
+    puts outputs[:report]
   end
 end
 ```
