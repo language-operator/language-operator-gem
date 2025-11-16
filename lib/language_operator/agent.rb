@@ -50,6 +50,27 @@ module LanguageOperator
       load_and_run(agent)
     end
 
+    # Load and run agent from a specific file path
+    #
+    # @param code_path [String] Path to agent DSL code file
+    # @param agent_name [String, nil] Name of the agent definition to run
+    # @param config_path [String, nil] Path to configuration file
+    # @return [void]
+    def self.load_and_run_from_file(code_path, agent_name = nil, config_path: nil)
+      # Disable stdout buffering for real-time logging in containers
+      $stdout.sync = true
+      $stderr.sync = true
+
+      config_path ||= ENV.fetch('CONFIG_PATH', 'config.yaml')
+      config = LanguageOperator::Client::Config.load_with_fallback(config_path)
+
+      # Create agent instance
+      agent = LanguageOperator::Agent::Base.new(config)
+
+      # Load and run the specified agent code
+      load_synthesized_agent(agent, code_path, agent_name)
+    end
+
     # Load synthesized agent code and run with definition if available
     #
     # @param agent [LanguageOperator::Agent::Base] The agent instance
