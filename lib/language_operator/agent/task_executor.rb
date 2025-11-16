@@ -153,6 +153,10 @@ module LanguageOperator
         # Build prompt for LLM
         prompt = build_neural_prompt(task, validated_inputs)
 
+        logger.info('Sending prompt to LLM',
+                    task: task.name,
+                    prompt_length: prompt.length)
+
         # Execute LLM call within traced span
         outputs = tracer.in_span('gen_ai.chat', attributes: neural_task_attributes(task, prompt, validated_inputs)) do |span|
           # Call LLM with full tool access
@@ -349,8 +353,8 @@ module LanguageOperator
       def default_config
         {
           timeout_symbolic: 30.0,     # Default timeout for symbolic tasks (seconds)
-          timeout_neural: 120.0,      # Default timeout for neural tasks (seconds)
-          timeout_hybrid: 120.0,      # Default timeout for hybrid tasks (seconds)
+          timeout_neural: 240.0,      # Default timeout for neural tasks (seconds)
+          timeout_hybrid: 240.0,      # Default timeout for hybrid tasks (seconds)
           max_retries: 3,             # Default max retry attempts
           retry_delay_base: 1.0,      # Base delay for exponential backoff
           retry_delay_max: 10.0       # Maximum delay between retries
