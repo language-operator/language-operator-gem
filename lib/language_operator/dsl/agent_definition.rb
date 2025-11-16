@@ -223,23 +223,58 @@ module LanguageOperator
         @constraints = constraint_builder.to_h
       end
 
-      # Define output handler (DSL v1)
+      # Define output handler (organic function) - DSL v1
       #
-      # The output block receives the final outputs from the main execution
-      # and handles them (logging, saving to workspace, notifications, etc.)
+      # The output is an organic function that receives the final outputs from main execution
+      # and handles them (logging, saving to workspace, notifications, etc.). Like tasks,
+      # it can be neural (instructions-based), symbolic (code block), or hybrid (both).
       #
-      # @yield [outputs] Output handler block
+      # @param options [Hash] Output configuration
+      # @option options [String] :instructions Natural language instructions (neural)
+      # @yield [outputs] Symbolic implementation block (optional)
       # @yieldparam outputs [Hash] The outputs returned from main execution
-      # @return [Proc] Current output handler
-      # @example
+      # @return [TaskDefinition] The output task definition
+      #
+      # @example Neural output
+      #   output instructions: "save results to workspace as JSON"
+      #
+      # @example Symbolic output
       #   output do |outputs|
-      #     puts "Agent completed: #{outputs.inspect}"
+      #     File.write("/workspace/result.json", JSON.pretty_generate(outputs))
+      #   end
+      #
+      # @example Hybrid output
+      #   output instructions: "save results to workspace" do |outputs|
       #     File.write("/workspace/result.json", outputs.to_json)
       #   end
-      def output(&block)
-        return @output_config if block.nil?
+      def output(**options, &block)
+        return @output_config if options.empty? && block.nil?
 
-        @output_config = block
+        # Create a TaskDefinition for output (it's an organic function)
+        output_task = TaskDefinition.new(:output)
+
+        # Output task always receives main's outputs as inputs (type: any)
+        # No need to specify inputs - they come from main
+
+        # Configure instructions if provided (neural)
+        output_task.instructions(options[:instructions]) if options[:instructions]
+
+        # Symbolic implementation (if block provided)
+        output_task.execute(&block) if block
+
+        @output_config = output_task
+
+        task_type = if output_task.neural? && output_task.symbolic?
+                      'hybrid'
+                    elsif output_task.neural?
+                      'neural'
+                    else
+                      'symbolic'
+                    end
+
+        logger.debug('Output defined', type: task_type)
+
+        output_task
       end
 
       # Set execution mode
@@ -419,10 +454,10 @@ module LanguageOperator
               @main.call({ objective: objective })
             end
 
-            # Call output handler if defined
-            if @output_config.is_a?(Proc)
-              logger.debug('Calling output handler', outputs: outputs)
-              @output_config.call(outputs)
+            # Call output handler if defined (it's an organic function)
+            if @output_config.is_a?(TaskDefinition)
+              logger.debug('Executing output handler', outputs: outputs)
+              execute_output_handler(outputs)
             end
           else
             logger.warn('No main block defined, skipping execution')
@@ -430,6 +465,29 @@ module LanguageOperator
         end
 
         logger.info('All objectives completed', total: @objectives.size)
+      end
+
+      # Execute the output handler (neural or symbolic)
+      #
+      # @param outputs [Hash] The outputs from main execution
+      def execute_output_handler(outputs)
+        # If symbolic implementation exists, use it
+        if @output_config.symbolic?
+          logger.debug('Executing symbolic output handler')
+          # execute_symbolic takes (inputs, context) - outputs are the inputs, context is nil
+          @output_config.execute_symbolic(outputs, nil)
+        elsif @output_config.neural?
+          # Neural output - would need LLM access to execute
+          # For now, just log the instruction
+          logger.info('Neural output handler',
+                      instruction: @output_config.instructions_text,
+                      outputs: outputs)
+          logger.warn('Neural output execution not yet implemented - instruction logged only')
+        end
+      rescue StandardError => e
+        logger.error('Output handler failed',
+                     error: e.message,
+                     backtrace: e.backtrace[0..5])
       end
     end
 
