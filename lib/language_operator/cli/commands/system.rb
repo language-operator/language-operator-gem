@@ -1137,11 +1137,11 @@ module LanguageOperator
 
           # Use first available model
           model = models.first
-          model_name = model.dig('metadata', 'name')
           model_id = model.dig('spec', 'modelName')
+          endpoint = model.dig('spec', 'endpoint')
 
-          # Build endpoint URL (port 8000 is the model service port)
-          endpoint = "http://#{model_name}.#{ctx.namespace}.svc.cluster.local:8000"
+          # Return nil if endpoint is not configured
+          return nil unless endpoint
 
           [
             { 'name' => 'MODEL_ENDPOINTS', 'value' => endpoint },
