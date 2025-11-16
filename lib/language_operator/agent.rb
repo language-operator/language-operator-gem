@@ -234,8 +234,16 @@ module LanguageOperator
       # If symbolic implementation exists, use it
       if output_config.symbolic?
         logger.debug('Executing symbolic output handler')
-        # call() takes (inputs, context) - outputs are the inputs, task_executor is context
-        output_config.call(outputs, task_executor)
+        # Call the execute block directly without validation
+        # Output blocks don't need input validation since they receive whatever main returns
+        block = output_config.execute_block
+        if block.arity == 1
+          block.call(outputs)
+        elsif block.arity == 2
+          block.call(outputs, task_executor)
+        else
+          block.call
+        end
       elsif output_config.neural?
         # Neural output - would need LLM access to execute
         # For now, just log the instruction
