@@ -288,7 +288,10 @@ module LanguageOperator
         end
         prompt += "\n"
 
-        prompt += 'Return ONLY valid JSON matching the output schema. '
+        prompt += "## Response Format\n"
+        prompt += "Return ONLY valid JSON matching the output schema above.\n"
+        prompt += "Do NOT include any explanations, thinking, or text before or after the JSON.\n"
+        prompt += "Do NOT use [THINK] tags or any other markup.\n"
         prompt += "Use available tools as needed to complete the task.\n"
 
         prompt
@@ -301,15 +304,18 @@ module LanguageOperator
       # @return [Hash] Parsed outputs
       # @raise [RuntimeError] If parsing fails
       def parse_neural_response(response_text, task)
+        # Strip thinking tags that some models add (e.g., [THINK]...[/THINK])
+        cleaned_text = response_text.gsub(%r{\[THINK\].*?\[/THINK\]}m, '').strip
+
         # Try to extract JSON from response
         # Look for JSON code blocks first
-        json_match = response_text.match(/```json\s*\n(.*?)\n```/m)
+        json_match = cleaned_text.match(/```json\s*\n(.*?)\n```/m)
         json_text = if json_match
                       json_match[1]
                     else
                       # Try to find raw JSON object
-                      json_object_match = response_text.match(/\{.*\}/m)
-                      json_object_match ? json_object_match[0] : response_text
+                      json_object_match = cleaned_text.match(/\{.*\}/m)
+                      json_object_match ? json_object_match[0] : cleaned_text
                     end
 
         # Parse JSON

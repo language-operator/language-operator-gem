@@ -292,18 +292,18 @@ module LanguageOperator
             label_selector = "app.kubernetes.io/name=#{name}"
 
             # Use kubectl logs with label selector
-            cmd = "#{ctx.kubectl_prefix} logs -l #{label_selector} #{tail_arg} #{follow_arg} --prefix --all-containers"
+            cmd = "#{ctx.kubectl_prefix} logs -l #{label_selector} #{tail_arg} #{follow_arg} --all-containers"
 
             Formatters::ProgressFormatter.info("Streaming logs for agent '#{name}'...")
             puts
 
-            # Stream and format logs in real-time
+            # Stream raw logs in real-time without formatting
             require 'open3'
             Open3.popen3(cmd) do |_stdin, stdout, stderr, wait_thr|
               # Handle stdout (logs)
               stdout_thread = Thread.new do
                 stdout.each_line do |line|
-                  puts Formatters::LogFormatter.format_line(line.chomp)
+                  puts line
                   $stdout.flush
                 end
               end
