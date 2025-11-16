@@ -1105,6 +1105,7 @@ module LanguageOperator
                 {
                   'name' => 'agent',
                   'image' => image,
+                  'imagePullPolicy' => 'Always',
                   'env' => env_vars,
                   'volumeMounts' => [
                     {

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative '../helpers/pastel_helper'
+require_relative 'log_style'
 require 'json'
 require 'time'
 
@@ -108,12 +109,12 @@ module LanguageOperator
               emoji_or_text = Regexp.last_match(1)
               rest = Regexp.last_match(2)
 
-              # Check if first part is an emoji (common log emojis - ProgressFormatter standard)
+              # Check if first part is an emoji (common log emojis - LogStyle standard)
               if emoji_or_text =~ /[☰☢⚠✗✔✅]/
-                level = emoji_to_level(emoji_or_text)
+                level_sym = LogStyle.emoji_to_level(emoji_or_text)
                 # Message already has emoji, just format rest without adding another icon
                 message_text, metadata = extract_metadata(rest)
-                color = determine_color_from_level(level)
+                color = LogStyle.color(level_sym)
                 formatted = pastel.send(color, "#{emoji_or_text} #{message_text}")
                 formatted += " #{format_metadata(metadata)}" if metadata
                 formatted
@@ -163,38 +164,21 @@ module LanguageOperator
 
           # Determine icon and color based on message content
           def determine_icon_and_color(message, level)
-            case message
-            when /Starting execution|Starting iteration|Starting autonomous/i
-              ['☰', :cyan]
-            when /Loading persona|Persona:|Configuring|Configuration/i
-              ['☰', :cyan]
-            when /Connecting to tool|Calling tool|MCP server/i
-              ['☰', :blue]
-            when /LLM request|Prompt|🤖/i
-              ['☰', :magenta]
-            when /Tool completed|result|response|found/i
-              ['☰', :yellow]
-            when /Iteration completed|completed|finished/i
-              ['✔', :green]
-            when /Execution complete|✅|workflow.*completed/i
-              ['✔', :green]
-            when /error|fail|✗|❌/i
-              ['✗', :red]
-            when /warn|⚠/i
-              ['⚠', :yellow]
-            else
-              # Default based on level
-              case level&.upcase
-              when 'ERROR'
-                ['✗', :red]
-              when 'WARN'
-                ['⚠', :yellow]
-              when 'DEBUG'
-                ['☢', :dim]
-              else
-                ['☰', :white]
-              end
-            end
+            # Detect level from message content
+            detected_level = LogStyle.detect_level_from_message(message)
+
+            # Use detected level unless explicitly overridden
+            level_sym = if detected_level == :info
+                          level&.downcase&.to_sym || :info
+                        else
+                          detected_level
+                        end
+
+            # Get icon and color from LogStyle
+            icon = LogStyle.icon(level_sym)
+            color = LogStyle.color(level_sym)
+
+            [icon, color]
           end
 
           # Format metadata hash
@@ -244,38 +228,6 @@ module LanguageOperator
           # Format Time object as HH:MM:SS
           def format_time(time)
             pastel.dim(time.strftime('%H:%M:%S'))
-          end
-
-          # Convert emoji to log level
-          def emoji_to_level(emoji)
-            case emoji
-            when 'ℹ️', 'ℹ', '☰'
-              'INFO'
-            when '🔍', '☢'
-              'DEBUG'
-            when '⚠️', '⚠'
-              'WARN'
-            when '❌', '✗'
-              'ERROR'
-            when '✓', '✔', '✅'
-              'INFO'
-            else
-              'INFO'
-            end
-          end
-
-          # Determine color from log level
-          def determine_color_from_level(level)
-            case level&.upcase
-            when 'ERROR'
-              :red
-            when 'WARN'
-              :yellow
-            when 'DEBUG'
-              :dim
-            else
-              :white
-            end
           end
         end
       end

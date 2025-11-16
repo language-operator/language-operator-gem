@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'logger'
+require_relative 'cli/formatters/log_style'
 
 module LanguageOperator
   # Structured logger with configurable output formats and levels
@@ -20,13 +21,6 @@ module LanguageOperator
       'INFO' => ::Logger::INFO,
       'WARN' => ::Logger::WARN,
       'ERROR' => ::Logger::ERROR
-    }.freeze
-
-    LEVEL_EMOJI = {
-      'DEBUG' => "\e[1;90m☢\e[0m",   # Bold gray radioactive symbol
-      'INFO' => "\e[1;36m☰\e[0m",    # Bold cyan trigram
-      'WARN' => "\e[1;33m⚠\e[0m",    # Bold yellow warning
-      'ERROR' => "\e[1;31m✗\e[0m"    # Bold red cross
     }.freeze
 
     attr_reader :logger, :format, :show_timing
@@ -115,7 +109,8 @@ module LanguageOperator
     end
 
     def format_pretty(severity, message, **metadata)
-      emoji = LEVEL_EMOJI[severity.to_s.upcase] || '•'
+      level_sym = severity.to_s.downcase.to_sym
+      emoji = CLI::Formatters::LogStyle.ansi_icon(level_sym)
       parts = [emoji, message]
 
       metadata_str = format_metadata(**metadata)

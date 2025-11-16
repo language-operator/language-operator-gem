@@ -2,6 +2,7 @@
 
 require 'tty-spinner'
 require_relative '../helpers/pastel_helper'
+require_relative 'log_style'
 
 module LanguageOperator
   module CLI
@@ -12,7 +13,8 @@ module LanguageOperator
           include Helpers::PastelHelper
 
           def with_spinner(message, success_msg: nil, &block)
-            spinner = TTY::Spinner.new(":spinner #{message}...", format: :dots, success_mark: pastel.green('✔'))
+            success_icon = LogStyle.styled_icon(:success, pastel)
+            spinner = TTY::Spinner.new(":spinner #{message}...", format: :dots, success_mark: success_icon)
             spinner.auto_spin
 
             result = block.call
@@ -28,23 +30,25 @@ module LanguageOperator
           end
 
           def success(message)
-            puts "#{pastel.green('✔')} #{message}"
+            puts LogStyle.format(:success, message, pastel)
           end
 
           def error(message)
-            puts "#{pastel.red('✗')} #{message}"
+            puts LogStyle.format(:error, message, pastel)
           end
 
           def info(message)
-            puts "#{pastel.white('☰')} #{pastel.dim(message)}"
+            icon = LogStyle.styled_icon(:info, pastel)
+            puts "#{icon} #{pastel.dim(message)}"
           end
 
           def debug(message)
-            puts "#{pastel.white('☢')} #{pastel.dim(message)}"
+            icon = LogStyle.styled_icon(:debug, pastel)
+            puts "#{icon} #{pastel.dim(message)}"
           end
 
           def warn(message)
-            puts "#{pastel.yellow.bold('⚠')} #{message}"
+            puts "#{pastel.yellow.bold(LogStyle.icon(:warn))} #{message}"
           end
         end
       end
