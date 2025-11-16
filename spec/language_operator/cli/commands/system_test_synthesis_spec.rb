@@ -4,7 +4,7 @@ require 'spec_helper'
 require 'language_operator/cli/commands/system'
 
 RSpec.describe LanguageOperator::CLI::Commands::System do
-  describe '#test_synthesis' do
+  describe '#synthesize' do
     let(:command) { described_class.new }
 
     describe 'temporal intent detection' do
@@ -62,29 +62,44 @@ RSpec.describe LanguageOperator::CLI::Commands::System do
         expect(result).to eq("- gpt-4\n- claude-3-5-sonnet")
       end
 
-      context 'when ANTHROPIC_API_KEY is set' do
+      context 'when cluster has models' do
         before do
-          allow(ENV).to receive(:[]).and_call_original
-          allow(ENV).to receive(:[]).with('ANTHROPIC_API_KEY').and_return('test-key')
-          allow(ENV).to receive(:[]).with('OPENAI_API_KEY').and_return(nil)
+          # Mock cluster context and client
+          ctx = instance_double('ClusterContext')
+          client = instance_double('K8s::Client')
+          allow(command).to receive(:ctx).and_return(ctx)
+          allow(ctx).to receive(:client).and_return(client)
+          allow(ctx).to receive(:namespace).and_return('default')
+
+          # Mock model list
+          allow(client).to receive(:list_resources).with('LanguageModel', namespace: 'default').and_return([
+                                                                                                             { 'metadata' => { 'name' => 'my-claude' } },
+                                                                                                             { 'metadata' => { 'name' => 'my-gpt4' } }
+                                                                                                           ])
         end
 
-        it 'detects Claude model' do
+        it 'detects cluster models' do
           result = command.send(:format_models_list, nil)
-          expect(result).to include('claude-3-5-sonnet')
+          expect(result).to eq("- my-claude\n- my-gpt4")
         end
       end
 
-      context 'when OPENAI_API_KEY is set' do
+      context 'when cluster has no models' do
         before do
-          allow(ENV).to receive(:[]).and_call_original
-          allow(ENV).to receive(:[]).with('ANTHROPIC_API_KEY').and_return(nil)
-          allow(ENV).to receive(:[]).with('OPENAI_API_KEY').and_return('test-key')
+          # Mock cluster context and client
+          ctx = instance_double('ClusterContext')
+          client = instance_double('K8s::Client')
+          allow(command).to receive(:ctx).and_return(ctx)
+          allow(ctx).to receive(:client).and_return(client)
+          allow(ctx).to receive(:namespace).and_return('default')
+
+          # Mock empty model list
+          allow(client).to receive(:list_resources).with('LanguageModel', namespace: 'default').and_return([])
         end
 
-        it 'detects GPT model' do
+        it 'shows no models message' do
           result = command.send(:format_models_list, nil)
-          expect(result).to include('gpt-4-turbo')
+          expect(result).to eq('No models available (run: aictl model list)')
         end
       end
     end

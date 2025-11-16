@@ -198,10 +198,14 @@ module LanguageOperator
           end
         end
 
-        desc 'test-synthesis', 'Test agent synthesis from natural language instructions'
+        desc 'synthesize INSTRUCTIONS', 'Synthesize agent code from natural language instructions'
         long_desc <<-DESC
-          Test the agent synthesis process by converting natural language instructions
+          Synthesize agent code by converting natural language instructions
           into Ruby DSL code without creating an actual agent.
+
+          This command uses a LanguageModel resource from your cluster to generate
+          agent code. If --model is not specified, the first available model will
+          be auto-selected.
 
           This command helps you validate your instructions and understand how the
           synthesis engine interprets them. Use --dry-run to see the prompt that
@@ -209,38 +213,43 @@ module LanguageOperator
 
           Examples:
             # Test with dry-run (show prompt only)
-            aictl system test-synthesis --instructions "Monitor GitHub issues daily" --dry-run
+            aictl system synthesize "Monitor GitHub issues daily" --dry-run
 
-            # Generate code from instructions
-            aictl system test-synthesis --instructions "Send daily reports to Slack"
+            # Generate code from instructions (auto-selects first available model)
+            aictl system synthesize "Send daily reports to Slack"
+
+            # Use a specific cluster model
+            aictl system synthesize "Process webhooks from GitHub" --model my-claude
+
+            # Output raw code without formatting (useful for piping to files)
+            aictl system synthesize "Monitor logs" --raw > agent.rb
 
             # Specify custom agent name and tools
-            aictl system test-synthesis \\
-              --instructions "Process webhooks from GitHub" \\
+            aictl system synthesize "Process webhooks from GitHub" \\
               --agent-name github-processor \\
-              --tools github,slack
-
-            # Specify available models
-            aictl system test-synthesis \\
-              --instructions "Analyze logs every hour" \\
-              --models gpt-4,claude-3-5-sonnet
+              --tools github,slack \\
+              --model my-gpt4
         DESC
-        option :instructions, type: :string, required: true, desc: 'Natural language instructions for the agent'
         option :agent_name, type: :string, default: 'test-agent', desc: 'Name for the test agent'
         option :tools, type: :string, desc: 'Comma-separated list of available tools'
-        option :models, type: :string, desc: 'Comma-separated list of available models'
+        option :models, type: :string, desc: 'Comma-separated list of available models (from cluster)'
+        option :model, type: :string, desc: 'Model to use for synthesis (defaults to first available in cluster)'
         option :dry_run, type: :boolean, default: false, desc: 'Show prompt without calling LLM'
-        def test_synthesis
-          handle_command_error('test synthesis') do
+        option :raw, type: :boolean, default: false, desc: 'Output only the raw code without formatting'
+        def synthesize(instructions)
+          handle_command_error('synthesize agent') do
+            # Select model to use for synthesis
+            selected_model = select_synthesis_model
+
             # Load synthesis template
             template_content = load_bundled_template('agent')
 
             # Detect temporal intent from instructions
-            temporal_intent = detect_temporal_intent(options[:instructions])
+            temporal_intent = detect_temporal_intent(instructions)
 
             # Prepare template data
             template_data = {
-              'Instructions' => options[:instructions],
+              'Instructions' => instructions,
               'AgentName' => options[:agent_name],
               'ToolsList' => format_tools_list(options[:tools]),
               'ModelsList' => format_models_list(options[:models]),
@@ -267,11 +276,8 @@ module LanguageOperator
               return
             end
 
-            # Call LLM to generate code
-            puts 'Generating agent code from instructions...'
-            puts
-
-            llm_response = call_llm_for_synthesis(rendered_prompt)
+            # Call LLM to generate code (no output - just do it)
+            llm_response = call_llm_for_synthesis(rendered_prompt, selected_model)
 
             # Extract Ruby code from response
             generated_code = extract_ruby_code(llm_response)
@@ -284,34 +290,19 @@ module LanguageOperator
               exit 1
             end
 
-            # Display generated code
-            puts 'Generated Code:'
-            puts '=' * 80
-            puts generated_code
-            puts '=' * 80
-            puts
-
-            # Validate generated code
-            puts 'Validating generated code...'
-            validation_result = validate_code_against_schema(generated_code)
-
-            if validation_result[:valid] && validation_result[:warnings].empty?
-              Formatters::ProgressFormatter.success('✅ Code is valid - No issues found')
-            elsif validation_result[:valid]
-              Formatters::ProgressFormatter.success('✅ Code is valid - With warnings')
-              puts
-              validation_result[:warnings].each do |warn|
-                puts "  ⚠  #{warn[:message]}"
-              end
-            else
-              Formatters::ProgressFormatter.error('❌ Code validation failed')
-              puts
-              validation_result[:errors].each do |err|
-                puts "  ✗ #{err[:message]}"
-              end
+            # Handle raw output
+            if options[:raw]
+              puts generated_code
+              return
             end
 
-            puts
+            # Display formatted code
+            require 'rouge'
+            formatter = Rouge::Formatters::Terminal256.new
+            lexer = Rouge::Lexers::Ruby.new
+            highlighted_code = formatter.format(lexer.lex(generated_code))
+
+            puts highlighted_code
           end
         end
 
@@ -449,68 +440,154 @@ module LanguageOperator
 
         # Format models list for template
         def format_models_list(models_str)
-          # If not specified, try to detect from environment
+          # If not specified, try to detect from cluster
           if models_str.nil? || models_str.strip.empty?
             models = detect_available_models
             return models.map { |model| "- #{model}" }.join("\n") unless models.empty?
 
-            return 'No models specified (configure ANTHROPIC_API_KEY or OPENAI_API_KEY)'
+            return 'No models available (run: aictl model list)'
           end
 
           models = models_str.split(',').map(&:strip)
           models.map { |model| "- #{model}" }.join("\n")
         end
 
-        # Detect available models from environment
+        # Detect available models from cluster
         def detect_available_models
-          models = []
-          models << 'claude-3-5-sonnet-20241022' if ENV['ANTHROPIC_API_KEY']
-          models << 'gpt-4-turbo' if ENV['OPENAI_API_KEY']
-          models
+          models = ctx.client.list_resources('LanguageModel', namespace: ctx.namespace)
+          models.map { |m| m.dig('metadata', 'name') }
+        rescue StandardError => e
+          Formatters::ProgressFormatter.error("Failed to list models from cluster: #{e.message}")
+          []
         end
 
-        # Call LLM to generate code from synthesis prompt
-        def call_llm_for_synthesis(prompt)
-          require 'ruby_llm'
+        # Select model to use for synthesis
+        def select_synthesis_model
+          # If --model option specified, use it
+          return options[:model] if options[:model]
 
-          # Check for API keys
-          unless ENV['ANTHROPIC_API_KEY'] || ENV['OPENAI_API_KEY']
-            Formatters::ProgressFormatter.error('No LLM credentials found')
+          # Otherwise, auto-select from available cluster models
+          available_models = detect_available_models
+
+          if available_models.empty?
+            Formatters::ProgressFormatter.error('No models available in cluster')
             puts
-            puts 'Please set one of the following environment variables:'
-            puts '  - ANTHROPIC_API_KEY (for Claude models)'
-            puts '  - OPENAI_API_KEY (for GPT models)'
+            puts 'Please create a model first:'
+            puts '  aictl model create'
+            puts
+            puts 'Or list existing models:'
+            puts '  aictl model list'
             exit 1
           end
 
-          # Prefer Anthropic if available
-          if ENV['ANTHROPIC_API_KEY']
-            provider = :anthropic
-            api_key = ENV['ANTHROPIC_API_KEY']
-            model = 'claude-3-5-sonnet-20241022'
-          else
-            provider = :openai
-            api_key = ENV.fetch('OPENAI_API_KEY', nil)
-            model = 'gpt-4-turbo'
+          # Auto-select first available model (silently)
+          available_models.first
+        end
+
+        # Get endpoint for a cluster model
+        def get_model_endpoint(model_name)
+          # For cluster models, we use the service endpoint
+          # The service is typically named the same as the model and listens on port 4000
+          "http://#{model_name}.#{ctx.namespace}.svc.cluster.local:4000/v1"
+        end
+
+        # Call LLM to generate code from synthesis prompt using cluster model
+        def call_llm_for_synthesis(prompt, model_name)
+          require 'json'
+          require 'shellwords'
+
+          # Get model resource
+          model = get_resource_or_exit('LanguageModel', model_name)
+          model_id = model.dig('spec', 'modelName')
+
+          # Get the model's pod
+          pod = get_model_pod(model_name)
+          pod_name = pod.dig('metadata', 'name')
+
+          # Build the JSON payload for the chat completion request
+          payload = JSON.generate({
+                                    model: model_id,
+                                    messages: [{ role: 'user', content: prompt }],
+                                    max_tokens: 4000,
+                                    temperature: 0.3
+                                  })
+
+          # Build curl command to call the model's chat endpoint
+          curl_command = "echo '#{payload}' | curl -s -X POST http://localhost:4000/v1/chat/completions " \
+                         "-H 'Content-Type: application/json' -d @- --max-time 120"
+
+          # Execute the curl command inside the pod
+          result = execute_in_pod(pod_name, curl_command)
+
+          # Parse the response
+          response = JSON.parse(result)
+
+          if response['error']
+            error_msg = response['error']['message'] || response['error']
+            raise "Model error: #{error_msg}"
+          elsif !response['choices'] || response['choices'].empty?
+            raise "Unexpected response format: #{result.lines.first.strip}"
           end
 
-          # Create client and call LLM
-          client = RubyLLM.new(provider: provider, api_key: api_key)
-          messages = [{ role: 'user', content: prompt }]
-
-          response = client.chat(messages, model: model, max_tokens: 4000, temperature: 0.3)
-
-          # Extract content from response
-          if response.is_a?(Hash) && response.key?('content')
-            response['content']
-          elsif response.is_a?(String)
-            response
-          else
-            response.to_s
-          end
+          # Extract the content from the first choice
+          response.dig('choices', 0, 'message', 'content')
+        rescue JSON::ParserError => e
+          Formatters::ProgressFormatter.error("Failed to parse LLM response: #{e.message}")
+          puts
+          puts 'Raw response:'
+          puts result
+          exit 1
         rescue StandardError => e
           Formatters::ProgressFormatter.error("LLM call failed: #{e.message}")
+          puts
+          puts "Make sure the model '#{model_name}' is running: kubectl get pods -n #{ctx.namespace}"
           exit 1
+        end
+
+        # Get the pod for a model
+        def get_model_pod(model_name)
+          # Get the deployment for the model
+          deployment = ctx.client.get_resource('Deployment', model_name, ctx.namespace)
+          labels = deployment.dig('spec', 'selector', 'matchLabels')
+
+          raise "Deployment '#{model_name}' has no selector labels" if labels.nil?
+
+          # Convert to hash if needed
+          labels_hash = labels.respond_to?(:to_h) ? labels.to_h : labels
+          raise "Deployment '#{model_name}' has empty selector labels" if labels_hash.empty?
+
+          label_selector = labels_hash.map { |k, v| "#{k}=#{v}" }.join(',')
+
+          # Find a running pod
+          pods = ctx.client.list_resources('Pod', namespace: ctx.namespace, label_selector: label_selector)
+          raise "No pods found for model '#{model_name}'" if pods.empty?
+
+          running_pod = pods.find do |pod|
+            pod.dig('status', 'phase') == 'Running' &&
+              pod.dig('status', 'conditions')&.any? { |c| c['type'] == 'Ready' && c['status'] == 'True' }
+          end
+
+          if running_pod.nil?
+            pod_phases = pods.map { |p| p.dig('status', 'phase') }.join(', ')
+            raise "No running pods found. Pod phases: #{pod_phases}"
+          end
+
+          running_pod
+        rescue K8s::Error::NotFound
+          raise "Model deployment '#{model_name}' not found"
+        end
+
+        # Execute command in a pod using kubectl exec
+        def execute_in_pod(pod_name, command)
+          require 'shellwords'
+          require 'English'
+
+          kubectl_command = "kubectl exec -n #{ctx.namespace} #{pod_name} -- sh -c #{Shellwords.escape(command)}"
+          output = `#{kubectl_command} 2>&1`
+
+          raise "kubectl exec failed: #{output}" unless $CHILD_STATUS.success?
+
+          output
         end
 
         # Extract Ruby code from LLM response
