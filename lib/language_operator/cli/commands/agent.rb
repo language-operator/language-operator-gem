@@ -76,9 +76,6 @@ module LanguageOperator
 
             ctx = Helpers::ClusterContext.from_options(options.merge(cluster: cluster))
 
-            Formatters::ProgressFormatter.info("Creating agent in cluster '#{ctx.name}'")
-            puts
-
             # Generate agent name from description if not provided
             agent_name = options[:name] || generate_agent_name(description)
 
