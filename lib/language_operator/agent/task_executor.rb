@@ -445,15 +445,16 @@ module LanguageOperator
 
       # Execute the actual task implementation (neural or symbolic)
       #
+      # For hybrid tasks (both neural and symbolic), prefer symbolic execution
+      # as it's more efficient and deterministic.
+      #
       # @param task [TaskDefinition] The task definition
       # @param inputs [Hash] Input parameters
       # @return [Hash] Task outputs
       def execute_task_implementation(task, inputs)
-        if task.neural?
-          # Neural execution: LLM with tool access
-          execute_neural(task, inputs)
-        else
+        if task.symbolic?
           # Symbolic execution: Direct Ruby code within traced span
+          # This takes precedence over neural for hybrid tasks
           tracer.in_span('task_executor.symbolic', attributes: symbolic_task_attributes(task)) do |span|
             validated_inputs = task.validate_inputs(inputs)
             span.set_attribute('task.input.keys', validated_inputs.keys.map(&:to_s).join(','))
@@ -465,6 +466,12 @@ module LanguageOperator
             record_output_metadata(outputs, span) if outputs.is_a?(Hash)
             outputs
           end
+        elsif task.neural?
+          # Neural execution: LLM with tool access
+          # Only used for pure neural tasks (no symbolic implementation)
+          execute_neural(task, inputs)
+        else
+          raise ArgumentError, "Task '#{task.name}' has neither neural nor symbolic implementation"
         end
       end
 

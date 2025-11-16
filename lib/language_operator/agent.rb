@@ -191,7 +191,41 @@ module LanguageOperator
       logger.info('Main block execution completed',
                   result: result)
 
+      # Call output handler if defined
+      if agent_def.output
+        logger.debug('Executing output handler', outputs: result)
+        execute_output_handler(agent_def, result, task_executor)
+      end
+
       result
+    end
+
+    # Execute the output handler (neural or symbolic)
+    #
+    # @param agent_def [LanguageOperator::Dsl::AgentDefinition] The agent definition
+    # @param outputs [Hash] The outputs from main execution
+    # @param task_executor [LanguageOperator::Agent::TaskExecutor] Task executor for context
+    # @return [void]
+    def self.execute_output_handler(agent_def, outputs, task_executor)
+      output_config = agent_def.output
+
+      # If symbolic implementation exists, use it
+      if output_config.symbolic?
+        logger.debug('Executing symbolic output handler')
+        # execute_symbolic takes (inputs, context) - outputs are the inputs, task_executor is context
+        output_config.execute_symbolic(outputs, task_executor)
+      elsif output_config.neural?
+        # Neural output - would need LLM access to execute
+        # For now, just log the instruction
+        logger.info('Neural output handler',
+                    instruction: output_config.instructions_text,
+                    outputs: outputs)
+        logger.warn('Neural output execution not yet implemented - instruction logged only')
+      end
+    rescue StandardError => e
+      logger.error('Output handler failed',
+                   error: e.message,
+                   backtrace: e.backtrace[0..5])
     end
 
     # Build executor configuration from agent definition constraints

@@ -97,7 +97,14 @@ module LanguageOperator
       def create_resource(resource)
         resource_client = resource_client_for_resource(resource)
         # Convert hash to K8s::Resource if needed
-        k8s_resource = resource.is_a?(K8s::Resource) ? resource : K8s::Resource.new(resource)
+        k8s_resource = if resource.is_a?(K8s::Resource)
+                         resource
+                       else
+                         # Remove resourceVersion if present - it should not be set on new resources
+                         resource_hash = resource.dup
+                         resource_hash['metadata']&.delete('resourceVersion')
+                         K8s::Resource.new(resource_hash)
+                       end
         resource_client.create_resource(k8s_resource)
       end
 
