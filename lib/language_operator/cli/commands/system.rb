@@ -1078,6 +1078,11 @@ module LanguageOperator
           # Detect available models in the cluster
           model_env = detect_model_config
 
+          if model_env.nil?
+            Formatters::ProgressFormatter.warn('Could not detect model configuration from cluster')
+            Formatters::ProgressFormatter.warn('Agent may fail without MODEL_ENDPOINTS configured')
+          end
+
           env_vars = [
             { 'name' => 'AGENT_NAME', 'value' => name },
             { 'name' => 'AGENT_MODE', 'value' => 'autonomous' },
@@ -1137,19 +1142,19 @@ module LanguageOperator
 
           # Use first available model
           model = models.first
+          model_name = model.dig('metadata', 'name')
           model_id = model.dig('spec', 'modelName')
-          endpoint = model.dig('spec', 'endpoint')
 
-          # Return nil if endpoint is not configured
-          return nil unless endpoint
+          # Build endpoint URL (port 8000 is the model service port)
+          endpoint = "http://#{model_name}.#{ctx.namespace}.svc.cluster.local:8000"
 
           [
             { 'name' => 'MODEL_ENDPOINTS', 'value' => endpoint },
             { 'name' => 'LLM_MODEL', 'value' => model_id },
             { 'name' => 'OPENAI_API_KEY', 'value' => 'sk-dummy-key-for-local-proxy' }
           ]
-        rescue StandardError
-          # If we can't detect models, return nil and let the agent handle it
+        rescue StandardError => e
+          Formatters::ProgressFormatter.error("Failed to detect model configuration: #{e.message}")
           nil
         end
 
