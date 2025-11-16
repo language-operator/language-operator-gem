@@ -600,14 +600,12 @@ module LanguageOperator
 
           # Try ports in the range 14000-14999
           (14_000..14_999).each do |port|
-            begin
-              server = TCPServer.new('127.0.0.1', port)
-              server.close
-              return port
-            rescue Errno::EADDRINUSE
-              # Port in use, try next
-              next
-            end
+            server = TCPServer.new('127.0.0.1', port)
+            server.close
+            return port
+          rescue Errno::EADDRINUSE
+            # Port in use, try next
+            next
           end
 
           raise 'No available ports found in range 14000-14999'
@@ -631,13 +629,11 @@ module LanguageOperator
           require 'socket'
 
           max_attempts.times do
-            begin
-              socket = TCPSocket.new('127.0.0.1', port)
-              socket.close
-              return true
-            rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH
-              sleep 0.1
-            end
+            socket = TCPSocket.new('127.0.0.1', port)
+            socket.close
+            return true
+          rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH
+            sleep 0.1
           end
 
           raise "Port-forward to localhost:#{port} failed to become ready after #{max_attempts} attempts"
