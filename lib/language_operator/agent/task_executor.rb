@@ -161,11 +161,15 @@ module LanguageOperator
         outputs = tracer.in_span('gen_ai.chat', attributes: neural_task_attributes(task, prompt, validated_inputs)) do |span|
           # Call LLM with full tool access
           response = @agent.send_message(prompt)
+
+          logger.info('LLM response received, extracting content',
+                      task: task.name)
+
           response_text = response.is_a?(String) ? response : response.content
 
-          logger.debug('Neural task response received',
-                       task: task.name,
-                       response_length: response_text.length)
+          logger.info('Neural task response received',
+                      task: task.name,
+                      response_length: response_text.length)
 
           # Record token usage and response metadata
           record_token_usage(response, span)
@@ -173,17 +177,27 @@ module LanguageOperator
           # Record tool calls if available
           record_tool_calls(response, span)
 
+          logger.info('Parsing neural task response',
+                      task: task.name)
+
           # Parse response within child span
           parsed_outputs = tracer.in_span('task_executor.parse_response') do |parse_span|
             record_parse_metadata(response_text, parse_span)
             parse_neural_response(response_text, task)
           end
 
+          logger.info('Response parsed successfully',
+                      task: task.name,
+                      output_keys: parsed_outputs.keys)
+
           # Record output metadata
           record_output_metadata(parsed_outputs, span)
 
           parsed_outputs
         end
+
+        logger.info('Validating task outputs',
+                    task: task.name)
 
         # Validate outputs against schema
         task.validate_outputs(outputs)
