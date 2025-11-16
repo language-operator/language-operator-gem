@@ -60,7 +60,7 @@ module LanguageOperator
         @main = nil
         @tasks = {}
         @constraints = {}
-        @output_config = {}
+        @output_config = nil
         @execution_mode = :autonomous
         @webhooks = []
         @mcp_server = nil
@@ -223,16 +223,23 @@ module LanguageOperator
         @constraints = constraint_builder.to_h
       end
 
-      # Define output configuration
+      # Define output handler (DSL v1)
       #
-      # @yield Output configuration block
-      # @return [Hash] Current output config
+      # The output block receives the final outputs from the main execution
+      # and handles them (logging, saving to workspace, notifications, etc.)
+      #
+      # @yield [outputs] Output handler block
+      # @yieldparam outputs [Hash] The outputs returned from main execution
+      # @return [Proc] Current output handler
+      # @example
+      #   output do |outputs|
+      #     puts "Agent completed: #{outputs.inspect}"
+      #     File.write("/workspace/result.json", outputs.to_json)
+      #   end
       def output(&block)
         return @output_config if block.nil?
 
-        output_builder = OutputBuilder.new
-        output_builder.instance_eval(&block) if block
-        @output_config = output_builder.to_h
+        @output_config = block
       end
 
       # Set execution mode
@@ -408,8 +415,14 @@ module LanguageOperator
 
           # If main defined, execute it; otherwise just log
           if @main
-            logger.timed('Objective main execution') do
+            outputs = logger.timed('Objective main execution') do
               @main.call({ objective: objective })
+            end
+
+            # Call output handler if defined
+            if @output_config.is_a?(Proc)
+              logger.debug('Calling output handler', outputs: outputs)
+              @output_config.call(outputs)
             end
           else
             logger.warn('No main block defined, skipping execution')
@@ -483,29 +496,6 @@ module LanguageOperator
 
       def to_h
         @constraints
-      end
-    end
-
-    # Helper class for building output configuration
-    class OutputBuilder
-      def initialize
-        @config = {}
-      end
-
-      def workspace(path)
-        @config[:workspace] = path
-      end
-
-      def slack(channel:)
-        @config[:slack] = { channel: channel }
-      end
-
-      def email(to:)
-        @config[:email] = { to: to }
-      end
-
-      def to_h
-        @config
       end
     end
   end
