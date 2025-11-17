@@ -36,16 +36,24 @@ mode :scheduled
 schedule "*/10 * * * *"  # Every 10 minutes
 ```
 
-Validates that agents can run on a schedule using cron syntax:
+Validates that agents can run on a schedule using Kubernetes CronJobs:
 - ✅ **Mode dispatch** - Runtime recognizes `:scheduled` mode
-- ✅ **Cron parsing** - Schedule expression is parsed correctly
-- ✅ **Scheduler integration** - `rufus-scheduler` integration works
-- ✅ **Repeated execution** - Agent runs multiple times automatically
+- ✅ **Cron parsing** - Schedule expression is used by Kubernetes CronJob
+- ✅ **Kubernetes-native** - CronJob creates pods on schedule
+- ✅ **Execute once and exit** - Each pod runs the task once, then terminates
+- ✅ **Repeated execution** - Kubernetes creates new pods per schedule
 
 ### 3. Complete Neural Execution Flow
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Scheduler Triggers (every 10 minutes)                  │
+│  Kubernetes CronJob Triggers (every 10 minutes)         │
+│  Creates new pod for this execution                     │
+└────────────────────┬────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────┐
+│  Pod Starts → Agent Runtime Loads                       │
+│  Mode: scheduled → Execute once and exit                │
 └────────────────────┬────────────────────────────────────┘
                      │
                      ▼
@@ -75,6 +83,12 @@ Validates that agents can run on a schedule using cron syntax:
 ┌─────────────────────────────────────────────────────────┐
 │  Output Block Processes Result                          │
 │  puts outputs[:fortune]                                 │
+└────────────────────┬────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────┐
+│  Agent Exits → Pod Terminates                           │
+│  Kubernetes waits for next cron schedule                │
 └─────────────────────────────────────────────────────────┘
 ```
 
