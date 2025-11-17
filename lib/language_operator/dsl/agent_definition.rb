@@ -284,13 +284,6 @@ module LanguageOperator
       def mode(mode = nil)
         return @execution_mode if mode.nil?
 
-        # Validate that scheduled mode has a schedule
-        if mode == :scheduled && @schedule.nil?
-          raise ArgumentError,
-                'Cannot set mode to :scheduled without a schedule. ' \
-                'Use schedule() method to provide a cron expression first.'
-        end
-
         @execution_mode = mode
       end
 
