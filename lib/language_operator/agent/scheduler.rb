@@ -58,8 +58,13 @@ module LanguageOperator
         logger.info("Workspace: #{@agent.workspace_path}")
         logger.info("Connected to #{@agent.servers_info.length} MCP server(s)")
 
-        # Extract schedule from agent definition or use default
-        cron_schedule = agent_def.schedule&.cron || '0 6 * * *'
+        # Extract schedule from agent definition and validate
+        cron_schedule = agent_def.schedule
+        if cron_schedule.nil? || cron_schedule.empty?
+          raise ArgumentError,
+                "Schedule required for scheduled mode agent '#{agent_def.name}'. " \
+                'Use schedule() method to provide a cron expression.'
+        end
 
         logger.info('Scheduling workflow', cron: cron_schedule, agent: agent_def.name)
 
@@ -95,8 +100,13 @@ module LanguageOperator
         logger.info("Workspace: #{@agent.workspace_path}")
         logger.info("Connected to #{@agent.servers_info.length} MCP server(s)")
 
-        # Extract schedule from agent definition or use default
-        cron_schedule = agent_def.schedule&.cron || '0 6 * * *'
+        # Extract schedule from agent definition and validate
+        cron_schedule = agent_def.schedule
+        if cron_schedule.nil? || cron_schedule.empty?
+          raise ArgumentError,
+                "Schedule required for scheduled mode agent '#{agent_def.name}'. " \
+                'Use schedule() method to provide a cron expression.'
+        end
 
         logger.info('Scheduling main block execution', cron: cron_schedule, agent: agent_def.name)
 
