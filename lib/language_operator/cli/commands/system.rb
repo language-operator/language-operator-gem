@@ -1101,7 +1101,8 @@ module LanguageOperator
               'namespace' => ctx.namespace,
               'labels' => {
                 'app.kubernetes.io/name' => name,
-                'app.kubernetes.io/component' => 'test-agent'
+                'app.kubernetes.io/component' => 'test-agent',
+                'langop.io/kind' => 'LanguageAgent'
               }
             },
             'spec' => {
