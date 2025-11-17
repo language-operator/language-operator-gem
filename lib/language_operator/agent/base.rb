@@ -37,7 +37,6 @@ module LanguageOperator
         @workspace_path = ENV.fetch('WORKSPACE_PATH', '/workspace')
         @mode = ENV.fetch('AGENT_MODE', 'autonomous')
         @executor = nil
-        @scheduler = nil
       end
 
       # Run the agent in its configured mode
@@ -93,12 +92,16 @@ module LanguageOperator
         @executor.run_loop
       end
 
-      # Run in scheduled mode
+      # Run in scheduled mode (execute once - Kubernetes CronJob handles scheduling)
       #
       # @return [void]
       def run_scheduled
-        @scheduler = Scheduler.new(self)
-        @scheduler.start
+        logger.info('Agent running in scheduled mode without definition - executing goal once')
+
+        goal = ENV.fetch('AGENT_INSTRUCTIONS', 'Complete the assigned task')
+        execute_goal(goal)
+
+        logger.info('Scheduled execution completed - exiting')
       end
 
       # Run in reactive mode (HTTP server)

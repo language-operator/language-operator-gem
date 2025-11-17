@@ -3,7 +3,6 @@
 require_relative 'agent/base'
 require_relative 'agent/executor'
 require_relative 'agent/task_executor'
-require_relative 'agent/scheduler'
 require_relative 'agent/web_server'
 require_relative 'dsl'
 require_relative 'logger'
@@ -147,6 +146,7 @@ module LanguageOperator
     # @param agent [LanguageOperator::Agent::Base] The agent instance
     # @param agent_def [LanguageOperator::Dsl::AgentDefinition] The agent definition
     # @return [void]
+    # rubocop:disable Metrics/AbcSize, Metrics/MethodLength, Metrics/PerceivedComplexity
     def self.run_with_definition(agent, agent_def)
       agent.connect!
 
@@ -167,17 +167,24 @@ module LanguageOperator
           raise 'Agent definition must have either main block (DSL v1) or workflow (DSL v0)'
         end
       when 'scheduled', 'event-driven'
+        # Scheduled mode: Execute once and exit (Kubernetes CronJob handles scheduling)
+        logger.info('Agent running in scheduled mode - executing once',
+                    agent_name: agent_def.name,
+                    dsl_version: uses_dsl_v1 ? 'v1' : 'v0')
+
         if uses_dsl_v1
-          # DSL v1: Schedule main block execution
-          scheduler = LanguageOperator::Agent::Scheduler.new(agent)
-          scheduler.start_with_main(agent_def)
+          # DSL v1: Execute main block once
+          execute_main_block(agent, agent_def)
         elsif uses_dsl_v0
-          # DSL v0: Schedule workflow execution
-          scheduler = LanguageOperator::Agent::Scheduler.new(agent)
-          scheduler.start_with_workflow(agent_def)
+          # DSL v0: Execute workflow once
+          executor = LanguageOperator::Agent::Executor.new(agent)
+          executor.execute_workflow(agent_def)
         else
           raise 'Agent definition must have either main block (DSL v1) or workflow (DSL v0)'
         end
+
+        logger.info('Scheduled execution completed - exiting',
+                    agent_name: agent_def.name)
       when 'reactive', 'http', 'webhook'
         # Start web server with webhooks, MCP tools, and chat endpoint
         web_server = LanguageOperator::Agent::WebServer.new(agent)
@@ -189,6 +196,7 @@ module LanguageOperator
         raise "Unknown agent mode: #{agent.mode}"
       end
     end
+    # rubocop:enable Metrics/AbcSize, Metrics/MethodLength, Metrics/PerceivedComplexity
 
     # Execute main block (DSL v1) in autonomous mode
     #

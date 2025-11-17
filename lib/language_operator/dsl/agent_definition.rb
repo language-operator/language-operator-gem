@@ -357,24 +357,6 @@ module LanguageOperator
         "Agent:#{@name}"
       end
 
-      def run_scheduled
-        require 'rufus-scheduler'
-
-        scheduler = Rufus::Scheduler.new
-
-        logger.info('Scheduling agent',
-                    name: @name,
-                    cron: @schedule)
-
-        scheduler.cron(@schedule) do
-          logger.timed('Scheduled execution') do
-            execute_objectives
-          end
-        end
-
-        scheduler.join
-      end
-
       def run_autonomous
         logger.info('Running agent in autonomous mode', name: @name)
         execute_objectives

@@ -44,7 +44,6 @@ Gem::Specification.new do |spec|
 
   # Agent dependencies
   spec.add_dependency 'parallel', '~> 1.26'
-  spec.add_dependency 'rufus-scheduler', '~> 3.9'
 
   # HTTP client for synthesis and external APIs
   spec.add_dependency 'faraday', '~> 2.0'
