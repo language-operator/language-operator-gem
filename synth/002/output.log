@@ -5,18 +5,17 @@
 [1;36m⚬[0m Chat session initialized (with_tools=false)
 [1;36m⚬[0m Executing main block (agent=test-agent, task_count=1)
 [1;36m⚬[0m Executing main block (inputs_keys=[])
-[1;36m⚬[0m Executing task (task=tell_fortune, type=neural, timeout=120.0, max_retries=3)
-[1;33m⚠[0m Task execution timed out (task=tell_fortune, attempt=1, timeout=120.0, execution_time=120.001)
-[1;31m✗[0m Task execution failed (task=tell_fortune, error_category=TIMEOUT, error_class=LanguageOperator::Agent::TaskTimeoutError, error_message=Task 'tell_fortune' execution failed: timed out after 120.0s, execution_time=120.001, retry_count=0, retryable=false, backtrace=["/usr/lib/ruby/gems/3.4.0/gems/language-operator-0.1.48/lib/language_operator/agent/task_executor.rb:481:in 'LanguageOperator::Agent::TaskExecutor#execute_single_attempt'", "/usr/lib/ruby/gems/3.4.0/gems/language-operator-0.1.48/lib/language_operator/agent/task_executor.rb:414:in 'LanguageOperator::Agent::TaskExecutor#execute_with_retry'", "/usr/lib/ruby/gems/3.4.0/gems/language-operator-0.1.48/lib/language_operator/agent/task_executor.rb:126:in 'block in LanguageOperator::Agent::TaskExecutor#execute_task'", "/usr/lib/ruby/gems/3.4.0/gems/language-operator-0.1.48/lib/language_operator/agent/instrumentation.rb:45:in 'block in LanguageOperator::Agent::Instrumentation#with_span'", "/usr/lib/ruby/gems/3.4.0/gems/opentelemetry-api-1.7.0/lib/opentelemetry/trace/tracer.rb:37:in 'block in OpenTelemetry::Trace::Tracer#in_span'"])
-[1;31m✗[0m Task execution failed (task=tell_fortune, error_category=SYSTEM, error_class=LanguageOperator::Agent::TaskTimeoutError, error_message=Task 'tell_fortune' execution failed: timed out after 120.0s, execution_time=120.001, retry_count=0, retryable=false, backtrace=["/usr/lib/ruby/gems/3.4.0/gems/language-operator-0.1.48/lib/language_operator/agent/task_executor.rb:481:in 'LanguageOperator::Agent::TaskExecutor#execute_single_attempt'", "/usr/lib/ruby/gems/3.4.0/gems/language-operator-0.1.48/lib/language_operator/agent/task_executor.rb:414:in 'LanguageOperator::Agent::TaskExecutor#execute_with_retry'", "/usr/lib/ruby/gems/3.4.0/gems/language-operator-0.1.48/lib/language_operator/agent/task_executor.rb:126:in 'block in LanguageOperator::Agent::TaskExecutor#execute_task'", "/usr/lib/ruby/gems/3.4.0/gems/language-operator-0.1.48/lib/language_operator/agent/instrumentation.rb:45:in 'block in LanguageOperator::Agent::Instrumentation#with_span'", "/usr/lib/ruby/gems/3.4.0/gems/opentelemetry-api-1.7.0/lib/opentelemetry/trace/tracer.rb:37:in 'block in OpenTelemetry::Trace::Tracer#in_span'"])
-[1;31m✗[0m Main block execution failed (error=LanguageOperator::Agent::TaskTimeoutError, message=Task 'tell_fortune' execution failed: timed out after 120.0s, backtrace=["/usr/lib/ruby/gems/3.4.0/gems/language-operator-0.1.48/lib/language_operator/agent/task_executor.rb:481:in 'LanguageOperator::Agent::TaskExecutor#execute_single_attempt'", "/usr/lib/ruby/gems/3.4.0/gems/language-operator-0.1.48/lib/language_operator/agent/task_executor.rb:414:in 'LanguageOperator::Agent::TaskExecutor#execute_with_retry'", "/usr/lib/ruby/gems/3.4.0/gems/language-operator-0.1.48/lib/language_operator/agent/task_executor.rb:126:in 'block in LanguageOperator::Agent::TaskExecutor#execute_task'", "/usr/lib/ruby/gems/3.4.0/gems/language-operator-0.1.48/lib/language_operator/agent/instrumentation.rb:45:in 'block in LanguageOperator::Agent::Instrumentation#with_span'", "/usr/lib/ruby/gems/3.4.0/gems/opentelemetry-api-1.7.0/lib/opentelemetry/trace/tracer.rb:37:in 'block in OpenTelemetry::Trace::Tracer#in_span'"])
-Error loading agent code: Task 'tell_fortune' execution failed: timed out after 120.0s
-/usr/lib/ruby/gems/3.4.0/gems/language-operator-0.1.48/lib/language_operator/agent/task_executor.rb:481:in 'LanguageOperator::Agent::TaskExecutor#execute_single_attempt'
-/usr/lib/ruby/gems/3.4.0/gems/language-operator-0.1.48/lib/language_operator/agent/task_executor.rb:414:in 'LanguageOperator::Agent::TaskExecutor#execute_with_retry'
-/usr/lib/ruby/gems/3.4.0/gems/language-operator-0.1.48/lib/language_operator/agent/task_executor.rb:126:in 'block in LanguageOperator::Agent::TaskExecutor#execute_task'
-/usr/lib/ruby/gems/3.4.0/gems/language-operator-0.1.48/lib/language_operator/agent/instrumentation.rb:45:in 'block in LanguageOperator::Agent::Instrumentation#with_span'
-/usr/lib/ruby/gems/3.4.0/gems/opentelemetry-api-1.7.0/lib/opentelemetry/trace/tracer.rb:37:in 'block in OpenTelemetry::Trace::Tracer#in_span'
-No fallback configured, exiting
-[31m✗ Agent failed with exit code: 1[0m
+[1;36m⚬[0m Executing task (task=tell_fortune, type=neural, timeout=240.0, max_retries=3)
+[1;36m⚬[0m Sending prompt to LLM (task=tell_fortune, prompt_length=417)
+[1;36m⚬[0m LLM response received, extracting content (task=tell_fortune)
+[1;36m⚬[0m Neural task response received (task=tell_fortune, response_length=3617)
+[1;36m⚬[0m Parsing neural task response (task=tell_fortune)
+[1;36m⚬[0m Response parsed successfully (task=tell_fortune, output_keys=[:fortune])
+[1;36m⚬[0m Validating task outputs (task=tell_fortune)
+[1;36m⚬[0m Main execution (33.916s)
+[1;36m⚬[0m Main block completed
+[1;36m⚬[0m Main block execution completed (result={fortune: "Your kindness will bring you much happiness."})
+Your kindness will bring you much happiness.
+[32m✔ Agent completed successfully[0m
 
 
