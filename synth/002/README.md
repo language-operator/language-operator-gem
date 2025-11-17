@@ -147,15 +147,6 @@ This test proves the foundation for learning:
 
 **The critical insight**: Because `execute_task(:generate_fortune)` works the same whether the task is neural or symbolic, we can replace implementations without breaking the `main` block.
 
-### No Other Framework Can Do This
-
-| Framework | Neural Execution | Symbolic Execution | Transparent Evolution |
-|-----------|-----------------|-------------------|---------------------|
-| **Language Operator** | ✅ Instructions-based tasks | ✅ Code blocks | ✅ Contract abstraction |
-| LangChain | ❌ Chains are static | ✅ Python code | ❌ No abstraction |
-| AutoGen | ✅ Conversational | ❌ No symbolic optimization | ❌ No contracts |
-| CrewAI | ✅ Agents with prompts | ❌ No learning | ❌ No abstraction |
-
 ## The Organic Function In Action
 
 **What makes this revolutionary:**
@@ -167,50 +158,3 @@ This test proves the foundation for learning:
 5. **Zero Breaking Changes**: When re-synthesized, `main` block never changes
 
 **This is what "living code" means**: Code that starts neural (flexible, works immediately) and becomes symbolic (fast, cheap) through observation, all while maintaining a stable contract.
-
----
-
-**Status**: ✅ VALIDATED - Neural organic functions work
-
-**Next**: Test 003+ will validate learning, re-synthesis, and progressive neural→symbolic evolution
-
----
-
-## Technical Deep Dive
-
-### How Neural Execution Works
-
-When `execute_task(:generate_fortune)` is called:
-
-1. **Task Lookup**: Runtime finds task definition in agent
-2. **Type Check**: Task has `instructions`, no code block → Neural execution
-3. **Prompt Construction**:
-   ```
-   You are an AI agent executing a task.
-
-   Task: generate_fortune
-   Instructions: Generate a random fortune for the user
-
-   Inputs: {}
-
-   You must return a response matching this schema:
-   { fortune: 'string' }
-
-   [Available tools if any MCP servers connected]
-   ```
-4. **LLM Invocation**: Send prompt to configured LLM (via `ruby_llm`)
-5. **Response Parsing**: Extract structured output from LLM response
-6. **Schema Validation**: Ensure response matches `{ fortune: 'string' }`
-7. **Return**: Validated output returned to caller
-
-### What This Enables Later
-
-Once this works, the learning system can:
-
-1. **Observe Execution**: Collect OpenTelemetry traces showing what the LLM did
-2. **Detect Patterns**: Analyze if LLM behavior is deterministic
-3. **Synthesize Code**: Generate symbolic implementation from observed pattern
-4. **Re-Deploy**: Update ConfigMap with learned code
-5. **Transparent Evolution**: `main` block continues working identically
-
-**This test proves step 1 works** (neural execution). Future tests prove steps 2-5.
