@@ -25,18 +25,11 @@ module LanguageOperator
         # Return cached data if still valid
         return @cache if @cache && @cache_time && (Time.now - @cache_time) < CACHE_TTL
 
-        # Fetch from remote
-        begin
-          tools = fetch_remote
-          @cache = tools
-          @cache_time = Time.now
-          tools
-        rescue StandardError => e
-          # Fall back to local file if remote fetch fails
-          warn "Failed to fetch remote registry: #{e.message}"
-          warn 'Falling back to local registry'
-          fetch_local
-        end
+        # Fetch from remote (no fallback)
+        tools = fetch_remote
+        @cache = tools
+        @cache_time = Time.now
+        tools
       end
 
       # Clear the cache to force a fresh fetch
@@ -84,13 +77,6 @@ module LanguageOperator
         end
       end
 
-      def fetch_local
-        # Fall back to bundled local registry
-        patterns_path = File.join(__dir__, 'tool_patterns.yaml')
-        return {} unless File.exist?(patterns_path)
-
-        YAML.load_file(patterns_path)
-      end
     end
   end
 end

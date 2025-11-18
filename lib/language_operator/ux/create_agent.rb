@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'base'
+require_relative 'concerns/headings'
 require_relative '../cli/helpers/schedule_builder'
 
 module LanguageOperator
@@ -14,6 +15,7 @@ module LanguageOperator
     #
     # rubocop:disable Metrics/ClassLength, Metrics/AbcSize
     class CreateAgent < Base
+      include Concerns::Headings
       # Execute the agent creation flow
       #
       # @return [String, nil] Generated description or nil if cancelled

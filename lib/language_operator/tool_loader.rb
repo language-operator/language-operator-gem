@@ -69,14 +69,9 @@ module LanguageOperator
         context = LanguageOperator::Dsl::Context.new(@registry)
         code = File.read(file)
 
-        # Execute in sandbox with validation
-        executor = LanguageOperator::Agent::Safety::SafeExecutor.new(context)
-        executor.eval(code, file)
-      rescue Agent::Safety::SafeExecutor::SecurityError, Agent::Safety::ASTValidator::SecurityError => e
-        # Re-raise security errors so they're not silently ignored
-        warn "Error loading tool file #{file}: #{e.message}"
-        warn e.backtrace.join("\n")
-        raise e
+        # Tools are trusted code - execute directly without sandbox validation
+        # Only synthesized agent code should be sandboxed
+        context.instance_eval(code, file)
       rescue StandardError => e
         warn "Error loading tool file #{file}: #{e.message}"
         warn e.backtrace.join("\n")

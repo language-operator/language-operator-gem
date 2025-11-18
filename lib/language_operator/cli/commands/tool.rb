@@ -158,7 +158,7 @@ module LanguageOperator
             end
 
             # Render template
-            template = ERB.new(template_content)
+            template = ERB.new(template_content, trim_mode: '-')
             yaml_content = template.result_with_hash(vars)
 
             # Dry run mode

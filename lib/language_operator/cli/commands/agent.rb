@@ -48,8 +48,13 @@ module LanguageOperator
         option :wizard, type: :boolean, default: false, desc: 'Use interactive wizard mode'
         def create(description = nil)
           handle_command_error('create agent') do
+            # Read from stdin if available and no description provided
+            if description.nil? && !$stdin.tty?
+              description = $stdin.read.strip
+            end
+
             # Activate wizard mode if --wizard flag or no description provided
-            if options[:wizard] || description.nil?
+            if options[:wizard] || description.nil? || description.empty?
               description = Ux::CreateAgent.execute(ctx)
 
               # User cancelled wizard
@@ -328,6 +333,7 @@ module LanguageOperator
 
         desc 'code NAME', 'Display synthesized agent code'
         option :cluster, type: :string, desc: 'Override current cluster context'
+        option :raw, type: :boolean, default: false, desc: 'Output raw code without formatting'
         def code(name)
           handle_command_error('get code') do
             require_relative '../formatters/code_formatter'
@@ -357,15 +363,17 @@ module LanguageOperator
               exit 1
             end
 
+            # Raw output mode - just print the code
+            if options[:raw]
+              puts code_content
+              return
+            end
+
             # Display with syntax highlighting
             Formatters::CodeFormatter.display_ruby_code(
               code_content,
               title: "Synthesized Code for Agent: #{name}"
             )
-
-            puts
-            puts 'This code was automatically synthesized from the agent instructions.'
-            puts "View full agent details with: aictl agent inspect #{name}"
           end
         end
 
@@ -752,18 +760,13 @@ module LanguageOperator
         end
 
         def watch_synthesis_status(k8s, agent_name, namespace)
-          # Start with analyzing description
-          puts
-          Formatters::ProgressFormatter.info('Synthesizing agent code...')
-          puts
-
           max_wait = 600 # Wait up to 10 minutes (local models can be slow)
           interval = 2   # Check every 2 seconds
           elapsed = 0
           start_time = Time.now
           synthesis_data = {}
 
-          result = Formatters::ProgressFormatter.with_spinner('Analyzing description and generating code') do
+          result = Formatters::ProgressFormatter.with_spinner('Synthesizing code from instructions') do
             loop do
               status = check_synthesis_status(k8s, agent_name, namespace, synthesis_data, start_time)
               return status if status

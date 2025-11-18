@@ -32,12 +32,6 @@ module LanguageOperator
               code_to_display = code_content
             end
 
-            # Print header
-            puts
-            puts pastel.cyan(title) if title
-            puts pastel.dim('─' * 80)
-            puts
-
             # Highlight and print the code
             highlighted = formatter.format(lexer.lex(code_to_display))
             puts highlighted
@@ -47,10 +41,6 @@ module LanguageOperator
               puts
               puts pastel.dim("... #{remaining_lines} more lines ...")
             end
-
-            # Print footer
-            puts
-            puts pastel.dim('─' * 80)
           end
 
           # Display a code snippet with context
