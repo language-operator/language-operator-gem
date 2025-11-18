@@ -9,6 +9,7 @@ AllCops:
     - 'tmp/**/*'
     - 'bin/bump-version'
     - 'lib/language_operator/cli/templates/**/*'
+    - 'synth/**/*'
 
 # Metrics
 Metrics/BlockLength:
