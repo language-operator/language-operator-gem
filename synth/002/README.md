@@ -6,11 +6,11 @@
 
 ## Significance
 
-This is the **core validation of the Organic Function concept** - the secret sauce that makes DSL v1 revolutionary.
+This validates the Organic Function concept in DSL v1.
 
-While test 001 proved we can synthesize and execute code at all, this test proves we can execute **neural organic functions** - tasks defined purely by instructions where the LLM decides implementation at runtime.
+While test 001 verified we can synthesize and execute code, this test verifies we can execute neural organic functions - tasks defined purely by instructions where the LLM decides implementation at runtime.
 
-This is what differentiates Language Operator from every other agent framework. No other system can do this.
+This demonstrates one of the key features that differentiates Language Operator from traditional agent frameworks.
 
 ## What This Demonstrates
 
@@ -22,13 +22,13 @@ task :generate_fortune,
   outputs: { fortune: 'string' }
 ```
 
-This is a **neural organic function** - the implementation exists only as natural language instructions:
+This is a neural organic function - the implementation exists only as natural language instructions:
 - ✅ **No explicit code block** - Task has no `do |inputs| ... end`
 - ✅ **LLM synthesizes behavior** - Runtime passes instructions to LLM at execution time
 - ✅ **Contract enforcement** - Output must match `{ fortune: 'string' }` schema
 - ✅ **Caller transparency** - `execute_task(:generate_fortune)` works identically to symbolic tasks
 
-**This is the organic function abstraction in action**: The caller doesn't know (and doesn't care) whether the task is neural or symbolic.
+This demonstrates the organic function abstraction: The caller doesn't know (and doesn't care) whether the task is neural or symbolic.
 
 ### 2. Scheduled Execution Mode
 ```ruby
@@ -100,9 +100,9 @@ The runtime must validate that the LLM's response matches the output schema:
 
 ## Why This Matters
 
-### The Organic Function Secret Sauce
+### The Organic Function Approach
 
-This test validates the **fundamental innovation** of DSL v1:
+This test validates a key feature of DSL v1:
 
 **Traditional Approach (LangChain, AutoGen, etc.):**
 ```python
@@ -135,21 +135,21 @@ end
 result = execute_task(:generate_fortune)
 ```
 
-**The Magic**: The contract (`outputs: { fortune: 'string' }`) is stable. The implementation (neural vs symbolic) can change without breaking callers.
+**The key insight**: The contract (`outputs: { fortune: 'string' }`) is stable. The implementation (neural vs symbolic) can change without breaking callers.
 
 ### Enables Progressive Synthesis
 
-This test proves the foundation for learning:
+This test validates the foundation for learning:
 
 1. **Run 1-10**: Neural execution (this test validates this works)
 2. **System observes**: LLM always calls the same tools, returns same pattern
 3. **Run 11+**: Symbolic execution (future re-synthesis test validates this)
 
-**The critical insight**: Because `execute_task(:generate_fortune)` works the same whether the task is neural or symbolic, we can replace implementations without breaking the `main` block.
+Because `execute_task(:generate_fortune)` works the same whether the task is neural or symbolic, we can replace implementations without breaking the `main` block.
 
 ## The Organic Function In Action
 
-**What makes this revolutionary:**
+**What this approach enables:**
 
 1. **Instant Working Code**: User says "tell me a fortune" → Agent runs immediately (neural)
 2. **No Manual Implementation**: Never wrote `execute_llm()` or fortune generation logic
@@ -157,4 +157,4 @@ This test proves the foundation for learning:
 4. **Learning Ready**: After N runs, system can observe patterns and synthesize symbolic implementation
 5. **Zero Breaking Changes**: When re-synthesized, `main` block never changes
 
-**This is what "living code" means**: Code that starts neural (flexible, works immediately) and becomes symbolic (fast, cheap) through observation, all while maintaining a stable contract.
+This demonstrates "living code": Code that starts neural (flexible, works immediately) and becomes symbolic (fast, cheap) through observation, all while maintaining a stable contract.

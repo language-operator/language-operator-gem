@@ -1,14 +1,16 @@
-.PHONY: synthesize exec
+.PHONY: create code logs clean
 
-help:
-	@echo "Synthesis Test Targets:"
-	@echo "  make synthesize         - Generate agent.rb using default model"
-	@echo "  make run                - Execute agent.rb locally with bundle exec"
-	@echo "  make validate           - Validate agent.rb syntax"
-	@echo "  make clean              - Remove all generated .rb files"
+AGENT := synth-001
+AICTL := bundle exec ../../bin/aictl agent
 
-synthesize:
-	cat agent.txt | bundle exec ../../bin/aictl system synthesize --raw | tee agent.rb
+create:
+	cat agent.txt | $(AICTL) create --name $(AGENT)
 
-exec:
-	cat agent.rb | bundle exec ../../bin/aictl system exec | tee output.log
+code:
+	$(AICTL) code $(AGENT)
+
+logs:
+	$(AICTL) logs $(AGENT)
+
+clean:
+	$(AICTL) delete $(AGENT) --force
