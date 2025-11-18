@@ -155,15 +155,19 @@ module LanguageOperator
 
         logger.info('Sending prompt to LLM',
                     task: task.name,
-                    prompt_length: prompt.length)
+                    prompt_length: prompt.length,
+                    available_tools: @agent.respond_to?(:tools) ? @agent.tools.map(&:name) : 'N/A')
 
         # Execute LLM call within traced span
         outputs = tracer.in_span('gen_ai.chat', attributes: neural_task_attributes(task, prompt, validated_inputs)) do |span|
           # Call LLM with full tool access
+          logger.debug('Calling LLM with prompt', task: task.name, prompt_preview: prompt[0..200])
           response = @agent.send_message(prompt)
 
           logger.info('LLM response received, extracting content',
-                      task: task.name)
+                      task: task.name,
+                      response_class: response.class.name,
+                      has_tool_calls: response.respond_to?(:tool_calls) && response.tool_calls&.any?)
 
           response_text = response.is_a?(String) ? response : response.content
 

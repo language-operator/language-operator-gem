@@ -181,6 +181,9 @@ module LanguageOperator
 
       # Create a dynamic MCP::Tool class
       Class.new(MCP::Tool) do
+        # Set tool name (required for MCP protocol)
+        tool_name tool_name
+
         description tool_def.description || "Tool: #{tool_def.name}"
 
         # Build input schema from parameters

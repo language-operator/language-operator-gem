@@ -27,6 +27,13 @@ module LanguageOperator
             tool_count = client.tools.length
             all_tools.concat(client.tools)
 
+            # Debug: inspect tool objects
+            if @debug
+              logger.debug('MCP tool objects inspection',
+                           server: server_config['name'],
+                           tools_inspect: client.tools.map { |t| { class: t.class.name, name: t.name, methods: t.methods.grep(/name/) } })
+            end
+
             logger.info('MCP server connected',
                         server: server_config['name'],
                         tool_count: tool_count,

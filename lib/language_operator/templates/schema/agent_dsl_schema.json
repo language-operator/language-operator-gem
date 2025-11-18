@@ -3,7 +3,7 @@
   "$id": "https://github.com/language-operator/language-operator-gem/schema/agent-dsl.json",
   "title": "Language Operator Agent DSL",
   "description": "Schema for defining autonomous AI agents using the Language Operator DSL",
-  "version": "0.1.34",
+  "version": "0.1.56",
   "type": "object",
   "properties": {
     "name": {
