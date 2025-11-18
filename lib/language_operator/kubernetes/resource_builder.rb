@@ -37,7 +37,8 @@ module LanguageOperator
 
           spec['schedule'] = schedule if schedule
           spec['persona'] = persona if persona
-          spec['tools'] = tools unless tools.empty?
+          # Convert tool names to toolRef objects
+          spec['toolRefs'] = tools.map { |t| { 'name' => t } } unless tools.empty?
           # Convert model names to modelRef objects
           spec['modelRefs'] = models.map { |m| { 'name' => m } } unless models.empty?
 
