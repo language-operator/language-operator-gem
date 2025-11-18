@@ -367,8 +367,8 @@ module LanguageOperator
       def default_config
         {
           timeout_symbolic: 30.0,     # Default timeout for symbolic tasks (seconds)
-          timeout_neural: 240.0,      # Default timeout for neural tasks (seconds)
-          timeout_hybrid: 240.0,      # Default timeout for hybrid tasks (seconds)
+          timeout_neural: 360.0,      # Default timeout for neural tasks (seconds)
+          timeout_hybrid: 360.0,      # Default timeout for hybrid tasks (seconds)
           max_retries: 3,             # Default max retry attempts
           retry_delay_base: 1.0,      # Base delay for exponential backoff
           retry_delay_max: 10.0       # Maximum delay between retries
