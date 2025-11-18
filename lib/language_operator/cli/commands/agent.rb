@@ -49,9 +49,7 @@ module LanguageOperator
         def create(description = nil)
           handle_command_error('create agent') do
             # Read from stdin if available and no description provided
-            if description.nil? && !$stdin.tty?
-              description = $stdin.read.strip
-            end
+            description = $stdin.read.strip if description.nil? && !$stdin.tty?
 
             # Activate wizard mode if --wizard flag or no description provided
             if options[:wizard] || description.nil? || description.empty?

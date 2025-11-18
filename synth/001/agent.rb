@@ -1,7 +1,9 @@
+# frozen_string_literal: true
+
 require 'language_operator'
 
-agent "001" do
-  description "Continuously logs a message to stdout"
+agent '001' do
+  description 'Continuously logs a message to stdout'
 
   task :generate_message do |inputs|
     { message: "Agent 001 active at iteration #{inputs[:iteration]}" }
@@ -17,8 +19,8 @@ agent "001" do
   end
 
   constraints do
-    max_iterations 999999
-    timeout "10m"
+    max_iterations 999_999
+    timeout '10m'
   end
 
   output do |outputs|

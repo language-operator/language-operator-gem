@@ -37,10 +37,10 @@ module LanguageOperator
             puts highlighted
 
             # Show truncation notice if applicable
-            if truncated
-              puts
-              puts pastel.dim("... #{remaining_lines} more lines ...")
-            end
+            return unless truncated
+
+            puts
+            puts pastel.dim("... #{remaining_lines} more lines ...")
           end
 
           # Display a code snippet with context

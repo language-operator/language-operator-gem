@@ -76,7 +76,6 @@ module LanguageOperator
           response
         end
       end
-
     end
   end
 end
