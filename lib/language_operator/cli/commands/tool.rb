@@ -97,12 +97,12 @@ module LanguageOperator
             if resources
               puts 'Resources:'
               if resources['requests']
-                puts "  Requests:"
+                puts '  Requests:'
                 puts "    CPU:    #{resources['requests']['cpu']}"
                 puts "    Memory: #{resources['requests']['memory']}"
               end
               if resources['limits']
-                puts "  Limits:"
+                puts '  Limits:'
                 puts "    CPU:    #{resources['limits']['cpu']}"
                 puts "    Memory: #{resources['limits']['memory']}"
               end
@@ -129,12 +129,8 @@ module LanguageOperator
               puts "Network Egress (#{egress.length} rules):"
               egress.each_with_index do |rule, idx|
                 puts "  Rule #{idx + 1}: #{rule['description']}"
-                if rule['dns']
-                  puts "    DNS:   #{rule['dns'].join(', ')}"
-                end
-                if rule['cidr']
-                  puts "    CIDR:  #{rule['cidr']}"
-                end
+                puts "    DNS:   #{rule['dns'].join(', ')}" if rule['dns']
+                puts "    CIDR:  #{rule['cidr']}" if rule['cidr']
                 if rule['ports']
                   ports_str = rule['ports'].map { |p| "#{p['port']}/#{p['protocol']}" }.join(', ')
                   puts "    Ports: #{ports_str}"
@@ -165,14 +161,14 @@ module LanguageOperator
 
                 puts "  #{tool_name}"
                 puts "    Description: #{mcp_tool['description']}" if mcp_tool['description']
-                if mcp_tool['inputSchema'] && mcp_tool['inputSchema']['properties']
-                  params = mcp_tool['inputSchema']['properties'].keys
-                  required = mcp_tool['inputSchema']['required'] || []
-                  param_list = params.map { |p| required.include?(p) ? "#{p}*" : p }
-                  puts "    Parameters:  #{param_list.join(', ')}"
-                end
+                next unless mcp_tool['inputSchema'] && mcp_tool['inputSchema']['properties']
+
+                params = mcp_tool['inputSchema']['properties'].keys
+                required = mcp_tool['inputSchema']['required'] || []
+                param_list = params.map { |p| required.include?(p) ? "#{p}*" : p }
+                puts "    Parameters:  #{param_list.join(', ')}"
               end
-              puts "    (* = required)"
+              puts '    (* = required)'
               puts
             end
 
@@ -617,7 +613,6 @@ module LanguageOperator
           return nil unless tool.dig('status', 'phase') == 'Running'
 
           # Get the service endpoint
-          service_name = "#{name}.#{namespace}.svc.cluster.local"
           port = tool.dig('spec', 'port') || 80
 
           # Try to query the MCP server using kubectl port-forward
@@ -640,13 +635,15 @@ module LanguageOperator
               params: {}
             }.to_json
 
-            result = `kubectl exec -n #{namespace} #{pod_name} -- curl -s -X POST http://localhost:#{port}/mcp/tools/list -H "Content-Type: application/json" -d '#{json_rpc_request}' 2>/dev/null`
+            result = `kubectl exec -n #{namespace} #{pod_name} -- curl -s -X POST \
+http://localhost:#{port}/mcp/tools/list -H "Content-Type: application/json" \
+-d '#{json_rpc_request}' 2>/dev/null`
 
             return nil if result.empty?
 
             response = JSON.parse(result)
-            response.dig('result')
-          rescue StandardError => e
+            response['result']
+          rescue StandardError
             # Silently fail - capabilities are optional information
             nil
           end
