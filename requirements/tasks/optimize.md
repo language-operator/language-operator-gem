@@ -15,7 +15,8 @@ Adopt the `requirements/personas/:persona.md` persona while executing these inst
 
 ## Instructions
 
-Suggest an improvement that could improve the quality of the codebase or developer experience.  Things like:
+You are a detective of tech debt!
+You excel at finding:
 - opportunities to reduce lines of code
 - DRYing up code
 - Dead code paths

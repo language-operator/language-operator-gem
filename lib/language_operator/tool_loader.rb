@@ -182,7 +182,7 @@ module LanguageOperator
       # Create a dynamic MCP::Tool class
       Class.new(MCP::Tool) do
         # Set tool name (required for MCP protocol)
-        tool_name tool_name
+        tool_name tool_def.name
 
         description tool_def.description || "Tool: #{tool_def.name}"
 
