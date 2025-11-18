@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    language-operator (0.1.56)
+    language-operator (0.1.57)
       faraday (~> 2.0)
       k8s-ruby (~> 0.17)
       mcp (~> 0.4)
