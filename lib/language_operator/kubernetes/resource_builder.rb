@@ -25,7 +25,7 @@ module LanguageOperator
 
         # Build a LanguageAgent resource
         def language_agent(name, instructions:, cluster: nil, schedule: nil, persona: nil, tools: [], models: [],
-                           mode: nil, labels: {})
+                           mode: nil, workspace: true, labels: {})
           # Determine mode: reactive, scheduled, or autonomous
           spec_mode = mode || (schedule ? 'scheduled' : 'autonomous')
 
@@ -41,6 +41,8 @@ module LanguageOperator
           spec['toolRefs'] = tools.map { |t| { 'name' => t } } unless tools.empty?
           # Convert model names to modelRef objects
           spec['modelRefs'] = models.map { |m| { 'name' => m } } unless models.empty?
+          # Enable workspace by default for state persistence
+          spec['workspace'] = { 'enabled' => workspace } if workspace
 
           {
             'apiVersion' => 'langop.io/v1alpha1',

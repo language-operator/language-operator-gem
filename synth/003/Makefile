@@ -7,6 +7,9 @@ TOOLS := workspace
 create:
 	cat agent.txt | $(AICTL) create --name $(AGENT) --tools "$(TOOLS)"
 
+run:
+	kubectl create job --from=cronjob/$(AGENT) $(AGENT)-manual
+
 code:
 	$(AICTL) code $(AGENT)
 

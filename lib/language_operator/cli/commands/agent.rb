@@ -44,6 +44,7 @@ module LanguageOperator
         option :persona, type: :string, desc: 'Persona to use for the agent'
         option :tools, type: :array, desc: 'Tools to make available to the agent'
         option :models, type: :array, desc: 'Models to make available to the agent'
+        option :workspace, type: :boolean, default: true, desc: 'Enable workspace for state persistence'
         option :dry_run, type: :boolean, default: false, desc: 'Preview what would be created without applying'
         option :wizard, type: :boolean, default: false, desc: 'Use interactive wizard mode'
         def create(description = nil)
@@ -98,7 +99,8 @@ module LanguageOperator
               cluster: ctx.namespace,
               persona: options[:persona],
               tools: options[:tools] || [],
-              models: models
+              models: models,
+              workspace: options[:workspace]
             )
 
             # Dry-run mode: preview without applying
