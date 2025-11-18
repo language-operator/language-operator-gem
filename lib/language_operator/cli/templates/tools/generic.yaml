@@ -51,15 +51,15 @@ spec:
 <% rbac['clusterRole']['rules'].each do |rule| -%>
         - apiGroups:
 <% rule['apiGroups'].each do |group| -%>
-            - <%= group %>
+            - "<%= group %>"
 <% end -%>
           resources:
 <% rule['resources'].each do |resource| -%>
-            - <%= resource %>
+            - "<%= resource %>"
 <% end -%>
           verbs:
 <% rule['verbs'].each do |verb| -%>
-            - <%= verb %>
+            - "<%= verb %>"
 <% end -%>
 <% end -%>
 <% end -%>

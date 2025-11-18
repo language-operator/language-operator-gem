@@ -3,6 +3,7 @@
 require 'yaml'
 require 'erb'
 require 'net/http'
+require 'json'
 require_relative '../base_command'
 require_relative '../formatters/progress_formatter'
 require_relative '../formatters/table_formatter'
@@ -63,6 +64,144 @@ module LanguageOperator
             end
 
             Formatters::TableFormatter.tools(table_data)
+          end
+        end
+
+        desc 'inspect NAME', 'Show detailed tool information'
+        option :cluster, type: :string, desc: 'Override current cluster context'
+        def inspect(name)
+          handle_command_error('inspect tool') do
+            tool = get_resource_or_exit('LanguageTool', name)
+
+            puts "Tool: #{name}"
+            puts "  Cluster:   #{ctx.name}"
+            puts "  Namespace: #{ctx.namespace}"
+            puts
+
+            # Status
+            status = tool.dig('status', 'phase') || 'Unknown'
+            puts "Status: #{status}"
+            puts
+
+            # Spec details
+            puts 'Configuration:'
+            puts "  Type:            #{tool.dig('spec', 'type') || 'mcp'}"
+            puts "  Image:           #{tool.dig('spec', 'image')}"
+            puts "  Deployment Mode: #{tool.dig('spec', 'deploymentMode') || 'sidecar'}"
+            puts "  Port:            #{tool.dig('spec', 'port') || 8080}"
+            puts "  Replicas:        #{tool.dig('spec', 'replicas') || 1}"
+            puts
+
+            # Resources
+            resources = tool.dig('spec', 'resources')
+            if resources
+              puts 'Resources:'
+              if resources['requests']
+                puts "  Requests:"
+                puts "    CPU:    #{resources['requests']['cpu']}"
+                puts "    Memory: #{resources['requests']['memory']}"
+              end
+              if resources['limits']
+                puts "  Limits:"
+                puts "    CPU:    #{resources['limits']['cpu']}"
+                puts "    Memory: #{resources['limits']['memory']}"
+              end
+              puts
+            end
+
+            # RBAC
+            rbac = tool.dig('spec', 'rbac')
+            if rbac && rbac['clusterRole']
+              rules = rbac.dig('clusterRole', 'rules') || []
+              puts "RBAC Permissions (#{rules.length} rules):"
+              rules.each_with_index do |rule, idx|
+                puts "  Rule #{idx + 1}:"
+                puts "    API Groups: #{rule['apiGroups'].join(', ')}"
+                puts "    Resources:  #{rule['resources'].join(', ')}"
+                puts "    Verbs:      #{rule['verbs'].join(', ')}"
+              end
+              puts
+            end
+
+            # Egress rules
+            egress = tool.dig('spec', 'egress') || []
+            if egress.any?
+              puts "Network Egress (#{egress.length} rules):"
+              egress.each_with_index do |rule, idx|
+                puts "  Rule #{idx + 1}: #{rule['description']}"
+                if rule['dns']
+                  puts "    DNS:   #{rule['dns'].join(', ')}"
+                end
+                if rule['cidr']
+                  puts "    CIDR:  #{rule['cidr']}"
+                end
+                if rule['ports']
+                  ports_str = rule['ports'].map { |p| "#{p['port']}/#{p['protocol']}" }.join(', ')
+                  puts "    Ports: #{ports_str}"
+                end
+              end
+              puts
+            end
+
+            # Try to fetch MCP capabilities
+            capabilities = fetch_mcp_capabilities(name, tool, ctx.namespace)
+            if capabilities && capabilities['tools'] && capabilities['tools'].any?
+              puts "MCP Tools (#{capabilities['tools'].length}):"
+              capabilities['tools'].each_with_index do |mcp_tool, idx|
+                tool_name = mcp_tool['name']
+
+                # Generate a meaningful name if empty
+                if tool_name.nil? || tool_name.empty?
+                  # Try to derive from description (first few words)
+                  if mcp_tool['description']
+                    # Take first 3-4 words and convert to snake_case
+                    words = mcp_tool['description'].split(/\s+/).first(4)
+                    derived_name = words.join('_').downcase.gsub(/[^a-z0-9_]/, '')
+                    tool_name = "#{name}_#{derived_name}".gsub(/__+/, '_').sub(/_$/, '')
+                  else
+                    tool_name = "#{name}_tool_#{idx + 1}"
+                  end
+                end
+
+                puts "  #{tool_name}"
+                puts "    Description: #{mcp_tool['description']}" if mcp_tool['description']
+                if mcp_tool['inputSchema'] && mcp_tool['inputSchema']['properties']
+                  params = mcp_tool['inputSchema']['properties'].keys
+                  required = mcp_tool['inputSchema']['required'] || []
+                  param_list = params.map { |p| required.include?(p) ? "#{p}*" : p }
+                  puts "    Parameters:  #{param_list.join(', ')}"
+                end
+              end
+              puts "    (* = required)"
+              puts
+            end
+
+            # Get agents using this tool
+            agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
+            agents_using = agents.select do |agent|
+              tools = agent.dig('spec', 'tools') || []
+              tools.include?(name)
+            end
+
+            if agents_using.any?
+              puts "Agents using this tool (#{agents_using.count}):"
+              agents_using.each do |agent|
+                puts "  - #{agent.dig('metadata', 'name')}"
+              end
+            else
+              puts 'No agents using this tool'
+            end
+
+            puts
+            puts 'Labels:'
+            labels = tool.dig('metadata', 'labels') || {}
+            if labels.empty?
+              puts '  (none)'
+            else
+              labels.each do |key, value|
+                puts "  #{key}: #{value}"
+              end
+            end
           end
         end
 
@@ -463,6 +602,53 @@ module LanguageOperator
               bold_name = "\e[1m#{name}\e[0m"
               puts "#{bold_name} - #{description}"
             end
+          end
+        end
+
+        private
+
+        # Fetch MCP capabilities from a running tool server
+        #
+        # @param name [String] Tool name
+        # @param tool [Hash] Tool resource
+        # @param namespace [String] Kubernetes namespace
+        # @return [Hash, nil] MCP capabilities or nil if unavailable
+        def fetch_mcp_capabilities(name, tool, namespace)
+          return nil unless tool.dig('status', 'phase') == 'Running'
+
+          # Get the service endpoint
+          service_name = "#{name}.#{namespace}.svc.cluster.local"
+          port = tool.dig('spec', 'port') || 80
+
+          # Try to query the MCP server using kubectl port-forward
+          # This is a fallback approach since we can't directly connect from CLI
+          begin
+            # Try to find a pod for this tool
+            label_selector = "app.kubernetes.io/name=#{name}"
+            pods = ctx.client.list_resources('Pod', namespace: namespace, label_selector: label_selector)
+
+            return nil if pods.empty?
+
+            pod_name = pods.first.dig('metadata', 'name')
+
+            # Query the MCP server using JSON-RPC protocol
+            # MCP uses the tools/list method to list available tools
+            json_rpc_request = {
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'tools/list',
+              params: {}
+            }.to_json
+
+            result = `kubectl exec -n #{namespace} #{pod_name} -- curl -s -X POST http://localhost:#{port}/mcp/tools/list -H "Content-Type: application/json" -d '#{json_rpc_request}' 2>/dev/null`
+
+            return nil if result.empty?
+
+            response = JSON.parse(result)
+            response.dig('result')
+          rescue StandardError => e
+            # Silently fail - capabilities are optional information
+            nil
           end
         end
       end

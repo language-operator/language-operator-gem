@@ -20,8 +20,8 @@ module LanguageOperator
 
         # Create a dynamic class that extends MCP::Tool
         Class.new(MCP::Tool) do
-          # Set the tool name
-          define_singleton_method(:name) { tool_def.name }
+          # Set the tool name using the MCP SDK's method
+          tool_name tool_def.name
 
           # Set the description
           description tool_def.description
