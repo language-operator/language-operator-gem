@@ -107,6 +107,17 @@ module LanguageOperator
             )
           end
 
+          # Capture thinking blocks before stripping (for observability)
+          thinking_blocks = result_text.scan(%r{\[THINK\](.*?)\[/THINK\]}m).flatten
+          if thinking_blocks.any?
+            logger.info('LLM thinking captured',
+                        event: 'llm_thinking',
+                        iteration: @iteration_count,
+                        thinking_steps: thinking_blocks.length,
+                        thinking: thinking_blocks,
+                        thinking_preview: thinking_blocks.first&.[](0..500))
+          end
+
           # Log the actual LLM response content (strip [THINK] blocks)
           cleaned_response = result_text.gsub(%r{\[THINK\].*?\[/THINK\]}m, '').strip
           response_preview = cleaned_response.length > 500 ? "#{cleaned_response[0..500]}..." : cleaned_response

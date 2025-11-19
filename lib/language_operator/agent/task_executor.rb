@@ -326,6 +326,17 @@ module LanguageOperator
       # @return [Hash] Parsed outputs
       # @raise [RuntimeError] If parsing fails
       def parse_neural_response(response_text, task)
+        # Capture thinking blocks before stripping (for observability)
+        thinking_blocks = response_text.scan(%r{\[THINK\](.*?)\[/THINK\]}m).flatten
+        if thinking_blocks.any?
+          logger.info('LLM thinking captured',
+                      event: 'llm_thinking',
+                      task: task.name,
+                      thinking_steps: thinking_blocks.length,
+                      thinking: thinking_blocks,
+                      thinking_preview: thinking_blocks.first&.[](0..500))
+        end
+
         # Strip thinking tags that some models add (e.g., [THINK]...[/THINK])
         cleaned_text = response_text.gsub(%r{\[THINK\].*?\[/THINK\]}m, '').strip
 

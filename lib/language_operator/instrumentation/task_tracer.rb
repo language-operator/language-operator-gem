@@ -26,6 +26,7 @@ module LanguageOperator
     #   Instrumentation adds <5% overhead with default settings
     #   Overhead may increase to ~10% with full data capture enabled
     #
+    # rubocop:disable Metrics/ModuleLength
     module TaskTracer
       # Maximum length for captured data before truncation
       MAX_CAPTURED_LENGTH = 1000
@@ -169,6 +170,11 @@ module LanguageOperator
         return unless response.respond_to?(:tool_calls)
         return unless response.tool_calls&.any?
 
+        logger&.info('Tool calls detected in LLM response',
+                     event: 'tool_calls_detected',
+                     tool_call_count: response.tool_calls.length,
+                     tool_names: response.tool_calls.map { |tc| extract_tool_name(tc) })
+
         response.tool_calls.each do |tool_call|
           record_single_tool_call(tool_call, parent_span)
         end
@@ -182,11 +188,26 @@ module LanguageOperator
       # @param parent_span [OpenTelemetry::Trace::Span] Parent span
       def record_single_tool_call(tool_call, _parent_span)
         tool_name = extract_tool_name(tool_call)
+        tool_id = tool_call.respond_to?(:id) ? tool_call.id : nil
 
+        # Extract and log tool arguments
+        arguments = extract_tool_arguments(tool_call)
+
+        logger&.info('Tool invoked by LLM',
+                     event: 'tool_call_invoked',
+                     tool_name: tool_name,
+                     tool_id: tool_id,
+                     arguments: arguments,
+                     arguments_json: (arguments.is_a?(Hash) ? JSON.generate(arguments) : arguments.to_s))
+
+        start_time = Time.now
         tracer.in_span("execute_tool #{tool_name}", attributes: build_tool_call_attributes(tool_call)) do |tool_span|
           # Tool execution already completed by ruby_llm
           # Just record the metadata
-          record_tool_result(tool_call.result, tool_span) if tool_call.respond_to?(:result) && tool_call.result
+          if tool_call.respond_to?(:result) && tool_call.result
+            duration_ms = ((Time.now - start_time) * 1000).round(2)
+            record_tool_result(tool_call.result, tool_span, tool_name, tool_id, duration_ms)
+          end
         end
       rescue StandardError => e
         logger&.warn('Failed to record tool call span', error: e.message, tool: tool_name)
@@ -204,6 +225,34 @@ module LanguageOperator
         else
           'unknown'
         end
+      end
+
+      # Extract tool arguments from tool call object
+      #
+      # @param tool_call [Object] Tool call object
+      # @return [Hash, String] Tool arguments
+      def extract_tool_arguments(tool_call)
+        if tool_call.respond_to?(:arguments)
+          args = tool_call.arguments
+          parse_json_args(args)
+        elsif tool_call.respond_to?(:function) && tool_call.function.respond_to?(:arguments)
+          args = tool_call.function.arguments
+          parse_json_args(args)
+        else
+          {}
+        end
+      end
+
+      # Parse JSON arguments safely
+      #
+      # @param args [String, Object] Arguments to parse
+      # @return [Hash, String] Parsed arguments or original
+      def parse_json_args(args)
+        return args unless args.is_a?(String)
+
+        JSON.parse(args)
+      rescue JSON::ParserError
+        args
       end
 
       # Build attributes for tool call span
@@ -244,13 +293,25 @@ module LanguageOperator
       #
       # @param result [Object] Tool call result
       # @param span [OpenTelemetry::Trace::Span] The span to update
-      def record_tool_result(result, span)
+      # @param tool_name [String] Tool name (for logging)
+      # @param tool_id [String] Tool call ID (for logging)
+      # @param duration_ms [Float] Execution duration in milliseconds (for logging)
+      def record_tool_result(result, span, tool_name = nil, tool_id = nil, duration_ms = nil)
         result_str = result.is_a?(String) ? result : JSON.generate(result)
         span.set_attribute('gen_ai.tool.call.result.size', result_str.bytesize)
 
         if (sanitized_result = sanitize_data(result, :tool_results))
           span.set_attribute('gen_ai.tool.call.result', sanitized_result)
         end
+
+        # Log tool execution completion
+        logger&.info('Tool execution completed',
+                     event: 'tool_call_completed',
+                     tool_name: tool_name,
+                     tool_id: tool_id,
+                     result_size: result_str.bytesize,
+                     result: sanitize_data(result, :tool_results),
+                     duration_ms: duration_ms)
       rescue StandardError => e
         logger&.warn('Failed to record tool result', error: e.message)
       end
@@ -281,5 +342,6 @@ module LanguageOperator
         logger&.warn('Failed to record output metadata', error: e.message)
       end
     end
+    # rubocop:enable Metrics/ModuleLength
   end
 end
