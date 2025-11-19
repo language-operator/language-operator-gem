@@ -61,6 +61,9 @@ module LanguageOperator
 
         @chat.with_tools(*all_tools) unless all_tools.empty?
 
+        # Set up callbacks to log tool invocations
+        setup_tool_callbacks
+
         logger.info('Chat session initialized', with_tools: !all_tools.empty?)
       end
 
@@ -124,6 +127,27 @@ module LanguageOperator
         end
 
         chat_params
+      end
+
+      # Set up callbacks to log tool calls and results
+      #
+      # @return [void]
+      def setup_tool_callbacks
+        @chat.on_tool_call do |tool_call|
+          logger.info('Tool call initiated by LLM',
+                      event: 'tool_call_initiated',
+                      tool_name: tool_call.name,
+                      tool_id: tool_call.id,
+                      arguments: tool_call.arguments,
+                      arguments_json: tool_call.arguments.to_json)
+        end
+
+        @chat.on_tool_result do |result|
+          logger.info('Tool call result received',
+                      event: 'tool_result_received',
+                      result: result,
+                      result_preview: result.to_s[0..500])
+        end
       end
     end
   end

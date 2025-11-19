@@ -164,10 +164,15 @@ module LanguageOperator
           logger.debug('Calling LLM with prompt', task: task.name, prompt_preview: prompt[0..200])
           response = @agent.send_message(prompt)
 
+          # Check for tool calls and log details
+          has_tool_calls = response.respond_to?(:tool_calls) && response.tool_calls&.any?
+          tool_call_count = has_tool_calls ? response.tool_calls.length : 0
+
           logger.info('LLM response received, extracting content',
                       task: task.name,
                       response_class: response.class.name,
-                      has_tool_calls: response.respond_to?(:tool_calls) && response.tool_calls&.any?)
+                      has_tool_calls: has_tool_calls,
+                      tool_call_count: tool_call_count)
 
           response_text = response.is_a?(String) ? response : response.content
 
