@@ -213,7 +213,9 @@ module LanguageOperator
                            'tool.type' => 'custom'
                          }) do |span|
             # Execute the tool's block
-            result = @execute_block.call(params)
+            # Convert symbol keys to string keys for consistency with DSL expectations
+            string_params = params.transform_keys(&:to_s)
+            result = @execute_block.call(string_params)
 
             # Set success attribute
             span.set_attribute('tool.result', 'success')
