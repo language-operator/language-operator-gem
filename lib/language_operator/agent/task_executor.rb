@@ -316,10 +316,11 @@ module LanguageOperator
         prompt += "\n"
 
         prompt += "## Response Format\n"
-        prompt += "Return ONLY valid JSON matching the output schema above.\n"
-        prompt += "Do NOT include any explanations, thinking, or text before or after the JSON.\n"
-        prompt += "Do NOT use [THINK] tags or any other markup.\n"
+        prompt += "You may include your reasoning in [THINK]...[/THINK] tags if helpful.\n"
         prompt += "Use available tools as needed to complete the task.\n"
+        prompt += "After using tools (if needed), return your final answer as valid JSON matching the output schema above.\n"
+        prompt += "Your final JSON response should come after any tool calls and thinking.\n"
+        prompt += "Do not include explanations outside of [THINK] tags - only the JSON output.\n"
 
         prompt
       end
