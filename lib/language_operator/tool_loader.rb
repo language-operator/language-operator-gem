@@ -173,7 +173,7 @@ module LanguageOperator
     #
     # @param tool_def [LanguageOperator::Dsl::ToolDefinition] Tool definition from DSL
     # @return [Class] MCP::Tool subclass
-    # rubocop:disable Metrics/MethodLength
+    # rubocop:disable Metrics/MethodLength, Metrics/AbcSize
     def self.create_mcp_tool(tool_def)
       # Capture tool name and tracer for use in the dynamic class
       tool_name = tool_def.name
@@ -237,6 +237,6 @@ module LanguageOperator
         end
       end
     end
-    # rubocop:enable Metrics/MethodLength
+    # rubocop:enable Metrics/MethodLength, Metrics/AbcSize
   end
 end
