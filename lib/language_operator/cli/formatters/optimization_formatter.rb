@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'pastel'
-require 'tty-box'
 
 module LanguageOperator
   module CLI
