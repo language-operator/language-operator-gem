@@ -12,8 +12,6 @@ module LanguageOperator
       def connect_mcp_servers
         enabled_servers = @config['mcp_servers'].select { |s| s['enabled'] }
 
-        all_tools = []
-
         if enabled_servers.empty?
           logger.info('No MCP servers configured, agent will run without tools')
         else
@@ -25,7 +23,6 @@ module LanguageOperator
 
             @clients << client
             tool_count = client.tools.length
-            all_tools.concat(client.tools)
 
             # Debug: inspect tool objects
             if @debug
@@ -50,25 +47,22 @@ module LanguageOperator
           end
 
           logger.info('MCP connection summary',
-                      connected_servers: @clients.length,
-                      total_tools: all_tools.length)
+                      connected_servers: @clients.length)
         end
 
         # Create chat with all collected tools (even if empty)
+        # Use the tools() method which applies OpenTelemetry instrumentation wrapping
         llm_config = @config['llm']
         chat_params = build_chat_params(llm_config)
         @chat = RubyLLM.chat(**chat_params)
 
-        # Disable parallel tool calls using provider-specific parameters
-        # This prevents some models from generating incomplete tool calls with missing arguments
-        @chat = @chat.with_params(parallel_tool_calls: false)
-
+        all_tools = tools
         @chat.with_tools(*all_tools) unless all_tools.empty?
 
         # Set up callbacks to log tool invocations
         setup_tool_callbacks
 
-        logger.info('Chat session initialized', with_tools: !all_tools.empty?)
+        logger.info('Chat session initialized', with_tools: !all_tools.empty?, total_tools: all_tools.length)
       end
 
       # Connect to MCP server with exponential backoff retry logic
