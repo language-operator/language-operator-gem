@@ -34,13 +34,18 @@ module LanguageOperator
         # @return [Boolean] True if SigNoz API is reachable
         def self.available?(endpoint)
           uri = URI.join(endpoint, QUERY_PATH)
+
+          # Test with minimal POST request since HEAD returns HTML web UI
           response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https', open_timeout: 2, read_timeout: 2) do |http|
-            request = Net::HTTP::Head.new(uri.path)
+            request = Net::HTTP::Post.new(uri.path)
+            request['Content-Type'] = 'application/json'
+            request.body = '{}'
             http.request(request)
           end
 
-          # SigNoz returns 405 for HEAD (only POST supported), but endpoint exists
-          [200, 405].include?(response.code.to_i)
+          # Accept both success (200) and error responses (400) - both indicate API is working
+          # Reject only network/auth failures
+          response.is_a?(Net::HTTPSuccess) || response.is_a?(Net::HTTPClientError)
         rescue StandardError
           false
         end

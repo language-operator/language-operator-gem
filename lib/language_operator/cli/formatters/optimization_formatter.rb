@@ -184,6 +184,8 @@ module LanguageOperator
 
         # Format a percentage with status indicator
         def format_percentage_status(score, threshold, ready)
+          return @pastel.red('N/A') if score.nil?
+
           pct = (score * 100).round(1)
           threshold_pct = (threshold * 100).round(1)
 
@@ -197,6 +199,8 @@ module LanguageOperator
 
         # Format percentage value
         def format_percentage(score)
+          return @pastel.red('N/A') if score.nil?
+
           pct = (score * 100).round(1)
           @pastel.green("#{pct}%")
         end
