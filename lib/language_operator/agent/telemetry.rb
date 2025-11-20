@@ -48,13 +48,39 @@ module LanguageOperator
               build_resource_attributes
             )
 
-            # Configure OTLP exporter
+            # Configure OTLP exporter with verbose logging
+            exporter = OpenTelemetry::Exporter::OTLP::Exporter.new(
+              endpoint: endpoint
+            )
+
+            # Wrap exporter to log detailed export attempts
+            wrapped_exporter = Class.new do
+              def initialize(exporter)
+                @exporter = exporter
+              end
+
+              def export(span_data, timeout: nil)
+                warn "[OTEL DEBUG] Attempting to export #{span_data.size} spans to #{@exporter.instance_variable_get(:@uri)}"
+                result = @exporter.export(span_data, timeout: timeout)
+                warn "[OTEL DEBUG] Export result: #{result == 0 ? 'SUCCESS' : 'FAILURE'}"
+                result
+              rescue => e
+                warn "[OTEL DEBUG] Export exception: #{e.class}: #{e.message}"
+                warn e.backtrace.first(10).join("\n")
+                raise
+              end
+
+              def shutdown(timeout: nil)
+                @exporter.shutdown(timeout: timeout)
+              end
+
+              def force_flush(timeout: nil)
+                @exporter.force_flush(timeout: timeout)
+              end
+            end.new(exporter)
+
             c.add_span_processor(
-              OpenTelemetry::SDK::Trace::Export::BatchSpanProcessor.new(
-                OpenTelemetry::Exporter::OTLP::Exporter.new(
-                  endpoint: endpoint
-                )
-              )
+              OpenTelemetry::SDK::Trace::Export::BatchSpanProcessor.new(wrapped_exporter)
             )
           end
 
