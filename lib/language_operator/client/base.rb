@@ -192,7 +192,7 @@ module LanguageOperator
 
         # Wrap the call method with instrumentation
         original_tool = tool
-        tool_wrapper.define_singleton_method(:call) do |**arguments|
+        tool_wrapper.define_singleton_method(:call) do |arguments|
           tracer = OpenTelemetry.tracer_provider.tracer('language-operator')
 
           tool_name = original_tool.name
@@ -203,7 +203,7 @@ module LanguageOperator
                            'gen_ai.tool.call.arguments.size' => arguments.to_json.bytesize
                          }) do |span|
             # Execute the original tool
-            result = original_tool.call(**arguments)
+            result = original_tool.call(arguments)
 
             # Record the result size
             result_str = result.is_a?(String) ? result : result.to_json
