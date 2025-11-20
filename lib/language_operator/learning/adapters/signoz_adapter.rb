@@ -25,6 +25,7 @@ module LanguageOperator
       #     time_range: (Time.now - 3600)..Time.now,
       #     limit: 100
       #   )
+      # rubocop:disable Metrics/ClassLength
       class SignozAdapter < BaseAdapter
         # SigNoz query endpoint path
         QUERY_PATH = '/api/v5/query_range'
@@ -76,6 +77,7 @@ module LanguageOperator
         # @param times [Hash] Start and end times
         # @param limit [Integer] Result limit
         # @return [Hash] Request body
+        # rubocop:disable Metrics/MethodLength
         def build_query_request(filter, times, limit)
           {
             start: (times[:start].to_f * 1000).to_i, # Unix milliseconds
@@ -119,6 +121,7 @@ module LanguageOperator
             }
           }
         end
+        # rubocop:enable Metrics/MethodLength
 
         # Build filter expression for SigNoz v5 query
         #
@@ -338,6 +341,7 @@ module LanguageOperator
           attrs
         end
       end
+      # rubocop:enable Metrics/ClassLength
     end
   end
 end
