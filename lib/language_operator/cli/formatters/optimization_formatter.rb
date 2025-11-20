@@ -42,7 +42,7 @@ module LanguageOperator
 
           # Show ready tasks
           if ready.any?
-            output << @pastel.green.bold("✓ Ready for Optimization (#{ready.size})")
+            output << @pastel.decorate("✓ Ready for Optimization (#{ready.size})", :green, :bold)
             output << ''
             ready.each do |opp|
               output << format_opportunity(opp, ready: true)
@@ -52,7 +52,7 @@ module LanguageOperator
 
           # Show not ready tasks
           if not_ready.any?
-            output << @pastel.yellow.bold("⚠ Not Ready (#{not_ready.size})")
+            output << @pastel.decorate("⚠ Not Ready (#{not_ready.size})", :yellow, :bold)
             output << ''
             not_ready.each do |opp|
               output << format_opportunity(opp, ready: false)
@@ -63,7 +63,7 @@ module LanguageOperator
           # Summary
           output << @pastel.dim('─' * 70)
           output << if ready.any?
-                      @pastel.green.bold("#{ready.size}/#{opportunities.size} tasks eligible for optimization")
+                      @pastel.decorate("#{ready.size}/#{opportunities.size} tasks eligible for optimization", :green, :bold)
                     else
                       @pastel.yellow("0/#{opportunities.size} tasks ready - check requirements above")
                     end
@@ -115,7 +115,7 @@ module LanguageOperator
           output << ''
 
           # Current code
-          output << @pastel.yellow.bold('Current (Neural):')
+          output << @pastel.decorate('Current (Neural):', :yellow, :bold)
           output << @pastel.dim('─' * 70)
           proposal[:current_code].each_line do |line|
             output << @pastel.yellow("  #{line.rstrip}")
@@ -123,7 +123,7 @@ module LanguageOperator
           output << ''
 
           # Proposed code
-          output << @pastel.green.bold('Proposed (Symbolic):')
+          output << @pastel.decorate('Proposed (Symbolic):', :green, :bold)
           output << @pastel.dim('─' * 70)
           proposal[:proposed_code].each_line do |line|
             output << @pastel.green("  #{line.rstrip}")
@@ -137,7 +137,7 @@ module LanguageOperator
           output << format_impact_line('Execution Time:', impact[:current_avg_time], impact[:optimized_avg_time], 's', impact[:time_reduction_pct])
           output << format_impact_line('Cost Per Call:', impact[:current_avg_cost], impact[:optimized_avg_cost], '$', impact[:cost_reduction_pct])
           output << ''
-          output << "  #{@pastel.dim('Projected Monthly Savings:')} #{@pastel.green.bold("$#{impact[:projected_monthly_savings]}")}"
+          output << "  #{@pastel.dim('Projected Monthly Savings:')} #{@pastel.decorate("$#{impact[:projected_monthly_savings]}", :green, :bold)}"
           output << ''
 
           # Metadata
@@ -159,7 +159,7 @@ module LanguageOperator
         def format_success(result:)
           output = []
           output << ''
-          output << @pastel.green.bold('✓ Optimization applied successfully!')
+          output << @pastel.decorate('✓ Optimization applied successfully!', :green, :bold)
           output << ''
           output << "  Task '#{result[:task_name]}' has been optimized to symbolic execution."
           output << ''
