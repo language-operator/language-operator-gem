@@ -115,9 +115,18 @@ module LanguageOperator
 
       # Get all available tools from connected servers
       #
-      # @return [Array] Array of tool objects
+      # Wraps MCP tools with OpenTelemetry instrumentation to trace tool executions.
+      #
+      # @return [Array] Array of instrumented tool objects
       def tools
-        @clients.flat_map(&:tools)
+        raw_tools = @clients.flat_map(&:tools)
+
+        # Wrap each tool with instrumentation if telemetry is enabled
+        if ENV.fetch('OTEL_EXPORTER_OTLP_ENDPOINT', nil)
+          raw_tools.map { |tool| wrap_tool_with_instrumentation(tool) }
+        else
+          raw_tools
+        end
       end
 
       # Get information about connected servers
@@ -163,6 +172,50 @@ module LanguageOperator
 
       def logger_component
         'Client'
+      end
+
+      # Wrap an MCP tool with OpenTelemetry instrumentation
+      #
+      # Creates a wrapper that traces tool executions with proper semantic conventions.
+      # The wrapper preserves the original tool's interface while adding telemetry.
+      #
+      # @param tool [Object] Original MCP tool object
+      # @return [Object] Instrumented tool wrapper
+      def wrap_tool_with_instrumentation(tool)
+        # Create a new tool object that wraps the original
+        tool_wrapper = Object.new
+        tool_wrapper.define_singleton_method(:name) { tool.name }
+        tool_wrapper.define_singleton_method(:description) { tool.description }
+        tool_wrapper.define_singleton_method(:parameters) { tool.parameters }
+
+        # Wrap the call method with instrumentation
+        original_tool = tool
+        tool_wrapper.define_singleton_method(:call) do |**arguments|
+          tracer = OpenTelemetry.tracer_provider.tracer('language-operator')
+
+          tool_name = original_tool.name
+
+          tracer.in_span("execute_tool #{tool_name}", attributes: {
+                           'gen_ai.operation.name' => 'execute_tool',
+                           'gen_ai.tool.name' => tool_name,
+                           'gen_ai.tool.call.arguments.size' => arguments.to_json.bytesize
+                         }) do |span|
+            # Execute the original tool
+            result = original_tool.call(**arguments)
+
+            # Record the result size
+            result_str = result.is_a?(String) ? result : result.to_json
+            span.set_attribute('gen_ai.tool.call.result.size', result_str.bytesize)
+
+            result
+          rescue StandardError => e
+            span.record_exception(e)
+            span.status = OpenTelemetry::Trace::Status.error("Tool execution failed: #{e.message}")
+            raise
+          end
+        end
+
+        tool_wrapper
       end
 
       # Configure RubyLLM with provider settings
