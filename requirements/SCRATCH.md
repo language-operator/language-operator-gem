@@ -62,12 +62,13 @@ Living document of critical insights, patterns, and gotchas for this codebase.
 
 ## Current Status
 
-**Completed (2025-11-14):**
+**Completed (2025-11-19):**
 - ✅ Issue #26: Schema generation for task/main model
 - ✅ Issue #25: AST validator updated for DSL v1
 - ✅ Issues #21-23: TaskDefinition, MainDefinition, TypeCoercion implemented
 - ✅ Issue #28: TaskExecutor for task execution runtime
 - ✅ Issue #32 (partial): DependencyGraph and ParallelExecutor for implicit parallelism
+- ✅ Issue #36: TraceAnalyzer for pattern detection with multi-backend support
 
 **Test Suite Health:**
 - 135 examples, 0 failures, 2 pending (syntax error tests)
@@ -75,6 +76,7 @@ Living document of critical insights, patterns, and gotchas for this codebase.
 - 19 TaskExecutor tests, all passing
 - 20 DependencyGraph tests, all passing
 - 11 ParallelExecutor tests, all passing
+- 39 Learning/TraceAnalyzer tests, all passing
 - RuboCop clean
 
 ## Task Execution (DSL v1)
@@ -141,6 +143,39 @@ merged = execute_task(:merge, inputs: { s1: s1 })
 
 **Recommendation:** Option 4 - defer integration, ship infrastructure
 
+## Learning System (Phase 4)
+
+**Architecture (2025-11-19):**
+- `TraceAnalyzer`: Query OTLP backends for task execution traces
+- Adapter Pattern: Pluggable backend support (SigNoz, Jaeger, Tempo)
+- Pattern Detection: Analyze tool call sequences for consistency
+
+**Backend Support:**
+1. **SigNoz** (Primary): ClickHouse-backed, POST /api/v5/query_range, AND/OR filters
+2. **Jaeger**: HTTP /api/traces with tags filter (gRPC planned for future)
+3. **Tempo**: GET /api/search with TraceQL syntax
+
+**Auto-Detection Chain:** signoz → jaeger → tempo → no learning (graceful degradation)
+
+**Pattern Consistency Algorithm:**
+- Groups executions by input signature (serialized inputs)
+- For each group: finds most common tool call sequence
+- Calculates weighted average consistency across all input signatures
+- Threshold: 0.85 (85% consistency required for learning)
+
+**Configuration:**
+```ruby
+ENV['OTEL_QUERY_ENDPOINT'] = 'https://example.signoz.io'
+ENV['OTEL_QUERY_API_KEY'] = 'api-key'  # SigNoz only
+ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional explicit selection
+```
+
+**Key Learnings:**
+- WebMock stubs must be set up BEFORE TraceAnalyzer initialization (auto-detection)
+- Input normalization uses `.sort.to_h.to_s` - different values = different signatures
+- All adapters normalize to common span format: `{span_id, trace_id, name, timestamp, duration_ms, attributes}`
+- TaskTracer already emits required attributes: `task.name`, `task.input.*`, `task.output.*`, `gen_ai.tool.name`
+
 ## Quick Wins / Common Gotchas
 
 1. **Hash Key Access:** Ruby symbols ≠ strings. Always check key types in tests.
@@ -151,3 +186,5 @@ merged = execute_task(:merge, inputs: { s1: s1 })
 6. **Tool Execution:** Tools accessed via LLM interface, not direct RPC (execute_tool → execute_llm)
 7. **Error Wrapping:** TaskExecutor wraps errors in RuntimeError with task context for debugging
 8. **Concurrent Ruby Futures:** Use `future.wait` + `future.rejected?` to check status, not `rescue` around `future.value`
+9. **Logger Constants:** Use `::Logger::WARN` not `Logger::WARN` to avoid namespace conflicts
+10. **WebMock Timing:** Stub HTTP calls before object initialization if constructor makes requests
