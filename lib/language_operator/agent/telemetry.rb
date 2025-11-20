@@ -52,7 +52,7 @@ module LanguageOperator
             c.add_span_processor(
               OpenTelemetry::SDK::Trace::Export::BatchSpanProcessor.new(
                 OpenTelemetry::Exporter::OTLP::Exporter.new(
-                  endpoint: ENV.fetch('OTEL_EXPORTER_OTLP_ENDPOINT') + '/v1/traces',
+                  endpoint: "#{ENV.fetch('OTEL_EXPORTER_OTLP_ENDPOINT')}/v1/traces",
                   headers: {}
                 )
               )
