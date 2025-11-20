@@ -177,8 +177,7 @@ module LanguageOperator
           if count >= threshold
             @pastel.green("#{count} (≥#{threshold})")
           else
-            color = ready ? @pastel.yellow : @pastel.red
-            color.call("#{count}/#{threshold}")
+            ready ? @pastel.yellow("#{count}/#{threshold}") : @pastel.red("#{count}/#{threshold}")
           end
         end
 
@@ -192,8 +191,7 @@ module LanguageOperator
           if score >= threshold
             @pastel.green("#{pct}% (≥#{threshold_pct}%)")
           else
-            color = ready ? @pastel.yellow : @pastel.red
-            color.call("#{pct}%/#{threshold_pct}%")
+            ready ? @pastel.yellow("#{pct}%/#{threshold_pct}%") : @pastel.red("#{pct}%/#{threshold_pct}%")
           end
         end
 
