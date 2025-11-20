@@ -13,6 +13,9 @@ run:
 code:
 	$(AICTL) code $(AGENT)
 
+optimize:
+	$(AICTL) optimize $(AGENT)
+
 logs:
 	$(AICTL) logs $(AGENT)
 

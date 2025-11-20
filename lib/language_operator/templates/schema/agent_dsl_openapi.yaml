@@ -2,7 +2,7 @@
 :openapi: 3.0.3
 :info:
   :title: Language Operator Agent API
-  :version: 0.1.56
+  :version: 0.1.58
   :description: HTTP API endpoints exposed by Language Operator reactive agents
   :contact:
     :name: Language Operator

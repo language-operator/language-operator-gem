@@ -127,7 +127,7 @@ module LanguageOperator
         return unless ENV.fetch('OTEL_EXPORTER_OTLP_ENDPOINT', nil)
 
         OpenTelemetry.tracer_provider.force_flush
-        logger.debug('OpenTelemetry spans flushed')
+        logger.info('OpenTelemetry spans flushed to OTLP endpoint')
       rescue StandardError => e
         logger.warn("Failed to flush telemetry: #{e.message}")
       end
