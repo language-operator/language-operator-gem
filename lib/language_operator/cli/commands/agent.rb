@@ -529,7 +529,7 @@ module LanguageOperator
             ctx = Helpers::ClusterContext.from_options(options)
 
             # Get agent to verify it exists
-            agent = get_resource_or_exit('LanguageAgent', name)
+            get_resource_or_exit('LanguageAgent', name)
 
             # Get agent code/definition
             agent_definition = load_agent_definition(ctx, name)
@@ -555,8 +555,8 @@ module LanguageOperator
 
             # Initialize learning components
             trace_analyzer = Learning::TraceAnalyzer.new(
-              endpoint: ENV['OTEL_QUERY_ENDPOINT'],
-              api_key: ENV['OTEL_QUERY_API_KEY']
+              endpoint: ENV.fetch('OTEL_QUERY_ENDPOINT', nil),
+              api_key: ENV.fetch('OTEL_QUERY_API_KEY', nil)
             )
 
             unless trace_analyzer.available?
@@ -617,7 +617,9 @@ module LanguageOperator
 
               # Get user confirmation or auto-accept
               accepted = if options[:auto_accept] && proposal[:consistency_score] >= options[:min_confidence]
-                           puts pastel.green("✓ Auto-accepting (consistency: #{(proposal[:consistency_score] * 100).round(1)}% >= #{(options[:min_confidence] * 100).round(1)}%)")
+                           consistency_pct = (proposal[:consistency_score] * 100).round(1)
+                           threshold_pct = (options[:min_confidence] * 100).round(1)
+                           puts pastel.green("✓ Auto-accepting (consistency: #{consistency_pct}% >= #{threshold_pct}%)")
                            true
                          elsif options[:dry_run]
                            puts pastel.yellow('[DRY RUN] Would prompt for acceptance')
