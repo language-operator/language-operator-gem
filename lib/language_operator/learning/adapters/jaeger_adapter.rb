@@ -35,8 +35,9 @@ module LanguageOperator
         # Check if Jaeger is available at endpoint
         #
         # @param endpoint [String] Jaeger endpoint URL
+        # @param _api_key [String, nil] API key (unused, Jaeger typically doesn't require auth)
         # @return [Boolean] True if Jaeger API is reachable
-        def self.available?(endpoint)
+        def self.available?(endpoint, _api_key = nil)
           # Try HTTP query endpoint first
           uri = URI.join(endpoint, SEARCH_PATH)
           response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https', open_timeout: 2, read_timeout: 2) do |http|

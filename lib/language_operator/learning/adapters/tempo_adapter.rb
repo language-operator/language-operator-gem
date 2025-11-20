@@ -33,8 +33,9 @@ module LanguageOperator
         # Check if Tempo is available at endpoint
         #
         # @param endpoint [String] Tempo endpoint URL
+        # @param _api_key [String, nil] API key (unused, Tempo typically doesn't require auth)
         # @return [Boolean] True if Tempo API is reachable
-        def self.available?(endpoint)
+        def self.available?(endpoint, _api_key = nil)
           uri = URI.join(endpoint, SEARCH_PATH)
           # Test with minimal query
           uri.query = URI.encode_www_form(q: '{ }', limit: 1)

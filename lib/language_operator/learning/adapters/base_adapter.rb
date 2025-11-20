@@ -11,7 +11,7 @@ module LanguageOperator
       #
       # @example Implementing a custom adapter
       #   class CustomAdapter < BaseAdapter
-      #     def self.available?(endpoint)
+      #     def self.available?(endpoint, api_key = nil)
       #       # Check if backend is reachable
       #       true
       #     end
@@ -37,8 +37,9 @@ module LanguageOperator
         # Check if this backend is available at the given endpoint
         #
         # @param endpoint [String] Backend endpoint URL
+        # @param api_key [String, nil] API key for authentication (optional)
         # @return [Boolean] True if backend is reachable and compatible
-        def self.available?(endpoint)
+        def self.available?(endpoint, api_key = nil)
           raise NotImplementedError, "#{self}.available? must be implemented"
         end
 

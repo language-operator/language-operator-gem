@@ -221,7 +221,7 @@ module LanguageOperator
                           return nil
                         end
 
-        return nil unless adapter_class.available?(@endpoint)
+        return nil unless adapter_class.available?(@endpoint, @api_key)
 
         adapter_class.new(@endpoint, @api_key, logger: @logger)
       rescue LoadError => e

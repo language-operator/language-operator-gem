@@ -31,14 +31,16 @@ module LanguageOperator
         # Check if SigNoz is available at endpoint
         #
         # @param endpoint [String] SigNoz endpoint URL
+        # @param api_key [String, nil] API key for authentication (optional)
         # @return [Boolean] True if SigNoz API is reachable
-        def self.available?(endpoint)
+        def self.available?(endpoint, api_key = nil)
           uri = URI.join(endpoint, QUERY_PATH)
 
           # Test with minimal POST request since HEAD returns HTML web UI
           response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https', open_timeout: 2, read_timeout: 2) do |http|
             request = Net::HTTP::Post.new(uri.path)
             request['Content-Type'] = 'application/json'
+            request['SIGNOZ-API-KEY'] = api_key if api_key
             request.body = '{}'
             http.request(request)
           end

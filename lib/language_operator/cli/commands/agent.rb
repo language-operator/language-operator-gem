@@ -556,7 +556,8 @@ module LanguageOperator
             # Initialize learning components
             trace_analyzer = Learning::TraceAnalyzer.new(
               endpoint: ENV.fetch('OTEL_QUERY_ENDPOINT', nil),
-              api_key: ENV.fetch('OTEL_QUERY_API_KEY', nil)
+              api_key: ENV.fetch('OTEL_QUERY_API_KEY', nil),
+              backend: ENV.fetch('OTEL_QUERY_BACKEND', nil)
             )
 
             unless trace_analyzer.available?
