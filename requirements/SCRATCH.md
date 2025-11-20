@@ -69,6 +69,7 @@ Living document of critical insights, patterns, and gotchas for this codebase.
 - ✅ Issue #28: TaskExecutor for task execution runtime
 - ✅ Issue #32 (partial): DependencyGraph and ParallelExecutor for implicit parallelism
 - ✅ Issue #36: TraceAnalyzer for pattern detection with multi-backend support
+- ✅ Issue #37: PatternDetector for learning eligibility and code generation
 
 **Test Suite Health:**
 - 135 examples, 0 failures, 2 pending (syntax error tests)
@@ -76,7 +77,9 @@ Living document of critical insights, patterns, and gotchas for this codebase.
 - 19 TaskExecutor tests, all passing
 - 20 DependencyGraph tests, all passing
 - 11 ParallelExecutor tests, all passing
-- 39 Learning/TraceAnalyzer tests, all passing
+- 39 TraceAnalyzer tests, all passing
+- 31 PatternDetector tests, all passing
+- Total learning tests: 70/70 passing
 - RuboCop clean
 
 ## Task Execution (DSL v1)
@@ -147,8 +150,10 @@ merged = execute_task(:merge, inputs: { s1: s1 })
 
 **Architecture (2025-11-19):**
 - `TraceAnalyzer`: Query OTLP backends for task execution traces
+- `PatternDetector`: Convert deterministic patterns to symbolic Ruby code
 - Adapter Pattern: Pluggable backend support (SigNoz, Jaeger, Tempo)
 - Pattern Detection: Analyze tool call sequences for consistency
+- Code Generation: Tool sequences → chained execute_task calls
 
 **Backend Support:**
 1. **SigNoz** (Primary): ClickHouse-backed, POST /api/v5/query_range, AND/OR filters
@@ -170,11 +175,30 @@ ENV['OTEL_QUERY_API_KEY'] = 'api-key'  # SigNoz only
 ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional explicit selection
 ```
 
+**Pattern Detector Algorithm:**
+1. Pre-flight checks: consistency >= 0.85, executions >= 10, pattern exists
+2. Parse pattern: "db_fetch → cache_get" → [:db_fetch, :cache_get]
+3. Generate code: Chained execute_task calls with variable passing
+4. Validate: ASTValidator ensures no dangerous methods
+5. Return: Complete Ruby DSL v1 agent definition
+
+**Code Generation Example:**
+```ruby
+# Input: "db_fetch → cache_get → api_send"
+# Output:
+step1_result = execute_task(:db_fetch, inputs: inputs)
+step2_result = execute_task(:cache_get, inputs: step1_result)
+final_result = execute_task(:api_send, inputs: step2_result)
+{ result: final_result }
+```
+
 **Key Learnings:**
 - WebMock stubs must be set up BEFORE TraceAnalyzer initialization (auto-detection)
 - Input normalization uses `.sort.to_h.to_s` - different values = different signatures
 - All adapters normalize to common span format: `{span_id, trace_id, name, timestamp, duration_ms, attributes}`
 - TaskTracer already emits required attributes: `task.name`, `task.input.*`, `task.output.*`, `gen_ai.tool.name`
+- Generated code must include frozen_string_literal and require 'language_operator'
+- Agent names convert underscores to hyphens, append "-symbolic" suffix
 
 ## Quick Wins / Common Gotchas
 
