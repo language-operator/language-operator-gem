@@ -3,6 +3,7 @@
 require 'net/http'
 require 'json'
 require 'uri'
+require 'time'
 require_relative 'base_adapter'
 
 module LanguageOperator
@@ -95,7 +96,13 @@ module LanguageOperator
                       { name: 'timestamp' },
                       { name: 'durationNano' },
                       { name: 'name' },
-                      { name: 'serviceName' }
+                      { name: 'serviceName' },
+                      { name: 'task.name' },
+                      { name: 'task.input.keys' },
+                      { name: 'task.input.count' },
+                      { name: 'task.output.keys' },
+                      { name: 'task.output.count' },
+                      { name: 'gen_ai.operation.name' }
                     ],
                     order: [
                       {
@@ -261,12 +268,12 @@ module LanguageOperator
         # @return [Hash] Normalized span
         def normalize_span(span_data)
           {
-            span_id: span_data[:spanID] || span_data[:span_id],
-            trace_id: span_data[:traceID] || span_data[:trace_id],
+            span_id: span_data[:spanID] || span_data[:span_id] || span_data[:span_id],
+            trace_id: span_data[:traceID] || span_data[:trace_id] || span_data[:trace_id],
             name: span_data[:name] || span_data[:serviceName],
             timestamp: parse_timestamp(span_data[:timestamp]),
-            duration_ms: (span_data[:durationNano] || 0) / 1_000_000.0,
-            attributes: parse_attributes(span_data[:stringTagMap], span_data[:numberTagMap])
+            duration_ms: (span_data[:durationNano] || span_data[:duration_nano] || 0) / 1_000_000.0,
+            attributes: extract_attributes_from_span_data(span_data)
           }
         end
 
@@ -286,7 +293,33 @@ module LanguageOperator
           end
         end
 
-        # Parse SigNoz tag maps into flat attributes hash
+        # Extract attributes from flat span data structure
+        #
+        # SigNoz v5 returns selected fields as flat keys in the span data object.
+        # We extract the attribute fields we requested in selectFields.
+        #
+        # @param span_data [Hash] Raw span data from SigNoz v5
+        # @return [Hash] Extracted attributes
+        def extract_attributes_from_span_data(span_data)
+          attrs = {}
+
+          # Extract task-related attributes
+          attrs['task.name'] = span_data[:'task.name'] if span_data[:'task.name']
+          attrs['task.input.keys'] = span_data[:'task.input.keys'] if span_data[:'task.input.keys']
+          attrs['task.input.count'] = span_data[:'task.input.count'] if span_data[:'task.input.count']
+          attrs['task.output.keys'] = span_data[:'task.output.keys'] if span_data[:'task.output.keys']
+          attrs['task.output.count'] = span_data[:'task.output.count'] if span_data[:'task.output.count']
+
+          # Extract gen_ai attributes for tool calls
+          attrs['gen_ai.operation.name'] = span_data[:'gen_ai.operation.name'] if span_data[:'gen_ai.operation.name']
+          attrs['gen_ai.tool.name'] = span_data[:'gen_ai.tool.name'] if span_data[:'gen_ai.tool.name']
+          attrs['gen_ai.tool.call.arguments.size'] = span_data[:'gen_ai.tool.call.arguments.size'] if span_data[:'gen_ai.tool.call.arguments.size']
+          attrs['gen_ai.tool.call.result.size'] = span_data[:'gen_ai.tool.call.result.size'] if span_data[:'gen_ai.tool.call.result.size']
+
+          attrs
+        end
+
+        # Parse SigNoz tag maps into flat attributes hash (legacy)
         #
         # @param string_tags [Hash] String tag map
         # @param number_tags [Hash] Number tag map
