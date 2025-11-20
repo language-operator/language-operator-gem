@@ -63,6 +63,9 @@ module LanguageOperator
           else
             raise "Unknown agent mode: #{normalized_mode}"
           end
+        ensure
+          # Flush telemetry for short-lived processes (scheduled mode)
+          flush_telemetry if normalized_mode == 'scheduled'
         end
       end
 
@@ -111,6 +114,22 @@ module LanguageOperator
         require_relative 'web_server'
         @web_server = WebServer.new(self)
         @web_server.start
+      end
+
+      # Flush OpenTelemetry spans to ensure they're exported before process exits
+      #
+      # Critical for short-lived processes (CronJobs) that exit quickly.
+      # BatchSpanProcessor buffers spans and exports periodically, so without
+      # explicit flushing, spans may be lost when the process terminates.
+      #
+      # @return [void]
+      def flush_telemetry
+        return unless ENV.fetch('OTEL_EXPORTER_OTLP_ENDPOINT', nil)
+
+        OpenTelemetry.tracer_provider.force_flush
+        logger.debug('OpenTelemetry spans flushed')
+      rescue StandardError => e
+        logger.warn("Failed to flush telemetry: #{e.message}")
       end
     end
   end
