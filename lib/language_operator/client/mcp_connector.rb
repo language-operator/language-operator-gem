@@ -126,6 +126,11 @@ module LanguageOperator
           chat_params[:assume_model_exists] = true
         end
 
+        # Disable parallel tool calls to prevent incomplete tool call generation
+        # Some models generate placeholder tool calls with missing arguments when
+        # trying to parallelize dependent calls
+        chat_params[:parallel_tool_calls] = false
+
         chat_params
       end
 
