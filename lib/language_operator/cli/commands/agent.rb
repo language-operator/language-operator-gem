@@ -566,13 +566,13 @@ module LanguageOperator
               exit 1
             end
 
-            validator = Agent::Safety::ASTValidator.new
-            pattern_detector = Learning::PatternDetector.new(
+            validator = LanguageOperator::Agent::Safety::ASTValidator.new
+            pattern_detector = LanguageOperator::Learning::PatternDetector.new(
               trace_analyzer: trace_analyzer,
               validator: validator
             )
 
-            optimizer = Learning::Optimizer.new(
+            optimizer = LanguageOperator::Learning::Optimizer.new(
               agent_name: name,
               agent_definition: agent_definition,
               trace_analyzer: trace_analyzer,

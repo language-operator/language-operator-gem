@@ -62,7 +62,7 @@ module LanguageOperator
 
         private
 
-        # Build SigNoz query request body
+        # Build SigNoz v5 query request body
         #
         # @param filter [Hash] Filter criteria
         # @param times [Hash] Start and end times
@@ -72,31 +72,70 @@ module LanguageOperator
           {
             start: (times[:start].to_f * 1000).to_i, # Unix milliseconds
             end: (times[:end].to_f * 1000).to_i,
-            step: 60,
+            requestType: 'raw',
+            variables: {},
             compositeQuery: {
-              queryType: 'builder',
-              panelType: 'list',
-              builderQueries: {
-                A: {
-                  dataSource: 'traces',
-                  queryName: 'A',
-                  aggregateOperator: 'noop',
-                  filters: build_filters(filter),
-                  limit: limit,
-                  offset: 0,
-                  orderBy: [
-                    {
-                      columnName: 'timestamp',
-                      order: 'desc'
-                    }
-                  ]
+              queries: [
+                {
+                  type: 'builder_query',
+                  spec: {
+                    name: 'A',
+                    signal: 'traces',
+                    filter: build_filter_expression(filter),
+                    selectFields: [
+                      { name: 'spanID' },
+                      { name: 'traceID' },
+                      { name: 'timestamp' },
+                      { name: 'durationNano' },
+                      { name: 'name' },
+                      { name: 'serviceName' }
+                    ],
+                    order: [
+                      {
+                        key: { name: 'timestamp' },
+                        direction: 'desc'
+                      }
+                    ],
+                    limit: limit,
+                    offset: 0,
+                    disabled: false
+                  }
                 }
-              }
+              ]
             }
           }
         end
 
-        # Build filter items for SigNoz query
+        # Build filter expression for SigNoz v5 query
+        #
+        # SigNoz v5 filter syntax: attribute_name = 'value' (attribute name unquoted)
+        #
+        # @param filter [Hash] Filter criteria
+        # @return [Hash] Filter expression structure
+        def build_filter_expression(filter)
+          expressions = []
+
+          # Filter by task name (attribute name should NOT be quoted)
+          if filter[:task_name]
+            expressions << "task.name = '#{filter[:task_name]}'"
+          end
+
+          # Additional attribute filters
+          if filter[:attributes].is_a?(Hash)
+            filter[:attributes].each do |key, value|
+              expressions << "#{key} = '#{value}'"
+            end
+          end
+
+          # Return filter expression (v5 format)
+          if expressions.empty?
+            { expression: '' }
+          else
+            { expression: expressions.join(' AND ') }
+          end
+        end
+
+        # Build filter items for SigNoz query (legacy, kept for reference)
         #
         # @param filter [Hash] Filter criteria
         # @return [Hash] Filters structure
@@ -163,38 +202,47 @@ module LanguageOperator
             request['SIGNOZ-API-KEY'] = @api_key if @api_key
             request.body = JSON.generate(request_body)
 
+            @logger&.debug("SigNoz Query: #{JSON.pretty_generate(request_body)}")
+
             response = http.request(request)
 
-            raise "SigNoz query failed: #{response.code} #{response.message}" unless response.is_a?(Net::HTTPSuccess)
+            unless response.is_a?(Net::HTTPSuccess)
+              @logger&.error("SigNoz Error Response: #{response.body}")
+              raise "SigNoz query failed: #{response.code} #{response.message}"
+            end
 
             JSON.parse(response.body, symbolize_names: true)
           end
         end
 
-        # Parse SigNoz response into normalized spans
+        # Parse SigNoz v5 response into normalized spans
         #
         # @param response [Hash] SigNoz API response
         # @return [Array<Hash>] Normalized span data
         def parse_response(response)
-          # SigNoz response structure:
+          # SigNoz v5 response structure:
           # {
           #   data: {
-          #     result: [
-          #       {
-          #         list: [
-          #           { spanID, traceID, timestamp, attributes, ... }
-          #         ]
-          #       }
-          #     ]
+          #     data: {
+          #       results: [
+          #         {
+          #           queryName: 'A',
+          #           rows: [
+          #             { data: { spanID, traceID, ... }, timestamp: '...' }
+          #           ]
+          #         }
+          #       ]
+          #     }
           #   }
           # }
 
-          results = response.dig(:data, :result) || []
+          results = response.dig(:data, :data, :results) || []
           spans = []
 
           results.each do |result|
-            list = result[:list] || []
-            list.each do |span_data|
+            rows = result[:rows] || []
+            rows.each do |row|
+              span_data = row[:data] || {}
               spans << normalize_span(span_data)
             end
           end
@@ -208,8 +256,8 @@ module LanguageOperator
         # @return [Hash] Normalized span
         def normalize_span(span_data)
           {
-            span_id: span_data[:spanID],
-            trace_id: span_data[:traceID],
+            span_id: span_data[:spanID] || span_data[:span_id],
+            trace_id: span_data[:traceID] || span_data[:trace_id],
             name: span_data[:name] || span_data[:serviceName],
             timestamp: parse_timestamp(span_data[:timestamp]),
             duration_ms: (span_data[:durationNano] || 0) / 1_000_000.0,
@@ -217,14 +265,20 @@ module LanguageOperator
           }
         end
 
-        # Parse SigNoz timestamp (nanoseconds) to Time
+        # Parse SigNoz timestamp (v5 uses ISO 8601 strings, legacy uses nanoseconds)
         #
-        # @param timestamp [Integer] Timestamp in nanoseconds
+        # @param timestamp [String, Integer] ISO 8601 timestamp string or nanoseconds
         # @return [Time] Parsed time
         def parse_timestamp(timestamp)
           return Time.now unless timestamp
 
-          Time.at(timestamp / 1_000_000_000.0)
+          # v5 returns ISO 8601 strings
+          if timestamp.is_a?(String)
+            Time.parse(timestamp)
+          else
+            # Legacy format: nanoseconds
+            Time.at(timestamp / 1_000_000_000.0)
+          end
         end
 
         # Parse SigNoz tag maps into flat attributes hash

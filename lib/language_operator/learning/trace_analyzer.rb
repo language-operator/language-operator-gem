@@ -223,7 +223,7 @@ module LanguageOperator
 
         return nil unless adapter_class.available?(@endpoint)
 
-        adapter_class.new(@endpoint, @api_key)
+        adapter_class.new(@endpoint, @api_key, logger: @logger)
       rescue LoadError => e
         @logger.debug("Adapter #{backend_type} not available: #{e.message}")
         nil

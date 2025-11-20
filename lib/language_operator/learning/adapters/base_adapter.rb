@@ -30,6 +30,7 @@ module LanguageOperator
         def initialize(endpoint, api_key = nil, **options)
           @endpoint = endpoint
           @api_key = api_key
+          @logger = options[:logger] || ::Logger.new($stdout, level: ::Logger::WARN)
           @options = options
         end
 
