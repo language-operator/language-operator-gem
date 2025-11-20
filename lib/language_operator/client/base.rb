@@ -197,7 +197,7 @@ module LanguageOperator
 
           tool_name = original_tool.name
 
-          tracer.in_span("execute_tool #{tool_name}", attributes: {
+          tracer.in_span("execute_tool.#{tool_name}", attributes: {
                            'gen_ai.operation.name' => 'execute_tool',
                            'gen_ai.tool.name' => tool_name,
                            'gen_ai.tool.call.arguments.size' => arguments.to_json.bytesize
