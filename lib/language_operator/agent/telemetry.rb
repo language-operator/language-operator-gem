@@ -29,6 +29,16 @@ module LanguageOperator
           endpoint = ENV.fetch('OTEL_EXPORTER_OTLP_ENDPOINT', nil)
           return unless endpoint
 
+          # Configure custom error handler for detailed logging
+          OpenTelemetry.error_handler = lambda do |exception: nil, message: nil|
+            if exception
+              warn "OpenTelemetry error: #{message} - #{exception.class}: #{exception.message}"
+              warn exception.backtrace.first(5).join("\n") if exception.backtrace
+            else
+              warn "OpenTelemetry error: #{message}"
+            end
+          end
+
           OpenTelemetry::SDK.configure do |c|
             c.service_name = 'language-operator-agent'
             c.service_version = LanguageOperator::VERSION
