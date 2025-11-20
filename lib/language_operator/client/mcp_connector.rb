@@ -59,6 +59,10 @@ module LanguageOperator
         chat_params = build_chat_params(llm_config)
         @chat = RubyLLM.chat(**chat_params)
 
+        # Disable parallel tool calls using provider-specific parameters
+        # This prevents some models from generating incomplete tool calls with missing arguments
+        @chat = @chat.with_params(parallel_tool_calls: false)
+
         @chat.with_tools(*all_tools) unless all_tools.empty?
 
         # Set up callbacks to log tool invocations
@@ -125,11 +129,6 @@ module LanguageOperator
           chat_params[:provider] = :openai
           chat_params[:assume_model_exists] = true
         end
-
-        # Disable parallel tool calls to prevent incomplete tool call generation
-        # Some models generate placeholder tool calls with missing arguments when
-        # trying to parallelize dependent calls
-        chat_params[:parallel_tool_calls] = false
 
         chat_params
       end
