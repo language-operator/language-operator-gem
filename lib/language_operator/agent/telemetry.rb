@@ -26,16 +26,6 @@ module LanguageOperator
         #
         # @return [void]
         def configure
-          # OpenTelemetry auto-instrumentation is configured via environment variables:
-          # - OTEL_TRACES_EXPORTER: otlp
-          # - OTEL_EXPORTER_OTLP_ENDPOINT: http://host:port
-          # - OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-          # - OTEL_LOGS_EXPORTER: otlp
-          # - OTEL_SERVICE_NAME: service-name
-          #
-          # The SDK will auto-configure based on these env vars.
-          # We only need to configure custom resource attributes.
-
           return unless ENV.fetch('OTEL_EXPORTER_OTLP_ENDPOINT', nil)
 
           # Configure custom error handler for detailed logging
@@ -46,6 +36,27 @@ module LanguageOperator
             else
               warn "OpenTelemetry error: #{message}"
             end
+          end
+
+          # Initialize OpenTelemetry SDK with OTLP exporter
+          # Uses environment variables set by the operator:
+          # - OTEL_EXPORTER_OTLP_ENDPOINT: http://host:port
+          # - OTEL_SERVICE_NAME: service name
+          OpenTelemetry::SDK.configure do |c|
+            c.service_name = ENV.fetch('OTEL_SERVICE_NAME', 'language-operator-agent')
+
+            # Add resource attributes
+            c.resource = OpenTelemetry::SDK::Resources::Resource.create(build_resource_attributes)
+
+            # Use OTLP HTTP exporter (reads endpoint from OTEL_EXPORTER_OTLP_ENDPOINT env var)
+            c.add_span_processor(
+              OpenTelemetry::SDK::Trace::Export::BatchSpanProcessor.new(
+                OpenTelemetry::Exporter::OTLP::Exporter.new(
+                  endpoint: ENV.fetch('OTEL_EXPORTER_OTLP_ENDPOINT') + '/v1/traces',
+                  headers: {}
+                )
+              )
+            )
           end
 
           # Restore trace context from TRACEPARENT if present for distributed tracing
