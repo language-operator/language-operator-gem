@@ -315,9 +315,13 @@ module LanguageOperator
 
           # Extract gen_ai attributes for tool calls
           attrs['gen_ai.operation.name'] = span_data[:'gen_ai.operation.name'] if span_data[:'gen_ai.operation.name']
-          attrs['gen_ai.tool.name'] = span_data[:'gen_ai.tool.name'] if span_data[:'gen_ai.tool.name']
-          attrs['gen_ai.tool.call.arguments.size'] = span_data[:'gen_ai.tool.call.arguments.size'] if span_data[:'gen_ai.tool.call.arguments.size']
-          attrs['gen_ai.tool.call.result.size'] = span_data[:'gen_ai.tool.call.result.size'] if span_data[:'gen_ai.tool.call.result.size']
+
+          # Extract tool name from span name (format: "execute_tool <tool_name>")
+          # This is a workaround since gen_ai.tool.name attribute may not be indexed yet
+          if span_data[:name] && span_data[:name].start_with?('execute_tool ')
+            tool_name = span_data[:name].sub('execute_tool ', '')
+            attrs['gen_ai.tool.name'] = tool_name unless tool_name.empty?
+          end
 
           attrs
         end

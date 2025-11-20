@@ -187,6 +187,8 @@ module LanguageOperator
         tool_wrapper.define_singleton_method(:name) { tool.name }
         tool_wrapper.define_singleton_method(:description) { tool.description }
         tool_wrapper.define_singleton_method(:parameters) { tool.parameters }
+        tool_wrapper.define_singleton_method(:params_schema) { tool.params_schema }
+        tool_wrapper.define_singleton_method(:provider_params) { tool.provider_params }
 
         # Wrap the call method with instrumentation
         original_tool = tool
