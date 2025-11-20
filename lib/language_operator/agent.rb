@@ -185,9 +185,6 @@ module LanguageOperator
 
         logger.info('Scheduled execution completed - exiting',
                     agent_name: agent_def.name)
-
-        # Signal sidecar containers to shutdown by writing completion marker
-        signal_sidecar_shutdown(agent)
       when 'reactive', 'http', 'webhook'
         # Start web server with webhooks, MCP tools, and chat endpoint
         web_server = LanguageOperator::Agent::WebServer.new(agent)
@@ -304,26 +301,6 @@ module LanguageOperator
       else
         raise ArgumentError, "Invalid duration format: #{duration}. Use format like '10m', '2h', '30s'"
       end
-    end
-
-    # Signal sidecar containers to shutdown
-    #
-    # Writes a completion marker file that sidecar containers can poll for
-    # to know when to gracefully terminate.
-    #
-    # @param agent [LanguageOperator::Agent::Base] The agent instance
-    # @return [void]
-    def self.signal_sidecar_shutdown(agent)
-      return unless agent.workspace_available?
-
-      marker_file = File.join(agent.workspace_path, '.agent-complete')
-      File.write(marker_file, Time.now.to_s)
-      logger.debug('Sidecar shutdown signal written', marker_file: marker_file)
-    rescue StandardError => e
-      logger.warn('Failed to write sidecar shutdown signal',
-                  error: e.message,
-                  marker_file: marker_file)
-      # Don't fail the agent if we can't write the marker
     end
   end
   # rubocop:enable Metrics/ModuleLength
