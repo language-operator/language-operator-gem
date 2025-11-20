@@ -491,6 +491,152 @@ module LanguageOperator
           end
         end
 
+        desc 'optimize NAME', 'Optimize neural tasks to symbolic based on learned patterns'
+        long_desc <<-DESC
+          Analyze agent execution patterns and propose optimizations to convert
+          neural (LLM-based) tasks into symbolic (code-based) implementations.
+
+          This command queries OpenTelemetry traces to detect deterministic patterns
+          in task execution, then generates optimized symbolic code that runs faster
+          and costs less while maintaining the same behavior.
+
+          Requirements:
+            • OpenTelemetry backend configured (SigNoz, Jaeger, or Tempo)
+            • Neural task has executed at least 10 times
+            • Execution pattern consistency >= 85%
+
+          Examples:
+            aictl agent optimize my-agent                    # Analyze and propose optimizations
+            aictl agent optimize my-agent --dry-run          # Show what would be optimized
+            aictl agent optimize my-agent --status-only      # Show learning status only
+            aictl agent optimize my-agent --auto-accept      # Auto-accept high-confidence optimizations
+            aictl agent optimize my-agent --tasks task1,task2  # Optimize specific tasks only
+        DESC
+        option :cluster, type: :string, desc: 'Override current cluster context'
+        option :dry_run, type: :boolean, default: false, desc: 'Show what would be optimized without applying'
+        option :status_only, type: :boolean, default: false, desc: 'Show learning status without optimizing'
+        option :auto_accept, type: :boolean, default: false, desc: 'Auto-accept optimizations above min-confidence'
+        option :min_confidence, type: :numeric, default: 0.90, desc: 'Minimum consistency for auto-accept (0.0-1.0)'
+        option :tasks, type: :array, desc: 'Only optimize specific tasks'
+        def optimize(name)
+          handle_command_error('optimize agent') do
+            require_relative '../../learning/trace_analyzer'
+            require_relative '../../learning/pattern_detector'
+            require_relative '../../learning/optimizer'
+            require_relative '../../agent/safety/ast_validator'
+            require_relative '../formatters/optimization_formatter'
+
+            ctx = Helpers::ClusterContext.from_options(options)
+
+            # Get agent to verify it exists
+            agent = get_resource_or_exit('LanguageAgent', name)
+
+            # Get agent code/definition
+            agent_definition = load_agent_definition(ctx, name)
+            unless agent_definition
+              Formatters::ProgressFormatter.error("Could not load agent definition for '#{name}'")
+              exit 1
+            end
+
+            # Check for OpenTelemetry configuration
+            unless ENV['OTEL_QUERY_ENDPOINT']
+              Formatters::ProgressFormatter.warn('OpenTelemetry endpoint not configured')
+              puts
+              puts 'Set OTEL_QUERY_ENDPOINT to enable learning:'
+              puts '  export OTEL_QUERY_ENDPOINT=https://your-signoz-instance.com'
+              puts '  export OTEL_QUERY_API_KEY=your-api-key  # For SigNoz'
+              puts
+              exit 1
+            end
+
+            # Initialize learning components
+            trace_analyzer = Learning::TraceAnalyzer.new(
+              endpoint: ENV['OTEL_QUERY_ENDPOINT'],
+              api_key: ENV['OTEL_QUERY_API_KEY']
+            )
+
+            unless trace_analyzer.available?
+              Formatters::ProgressFormatter.error('OpenTelemetry backend not available')
+              puts
+              puts 'Check your OTEL_QUERY_ENDPOINT configuration and backend status.'
+              exit 1
+            end
+
+            validator = Agent::Safety::ASTValidator.new
+            pattern_detector = Learning::PatternDetector.new(
+              trace_analyzer: trace_analyzer,
+              validator: validator
+            )
+
+            optimizer = Learning::Optimizer.new(
+              agent_name: name,
+              agent_definition: agent_definition,
+              trace_analyzer: trace_analyzer,
+              pattern_detector: pattern_detector
+            )
+
+            formatter = Formatters::OptimizationFormatter.new
+
+            # Analyze for opportunities
+            opportunities = optimizer.analyze
+
+            # Display analysis
+            puts formatter.format_analysis(agent_name: name, opportunities: opportunities)
+
+            # Exit if status-only mode
+            return if options[:status_only]
+
+            # Exit if no opportunities
+            return if opportunities.empty?
+
+            # Filter to ready opportunities
+            ready = opportunities.select { |opp| opp[:ready_for_learning] }
+            return if ready.empty?
+
+            # Process each opportunity
+            ready.each do |opp|
+              task_name = opp[:task_name]
+
+              # Skip if not in requested tasks list
+              next if options[:tasks] && !options[:tasks].include?(task_name)
+
+              # Generate proposal
+              begin
+                proposal = optimizer.propose(task_name: task_name)
+              rescue ArgumentError => e
+                Formatters::ProgressFormatter.warn("Cannot optimize '#{task_name}': #{e.message}")
+                next
+              end
+
+              # Display proposal
+              puts formatter.format_proposal(proposal: proposal)
+
+              # Get user confirmation or auto-accept
+              accepted = if options[:auto_accept] && proposal[:consistency_score] >= options[:min_confidence]
+                           puts pastel.green("✓ Auto-accepting (consistency: #{(proposal[:consistency_score] * 100).round(1)}% >= #{(options[:min_confidence] * 100).round(1)}%)")
+                           true
+                         elsif options[:dry_run]
+                           puts pastel.yellow('[DRY RUN] Would prompt for acceptance')
+                           false
+                         else
+                           prompt_for_optimization_acceptance(proposal)
+                         end
+
+              # Apply if accepted
+              if accepted && !options[:dry_run]
+                result = optimizer.apply(proposal: proposal)
+                puts formatter.format_success(result: result)
+              elsif accepted
+                puts pastel.yellow('[DRY RUN] Would apply optimization')
+              else
+                puts pastel.yellow("Skipped optimization for '#{task_name}'")
+              end
+
+              puts
+            end
+          end
+        end
+
         desc 'workspace NAME', 'Browse agent workspace files'
         long_desc <<-DESC
           Browse and manage the workspace files for an agent.
@@ -1130,6 +1276,108 @@ module LanguageOperator
 
         def format_timestamp(time)
           Formatters::ValueFormatter.timestamp(time)
+        end
+
+        # Load agent definition from ConfigMap
+        def load_agent_definition(ctx, agent_name)
+          # Try to get the agent code ConfigMap
+          configmap_name = "#{agent_name}-code"
+          begin
+            configmap = ctx.client.get_resource('ConfigMap', configmap_name, ctx.namespace)
+            code_content = configmap.dig('data', 'agent.rb')
+
+            return nil unless code_content
+
+            # Parse the code to extract agent definition
+            # For now, we'll create a mock definition with the task structure
+            # In a full implementation, this would eval the code safely
+            parse_agent_code(code_content)
+          rescue K8s::Error::NotFound
+            nil
+          rescue StandardError => e
+            @logger&.error("Failed to load agent definition: #{e.message}")
+            nil
+          end
+        end
+
+        # Parse agent code to extract definition
+        def parse_agent_code(code)
+          # This is a simplified parser that creates a mock agent definition
+          # In production, this would use the actual DSL parser
+          require_relative '../../dsl/agent_definition'
+
+          # Create a minimal agent definition structure
+          # that supports the optimizer's needs
+          agent_def = Struct.new(:tasks, :name) do
+            def initialize
+              super({}, 'agent')
+            end
+          end
+
+          agent = agent_def.new
+
+          # Parse tasks from code (simplified)
+          # Look for task definitions
+          code.scan(/task\s+:(\w+),?\s*(.*?)(?=\n\s*(?:task|main|end))/m) do |match|
+            task_name = match[0].to_sym
+            task_block = match[1]
+
+            # Check if neural (has instructions) or symbolic (has do block)
+            is_neural = task_block.include?('instructions:')
+
+            task = Struct.new(:name, :neural?, :instructions, :inputs, :outputs) do
+              def initialize(name, neural)
+                super(name, neural, '', {}, {})
+              end
+            end
+
+            agent.tasks[task_name] = task.new(task_name, is_neural)
+          end
+
+          agent
+        end
+
+        # Prompt user for optimization acceptance
+        def prompt_for_optimization_acceptance(proposal)
+          require 'tty-prompt'
+          prompt = TTY::Prompt.new
+
+          choices = [
+            { name: 'Yes - apply this optimization', value: :yes },
+            { name: 'No - skip this task', value: :no },
+            { name: 'View full code diff', value: :diff },
+            { name: 'Skip all remaining', value: :skip_all }
+          ]
+
+          loop do
+            choice = prompt.select(
+              "Accept optimization for '#{proposal[:task_name]}'?",
+              choices,
+              per_page: 10
+            )
+
+            case choice
+            when :yes
+              return true
+            when :no
+              return false
+            when :diff
+              show_code_diff(proposal)
+              # Loop to ask again
+            when :skip_all
+              throw :skip_all
+            end
+          end
+        end
+
+        # Show full code diff
+        def show_code_diff(proposal)
+          puts
+          puts pastel.bold('Full Generated Code:')
+          puts pastel.dim('=' * 70)
+          puts proposal[:full_generated_code]
+          puts pastel.dim('=' * 70)
+          puts
         end
       end
     end
