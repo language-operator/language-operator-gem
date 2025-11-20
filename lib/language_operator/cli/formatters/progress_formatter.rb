@@ -48,7 +48,7 @@ module LanguageOperator
           end
 
           def warn(message)
-            puts "#{pastel.yellow.bold(LogStyle.icon(:warn))} #{message}"
+            puts "#{LogStyle.styled_icon(:warn, pastel)} #{pastel.bold(message)}"
           end
         end
       end

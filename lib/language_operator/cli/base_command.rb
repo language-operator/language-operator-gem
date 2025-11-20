@@ -20,7 +20,13 @@ module LanguageOperator
           yield
         rescue StandardError => e
           Formatters::ProgressFormatter.error("Failed to #{operation}: #{e.message}")
-          raise if ENV['DEBUG']
+
+          # Show backtrace for debugging
+          if ENV['DEBUG']
+            puts "\nBacktrace:"
+            puts e.backtrace.join("\n")
+            raise
+          end
 
           exit 1
         end
