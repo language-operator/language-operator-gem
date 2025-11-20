@@ -193,10 +193,25 @@ module LanguageOperator
         # Wrap the call method with instrumentation
         original_tool = tool
         tool_wrapper.define_singleton_method(:call) do |arguments|
+          # Get current OpenTelemetry context at call time (not definition time)
+          # This ensures we pick up the active span from the task execution
           tracer = OpenTelemetry.tracer_provider.tracer('language-operator')
-
           tool_name = original_tool.name
 
+          # Get current span to check if we have a parent
+          current_span = OpenTelemetry::Trace.current_span
+          current_span_context = current_span.context if current_span
+
+          # Log trace ID for debugging
+          if current_span_context&.valid?
+            trace_id = current_span_context.hex_trace_id
+            LanguageOperator.logger.debug("Tool call with parent trace", tool: tool_name, trace_id: trace_id) if defined?(LanguageOperator.logger)
+          else
+            LanguageOperator.logger.debug("Tool call without parent trace", tool: tool_name) if defined?(LanguageOperator.logger)
+          end
+
+          # Create span in the current context - this will automatically attach to
+          # the active span if one exists
           tracer.in_span("execute_tool.#{tool_name}", attributes: {
                            'gen_ai.operation.name' => 'execute_tool',
                            'gen_ai.tool.name' => tool_name,
