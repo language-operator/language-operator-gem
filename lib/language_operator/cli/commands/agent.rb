@@ -544,7 +544,11 @@ module LanguageOperator
               puts
               puts 'Set OTEL_QUERY_ENDPOINT to enable learning:'
               puts '  export OTEL_QUERY_ENDPOINT=https://your-signoz-instance.com'
-              puts '  export OTEL_QUERY_API_KEY=your-api-key  # For SigNoz'
+              puts '  export OTEL_QUERY_API_KEY=your-api-key          # For SigNoz authentication'
+              puts '  export OTEL_QUERY_BACKEND=signoz                # Optional: signoz, jaeger, or tempo'
+              puts
+              puts 'Auto-detection tries backends in order: SigNoz → Jaeger → Tempo'
+              puts 'Set OTEL_QUERY_BACKEND to skip auto-detection and use a specific backend.'
               puts
               exit 1
             end
