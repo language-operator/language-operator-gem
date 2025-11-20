@@ -26,8 +26,17 @@ module LanguageOperator
         #
         # @return [void]
         def configure
-          endpoint = ENV.fetch('OTEL_EXPORTER_OTLP_ENDPOINT', nil)
-          return unless endpoint
+          # OpenTelemetry auto-instrumentation is configured via environment variables:
+          # - OTEL_TRACES_EXPORTER: otlp
+          # - OTEL_EXPORTER_OTLP_ENDPOINT: http://host:port
+          # - OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+          # - OTEL_LOGS_EXPORTER: otlp
+          # - OTEL_SERVICE_NAME: service-name
+          #
+          # The SDK will auto-configure based on these env vars.
+          # We only need to configure custom resource attributes.
+
+          return unless ENV.fetch('OTEL_EXPORTER_OTLP_ENDPOINT', nil)
 
           # Configure custom error handler for detailed logging
           OpenTelemetry.error_handler = lambda do |exception: nil, message: nil|
@@ -39,52 +48,7 @@ module LanguageOperator
             end
           end
 
-          OpenTelemetry::SDK.configure do |c|
-            c.service_name = 'language-operator-agent'
-            c.service_version = LanguageOperator::VERSION
-
-            # Configure resource attributes
-            c.resource = OpenTelemetry::SDK::Resources::Resource.create(
-              build_resource_attributes
-            )
-
-            # Configure OTLP exporter with verbose logging
-            exporter = OpenTelemetry::Exporter::OTLP::Exporter.new(
-              endpoint: endpoint
-            )
-
-            # Wrap exporter to log detailed export attempts
-            wrapped_exporter = Class.new do
-              def initialize(exporter)
-                @exporter = exporter
-              end
-
-              def export(span_data, timeout: nil)
-                warn "[OTEL DEBUG] Attempting to export #{span_data.size} spans to #{@exporter.instance_variable_get(:@uri)}"
-                result = @exporter.export(span_data, timeout: timeout)
-                warn "[OTEL DEBUG] Export result: #{result == 0 ? 'SUCCESS' : 'FAILURE'}"
-                result
-              rescue => e
-                warn "[OTEL DEBUG] Export exception: #{e.class}: #{e.message}"
-                warn e.backtrace.first(10).join("\n")
-                raise
-              end
-
-              def shutdown(timeout: nil)
-                @exporter.shutdown(timeout: timeout)
-              end
-
-              def force_flush(timeout: nil)
-                @exporter.force_flush(timeout: timeout)
-              end
-            end.new(exporter)
-
-            c.add_span_processor(
-              OpenTelemetry::SDK::Trace::Export::BatchSpanProcessor.new(wrapped_exporter)
-            )
-          end
-
-          # Restore trace context from TRACEPARENT if present
+          # Restore trace context from TRACEPARENT if present for distributed tracing
           restore_trace_context if ENV['TRACEPARENT']
         rescue StandardError => e
           warn "Failed to configure OpenTelemetry: #{e.message}"
