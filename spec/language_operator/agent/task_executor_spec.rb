@@ -248,11 +248,11 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
 
       context 'timeout handling' do
         let(:timeout_executor) do
-          described_class.new(agent, tasks, { timeout: 0.5, max_retries: 0 })
+          described_class.new(agent, tasks, { timeout_symbolic: 0.5, max_retries: 0 })
         end
 
         it 'raises TaskTimeoutError when task times out' do
-          expect { timeout_executor.execute_task(:timeout_task, inputs: {}) }
+          expect { timeout_executor.execute_task(:timeout_task, inputs: {}, timeout: 0.5) }
             .to raise_error(LanguageOperator::Agent::TaskTimeoutError) do |error|
             expect(error.message).to include('timed out')
             expect(error.task_name).to eq(:timeout_task)
@@ -353,13 +353,13 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
       context 'configuration' do
         it 'uses default configuration when none provided' do
           default_executor = described_class.new(agent, tasks)
-          expect(default_executor.config[:timeout]).to eq(30.0)
+          expect(default_executor.config[:timeout_symbolic]).to eq(30.0)
           expect(default_executor.config[:max_retries]).to eq(3)
         end
 
         it 'merges provided config with defaults' do
-          custom_executor = described_class.new(agent, tasks, { timeout: 60.0 })
-          expect(custom_executor.config[:timeout]).to eq(60.0)
+          custom_executor = described_class.new(agent, tasks, { timeout_symbolic: 60.0 })
+          expect(custom_executor.config[:timeout_symbolic]).to eq(60.0)
           expect(custom_executor.config[:max_retries]).to eq(3) # default
         end
       end
