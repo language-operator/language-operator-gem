@@ -234,19 +234,28 @@ module LanguageOperator
         # Execute the tool (it's a Proc/lambda wrapped by RubyLLM)
         result = tool.call(**params)
 
+        # Extract text from MCP Content objects
+        text_result = if result.is_a?(RubyLLM::MCP::Content)
+                        result.text
+                      elsif result.respond_to?(:map) && result.first.is_a?(RubyLLM::MCP::Content)
+                        result.map(&:text).join
+                      else
+                        result
+                      end
+
         logger.debug('Tool call completed',
                      tool: tool_name_str,
-                     result_preview: result.is_a?(String) ? result[0..200] : result.class.name)
+                     result_preview: text_result.is_a?(String) ? text_result[0..200] : text_result.class.name)
 
         # Try to parse JSON response if it looks like JSON
-        if result.is_a?(String) && (result.strip.start_with?('{') || result.strip.start_with?('['))
-          JSON.parse(result, symbolize_names: true)
+        if text_result.is_a?(String) && (text_result.strip.start_with?('{') || text_result.strip.start_with?('['))
+          JSON.parse(text_result, symbolize_names: true)
         else
-          result
+          text_result
         end
       rescue JSON::ParserError
         # Not JSON, return as-is
-        result
+        text_result
       end
 
       # Helper method for symbolic tasks to call LLM directly
