@@ -185,6 +185,9 @@ module LanguageOperator
 
         logger.info('Scheduled execution completed - exiting',
                     agent_name: agent_def.name)
+
+        # Flush telemetry for short-lived processes
+        agent.send(:flush_telemetry)
       when 'reactive', 'http', 'webhook'
         # Start web server with webhooks, MCP tools, and chat endpoint
         web_server = LanguageOperator::Agent::WebServer.new(agent)

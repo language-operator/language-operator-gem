@@ -156,8 +156,8 @@ module LanguageOperator
           data = JSON.parse(response.body)
           models = data['data']&.map { |m| m['id'] } || []
 
-          # Filter out fine-tuned/snapshot models for better UX
-          models.reject { |m| m.include?('ft-') || m.include?(':') }
+          # Filter out fine-tuned models for better UX
+          models.reject { |m| m.include?('ft-') }
         rescue StandardError
           nil
         end
