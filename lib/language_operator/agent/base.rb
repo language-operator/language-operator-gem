@@ -29,6 +29,9 @@ module LanguageOperator
       def initialize(config)
         super
 
+        # Log version
+        logger.info "Language Operator v#{LanguageOperator::VERSION}"
+
         # Initialize OpenTelemetry
         LanguageOperator::Agent::Telemetry.configure
         otel_enabled = !ENV.fetch('OTEL_EXPORTER_OTLP_ENDPOINT', nil).nil?
