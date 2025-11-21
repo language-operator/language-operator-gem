@@ -223,12 +223,20 @@ module LanguageOperator
       def execute_tool(tool_name, params = {})
         tool_name_str = tool_name.to_s
 
+        logger.info('Tool call initiated by symbolic task',
+                    tool: tool_name_str,
+                    params: summarize_values(params))
+
         # Find the tool across all MCP clients
         tool = @agent.tools.find { |t| t.name == tool_name_str }
         raise ArgumentError, "Tool '#{tool_name_str}' not found" unless tool
 
         # Execute the tool (it's a Proc/lambda wrapped by RubyLLM)
         result = tool.call(**params)
+
+        logger.debug('Tool call completed',
+                     tool: tool_name_str,
+                     result_preview: result.is_a?(String) ? result[0..200] : result.class.name)
 
         # Try to parse JSON response if it looks like JSON
         if result.is_a?(String) && (result.strip.start_with?('{') || result.strip.start_with?('['))
