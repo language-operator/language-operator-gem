@@ -164,30 +164,43 @@ module LanguageOperator
         return '(no traces available)' if traces.empty?
 
         traces.first(10).each_with_index.map do |trace, idx|
-          tool_sequence = trace[:tool_calls]&.map { |tc| tc[:tool_name] }&.join(' → ') || '(no tools)'
-          duration = trace[:duration_ms]&.round(1) || 'unknown'
-          inputs_summary = trace[:inputs]&.keys&.join(', ') || 'none'
+          format_single_trace(trace, idx)
+        end.join("\n")
+      end
 
-          # Format tool calls with arguments and results
-          tool_details = if trace[:tool_calls]&.any?
-                           trace[:tool_calls].map do |tc|
-                             details = "  - #{tc[:tool_name]}"
-                             details += "\n    Args: #{tc[:arguments]}" if tc[:arguments]
-                             details += "\n    Result: #{tc[:result]}" if tc[:result]
-                             details
-                           end.join("\n")
-                         else
-                           '  (no tool calls)'
-                         end
+      # Format a single trace execution
+      #
+      # @param trace [Hash] Single trace data
+      # @param idx [Integer] Trace index
+      # @return [String] Formatted trace
+      def format_single_trace(trace, idx)
+        tool_sequence = trace[:tool_calls]&.map { |tc| tc[:tool_name] }&.join(' → ') || '(no tools)'
+        duration = trace[:duration_ms]&.round(1) || 'unknown'
+        inputs_summary = trace[:inputs]&.keys&.join(', ') || 'none'
+        tool_details = format_tool_calls(trace[:tool_calls])
 
-          <<~TRACE
-            ### Execution #{idx + 1}
-            - **Tool Sequence:** #{tool_sequence}
-            - **Duration:** #{duration}ms
-            - **Inputs:** #{inputs_summary}
-            - **Tool Calls:**
-            #{tool_details}
-          TRACE
+        <<~TRACE
+          ### Execution #{idx + 1}
+          - **Tool Sequence:** #{tool_sequence}
+          - **Duration:** #{duration}ms
+          - **Inputs:** #{inputs_summary}
+          - **Tool Calls:**
+          #{tool_details}
+        TRACE
+      end
+
+      # Format tool call details
+      #
+      # @param tool_calls [Array<Hash>, nil] Tool call data
+      # @return [String] Formatted tool calls
+      def format_tool_calls(tool_calls)
+        return '  (no tool calls)' unless tool_calls&.any?
+
+        tool_calls.map do |tc|
+          details = "  - #{tc[:tool_name]}"
+          details += "\n    Args: #{tc[:arguments]}" if tc[:arguments]
+          details += "\n    Result: #{tc[:result]}" if tc[:result]
+          details
         end.join("\n")
       end
 
