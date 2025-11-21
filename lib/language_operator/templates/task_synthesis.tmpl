@@ -2,10 +2,13 @@ You are analyzing whether an agentic task can be converted to symbolic Ruby code
 
 ## What "Symbolic" Means
 
+CRITICAL: "Deterministic" means the ALGORITHM is fixed, NOT that outputs are always the same!
+
 A task is **symbolic** (can be optimized) if it follows a predictable algorithm:
 - Reading files, calling APIs, transforming data = SYMBOLIC (even though outputs vary based on data)
 - The same code logic applies regardless of the actual data values
 - Conditional branches based on data (if file exists, if value > threshold) are fine
+- File system operations (read_file, write_file, get_file_info) = ALWAYS SYMBOLIC
 
 A task is **neural** (cannot be optimized) only if it requires:
 - Creative text generation (writing stories, poems, marketing copy)
@@ -13,6 +16,9 @@ A task is **neural** (cannot be optimized) only if it requires:
 - Understanding nuanced human intent that varies per request
 
 **Key insight:** File I/O, API calls, and data transformation are deterministic CODE even if their outputs depend on external state. "Read a file and count lines" is symbolic - the algorithm is fixed.
+
+**WRONG reasoning:** "File operations are non-deterministic because file content changes" - NO! The algorithm is deterministic.
+**RIGHT reasoning:** "This task reads a file and counts sentences - that's a fixed algorithm using read_file and string operations" - YES!
 
 ## Task Definition
 
@@ -58,8 +64,10 @@ Questions to ask:
 
 Tasks that ARE symbolic (optimize these):
 - "Read file X and return its contents" → read_file, return content
+- "Read story.txt, return empty if missing, count sentences" → get_file_info or read_file with rescue, count newlines
 - "Check if file exists, create if not" → get_file_info, conditional write_file
 - "Fetch data from API and transform it" → api_call, data transformation
+- "Append text to file, add newline if file has content" → read_file, conditional string concatenation, write_file
 
 Tasks that are NOT symbolic (don't optimize):
 - "Write a creative story continuation"
@@ -80,18 +88,19 @@ Respond with valid JSON:
 ```
 
 **Code Requirements (if symbolic):**
-- Use the DSL task format with a do block:
+- Use the DSL task format with a do block that accepts TWO parameters:
   ```ruby
   task :task_name,
        instructions: "Keep the original instructions for documentation",
        inputs: { ... },
-       outputs: { ... } do |inputs|
+       outputs: { ... } do |inputs, context|
     # Your code here
-    execute_tool(:tool_name, { arg: value })
+    result = context.execute_tool(:tool_name, { arg: value })
     { output_key: result }
   end
   ```
-- Use `execute_tool(:tool_name, { arg: value })` for tool calls
+- CRITICAL: Block must accept TWO parameters: |inputs, context|
+- Use `context.execute_tool(:tool_name, { arg: value })` for tool calls
 - Access inputs via the `inputs` hash parameter
 - Return a hash matching the output schema
 - Do NOT use system(), eval(), or other unsafe methods
