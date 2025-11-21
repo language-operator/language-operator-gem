@@ -205,9 +205,9 @@ module LanguageOperator
           # Log trace ID for debugging
           if current_span_context&.valid?
             trace_id = current_span_context.hex_trace_id
-            LanguageOperator.logger.debug("Tool call with parent trace", tool: tool_name, trace_id: trace_id) if defined?(LanguageOperator.logger)
-          else
-            LanguageOperator.logger.debug("Tool call without parent trace", tool: tool_name) if defined?(LanguageOperator.logger)
+            LanguageOperator.logger.debug('Tool call with parent trace', tool: tool_name, trace_id: trace_id) if defined?(LanguageOperator.logger)
+          elsif defined?(LanguageOperator.logger)
+            LanguageOperator.logger.debug('Tool call without parent trace', tool: tool_name)
           end
 
           # Create span in the current context - this will automatically attach to

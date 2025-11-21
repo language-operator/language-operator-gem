@@ -318,7 +318,7 @@ module LanguageOperator
 
           # Extract tool name from span name (format: "execute_tool.tool_name")
           # This is a workaround since gen_ai.tool.name attribute may not be indexed yet
-          if span_data[:name] && span_data[:name].start_with?('execute_tool.')
+          if span_data[:name]&.start_with?('execute_tool.')
             tool_name = span_data[:name].sub('execute_tool.', '')
             attrs['gen_ai.tool.name'] = tool_name unless tool_name.empty?
           end
