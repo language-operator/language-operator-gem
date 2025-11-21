@@ -215,21 +215,30 @@ module LanguageOperator
 
       # Helper method for symbolic tasks to execute tools
       #
-      # This is a simplified interface - symbolic tasks should primarily use
-      # execute_llm to leverage tools through the LLM interface, or call tools
-      # directly through the MCP client if needed.
+      # Executes an MCP tool directly through the agent's MCP clients.
       #
-      # @param tool_name [String] Name of the tool
-      # @param action [String] Tool action/method
+      # @param tool_name [Symbol, String] Name of the tool to execute
       # @param params [Hash] Tool parameters
-      # @return [Object] Tool response
-      # @note For DSL v1, tools are accessed via LLM tool calling, not direct invocation
-      def execute_tool(tool_name, action, params = {})
-        # Build prompt to use the tool via LLM
-        prompt = "Use the #{tool_name} tool to perform #{action} with parameters: #{params.inspect}"
-        execute_llm(prompt)
-        # Parse response - for now just return the text
-        # TODO: More sophisticated tool result extraction
+      # @return [Object] Tool response (parsed from tool result)
+      def execute_tool(tool_name, params = {})
+        tool_name_str = tool_name.to_s
+
+        # Find the tool across all MCP clients
+        tool = @agent.tools.find { |t| t.name == tool_name_str }
+        raise ArgumentError, "Tool '#{tool_name_str}' not found" unless tool
+
+        # Execute the tool (it's a Proc/lambda wrapped by RubyLLM)
+        result = tool.call(**params)
+
+        # Try to parse JSON response if it looks like JSON
+        if result.is_a?(String) && (result.strip.start_with?('{') || result.strip.start_with?('['))
+          JSON.parse(result, symbolize_names: true)
+        else
+          result
+        end
+      rescue JSON::ParserError
+        # Not JSON, return as-is
+        result
       end
 
       # Helper method for symbolic tasks to call LLM directly

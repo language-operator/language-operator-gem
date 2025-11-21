@@ -367,13 +367,14 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
   end
 
   describe '#execute_tool' do
-    it 'executes tool via LLM interface' do
-      allow(agent).to receive(:send_message).and_return('Tool executed successfully')
+    it 'executes tool directly via MCP' do
+      tool_mock = double('Tool', name: 'my_tool', call: { result: 'success' })
+      allow(agent).to receive(:tools).and_return([tool_mock])
 
-      result = executor.execute_tool('my_tool', 'action_name', { param: 'value' })
+      result = executor.execute_tool('my_tool', { param: 'value' })
 
-      expect(result).to eq('Tool executed successfully')
-      expect(agent).to have_received(:send_message).with(/Use the my_tool tool/)
+      expect(result).to eq({ result: 'success' })
+      expect(tool_mock).to have_received(:call).with(param: 'value')
     end
   end
 
