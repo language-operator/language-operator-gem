@@ -168,11 +168,25 @@ module LanguageOperator
           duration = trace[:duration_ms]&.round(1) || 'unknown'
           inputs_summary = trace[:inputs]&.keys&.join(', ') || 'none'
 
+          # Format tool calls with arguments and results
+          tool_details = if trace[:tool_calls]&.any?
+                           trace[:tool_calls].map do |tc|
+                             details = "  - #{tc[:tool_name]}"
+                             details += "\n    Args: #{tc[:arguments]}" if tc[:arguments]
+                             details += "\n    Result: #{tc[:result]}" if tc[:result]
+                             details
+                           end.join("\n")
+                         else
+                           '  (no tool calls)'
+                         end
+
           <<~TRACE
             ### Execution #{idx + 1}
             - **Tool Sequence:** #{tool_sequence}
             - **Duration:** #{duration}ms
             - **Inputs:** #{inputs_summary}
+            - **Tool Calls:**
+            #{tool_details}
           TRACE
         end.join("\n")
       end

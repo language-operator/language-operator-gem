@@ -125,7 +125,9 @@ module LanguageOperator
             .map do |tool_span|
               {
                 tool_name: tool_span.dig(:attributes, 'gen_ai.tool.name'),
+                arguments: tool_span.dig(:attributes, 'gen_ai.tool.call.arguments'),
                 arguments_size: tool_span.dig(:attributes, 'gen_ai.tool.call.arguments.size'),
+                result: tool_span.dig(:attributes, 'gen_ai.tool.call.result'),
                 result_size: tool_span.dig(:attributes, 'gen_ai.tool.call.result.size')
               }
             end

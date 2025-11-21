@@ -215,14 +215,16 @@ module LanguageOperator
           tracer.in_span("execute_tool.#{tool_name}", attributes: {
                            'gen_ai.operation.name' => 'execute_tool',
                            'gen_ai.tool.name' => tool_name,
+                           'gen_ai.tool.call.arguments' => arguments.to_json[0..1000],
                            'gen_ai.tool.call.arguments.size' => arguments.to_json.bytesize
                          }) do |span|
             # Execute the original tool
             result = original_tool.call(arguments)
 
-            # Record the result size
+            # Record the result (truncated for telemetry)
             result_str = result.is_a?(String) ? result : result.to_json
             span.set_attribute('gen_ai.tool.call.result.size', result_str.bytesize)
+            span.set_attribute('gen_ai.tool.call.result', result_str[0..2000])
 
             result
           rescue StandardError => e
