@@ -117,7 +117,8 @@ module LanguageOperator
                       task: task_name,
                       type: task_type,
                       timeout: timeout,
-                      max_retries: max_retries)
+                      max_retries: max_retries,
+                      inputs: summarize_values(inputs))
 
           # Add timeout to span attributes after it's determined
           OpenTelemetry::Trace.current_span&.set_attribute('task.timeout', timeout)
@@ -289,6 +290,25 @@ module LanguageOperator
 
       def logger_component
         'Agent::TaskExecutor'
+      end
+
+      # Summarize hash values for logging (truncate long strings)
+      #
+      # @param hash [Hash] Hash to summarize
+      # @return [Hash] Summarized hash with truncated values
+      def summarize_values(hash)
+        return {} unless hash.is_a?(Hash)
+
+        hash.transform_values do |v|
+          case v
+          when String
+            v.length > 100 ? "#{v[0..97]}... (#{v.length} chars)" : v
+          when Array
+            v.length > 5 ? "#{v.first(3).inspect}... (#{v.length} items)" : v.inspect
+          else
+            v.inspect
+          end
+        end
       end
 
       # Build prompt for neural task execution
@@ -504,10 +524,11 @@ module LanguageOperator
                  end
 
         execution_time = Time.now - attempt_start
-        logger.debug('Task execution completed',
-                     task: task_name,
-                     attempt: attempt + 1,
-                     execution_time: execution_time.round(3))
+        logger.info('Task completed',
+                    task: task_name,
+                    attempt: attempt + 1,
+                    execution_time: execution_time.round(3),
+                    outputs: summarize_values(result))
 
         result
       rescue Timeout::Error => e

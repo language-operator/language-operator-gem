@@ -518,11 +518,15 @@ module LanguageOperator
         option :auto_accept, type: :boolean, default: false, desc: 'Auto-accept optimizations above min-confidence'
         option :min_confidence, type: :numeric, default: 0.90, desc: 'Minimum consistency for auto-accept (0.0-1.0)'
         option :tasks, type: :array, desc: 'Only optimize specific tasks'
+        option :since, type: :string, desc: 'Only analyze traces since (e.g., "2h", "1d", "7d")'
+        option :use_synthesis, type: :boolean, default: false, desc: 'Use LLM synthesis instead of pattern detection'
+        option :synthesis_model, type: :string, desc: 'Model to use for synthesis (default: cluster default)'
         def optimize(name)
           handle_command_error('optimize agent') do
             require_relative '../../learning/trace_analyzer'
             require_relative '../../learning/pattern_detector'
             require_relative '../../learning/optimizer'
+            require_relative '../../learning/task_synthesizer'
             require_relative '../../agent/safety/ast_validator'
             require_relative '../formatters/optimization_formatter'
 
@@ -573,33 +577,58 @@ module LanguageOperator
               validator: validator
             )
 
+            # Create task synthesizer for fallback (or forced via --use-synthesis)
+            # Synthesis is used when pattern detection fails OR --use-synthesis is set
+            task_synthesizer = nil
+            llm_client = create_synthesis_llm_client(ctx, options[:synthesis_model])
+            if llm_client
+              task_synthesizer = LanguageOperator::Learning::TaskSynthesizer.new(
+                llm_client: llm_client,
+                validator: validator
+              )
+              Formatters::ProgressFormatter.info('LLM synthesis mode (forced)') if options[:use_synthesis]
+            elsif options[:use_synthesis]
+              Formatters::ProgressFormatter.warn('Could not create LLM client for synthesis')
+            end
+
             optimizer = LanguageOperator::Learning::Optimizer.new(
               agent_name: name,
               agent_definition: agent_definition,
               trace_analyzer: trace_analyzer,
-              pattern_detector: pattern_detector
+              pattern_detector: pattern_detector,
+              task_synthesizer: task_synthesizer
             )
 
             formatter = Formatters::OptimizationFormatter.new
 
+            # Parse --since option into time range
+            time_range = parse_since_option(options[:since])
+
             # Analyze for opportunities
-            opportunities = optimizer.analyze
+            opportunities = optimizer.analyze(time_range: time_range)
 
-            # Display analysis
-            puts formatter.format_analysis(agent_name: name, opportunities: opportunities)
-
-            # Exit if status-only mode
-            return if options[:status_only]
+            # Display analysis only in status-only mode
+            if options[:status_only]
+              puts formatter.format_analysis(agent_name: name, opportunities: opportunities)
+              return
+            end
 
             # Exit if no opportunities
             return if opportunities.empty?
 
-            # Filter to ready opportunities
-            ready = opportunities.select { |opp| opp[:ready_for_learning] }
-            return if ready.empty?
+            # Filter opportunities:
+            # - If synthesis available: try any task with enough executions
+            # - Otherwise: only tasks ready for pattern detection
+            candidates = if task_synthesizer
+                           # With synthesis, try any task that has min executions
+                           opportunities.select { |opp| opp[:execution_count] >= 10 }
+                         else
+                           opportunities.select { |opp| opp[:ready_for_learning] }
+                         end
+            return if candidates.empty?
 
             # Process each opportunity
-            ready.each do |opp|
+            candidates.each do |opp|
               task_name = opp[:task_name]
 
               # Skip if not in requested tasks list
@@ -607,7 +636,7 @@ module LanguageOperator
 
               # Generate proposal
               begin
-                proposal = optimizer.propose(task_name: task_name)
+                proposal = optimizer.propose(task_name: task_name, use_synthesis: options[:use_synthesis])
               rescue ArgumentError => e
                 Formatters::ProgressFormatter.warn("Cannot optimize '#{task_name}': #{e.message}")
                 next
@@ -631,7 +660,7 @@ module LanguageOperator
 
               # Apply if accepted
               if accepted && !options[:dry_run]
-                result = optimizer.apply(proposal: proposal)
+                result = apply_optimization(ctx, name, proposal)
                 puts formatter.format_success(result: result)
               elsif accepted
                 puts pastel.yellow('[DRY RUN] Would apply optimization')
@@ -690,6 +719,183 @@ module LanguageOperator
         end
 
         private
+
+        # Parse --since option into seconds (time range)
+        #
+        # @param since [String, nil] Duration string (e.g., "2h", "1d", "7d")
+        # @return [Integer, nil] Seconds or nil if not specified
+        def parse_since_option(since)
+          return nil unless since
+
+          match = since.match(/^(\d+)([hHdDwW])$/)
+          unless match
+            Formatters::ProgressFormatter.warn("Invalid --since format '#{since}', using default (24h)")
+            Formatters::ProgressFormatter.info('Valid formats: 2h (hours), 1d (days), 1w (weeks)')
+            return nil
+          end
+
+          value = match[1].to_i
+          unit = match[2].downcase
+
+          case unit
+          when 'h' then value * 3600
+          when 'd' then value * 86_400
+          when 'w' then value * 604_800
+          end
+        end
+
+        # Create LLM client for task synthesis using cluster model
+        #
+        # @param ctx [ClusterContext] Cluster context
+        # @param model_name [String, nil] Specific model to use (defaults to first available)
+        # @return [Object, nil] LLM client or nil if unavailable
+        def create_synthesis_llm_client(ctx, model_name = nil)
+          # Get model from cluster
+          selected_model = model_name || select_synthesis_model(ctx)
+          return nil unless selected_model
+
+          # Get model resource to extract model ID
+          # Always use port-forwarding to deployment (LiteLLM proxy for cost controls)
+          begin
+            model = ctx.client.get_resource('LanguageModel', selected_model, ctx.namespace)
+            model_id = model.dig('spec', 'modelName')
+            return nil unless model_id
+
+            ClusterLLMClient.new(
+              ctx: ctx,
+              model_name: selected_model,
+              model_id: model_id,
+              agent_command: self
+            )
+          rescue StandardError => e
+            @logger&.warn("Failed to create cluster LLM client: #{e.message}")
+            nil
+          end
+        end
+
+        # Select model for synthesis (first available if not specified)
+        #
+        # @param ctx [ClusterContext] Cluster context
+        # @return [String, nil] Model name or nil
+        def select_synthesis_model(ctx)
+          models = ctx.client.list_resources('LanguageModel', namespace: ctx.namespace)
+          return nil if models.empty?
+
+          models.first.dig('metadata', 'name')
+        rescue StandardError
+          nil
+        end
+
+        # LLM client that uses port-forwarding to cluster model deployments (LiteLLM proxy)
+        class ClusterLLMClient
+          def initialize(ctx:, model_name:, model_id:, agent_command:)
+            @ctx = ctx
+            @model_name = model_name
+            @model_id = model_id
+            @agent_command = agent_command
+          end
+
+          def chat(prompt)
+            require 'faraday'
+            require 'json'
+
+            pod = get_model_pod
+            pod_name = pod.dig('metadata', 'name')
+
+            local_port = find_available_port
+            port_forward_pid = nil
+
+            begin
+              port_forward_pid = start_port_forward(pod_name, local_port, 4000)
+              wait_for_port(local_port)
+
+              conn = Faraday.new(url: "http://localhost:#{local_port}") do |f|
+                f.request :json
+                f.response :json
+                f.adapter Faraday.default_adapter
+                f.options.timeout = 120
+                f.options.open_timeout = 10
+              end
+
+              payload = {
+                model: @model_id,
+                messages: [{ role: 'user', content: prompt }],
+                max_tokens: 4000,
+                temperature: 0.3
+              }
+
+              response = conn.post('/v1/chat/completions', payload)
+              result = response.body
+
+              raise "LLM error: #{result['error']['message'] || result['error']}" if result['error']
+
+              result.dig('choices', 0, 'message', 'content')
+            ensure
+              cleanup_port_forward(port_forward_pid) if port_forward_pid
+            end
+          end
+
+          private
+
+          def get_model_pod
+            # Get the deployment for the model
+            deployment = @ctx.client.get_resource('Deployment', @model_name, @ctx.namespace)
+            raise "Deployment '#{@model_name}' not found in namespace '#{@ctx.namespace}'" if deployment.nil?
+
+            labels = deployment.dig('spec', 'selector', 'matchLabels')
+            raise "Deployment '#{@model_name}' has no selector labels" if labels.nil?
+
+            # Convert to hash if needed (K8s API may return K8s::Resource)
+            labels_hash = labels.respond_to?(:to_h) ? labels.to_h : labels
+            raise "Deployment '#{@model_name}' has empty selector labels" if labels_hash.empty?
+
+            label_selector = labels_hash.map { |k, v| "#{k}=#{v}" }.join(',')
+
+            # Find a running pod
+            pods = @ctx.client.list_resources('Pod', namespace: @ctx.namespace, label_selector: label_selector)
+            raise "No pods found for model '#{@model_name}'" if pods.empty?
+
+            running_pods = pods.select { |p| p.dig('status', 'phase') == 'Running' }
+            raise "No running pods found for model '#{@model_name}'" if running_pods.empty?
+
+            running_pods.first
+          end
+
+          def find_available_port
+            server = TCPServer.new('127.0.0.1', 0)
+            port = server.addr[1]
+            server.close
+            port
+          end
+
+          def start_port_forward(pod_name, local_port, remote_port)
+            pid = spawn(
+              'kubectl', 'port-forward',
+              '-n', @ctx.namespace,
+              "pod/#{pod_name}",
+              "#{local_port}:#{remote_port}",
+              %i[out err] => '/dev/null'
+            )
+            Process.detach(pid)
+            pid
+          end
+
+          def wait_for_port(port, max_attempts: 30)
+            max_attempts.times do
+              TCPSocket.new('127.0.0.1', port).close
+              return true
+            rescue Errno::ECONNREFUSED
+              sleep 0.1
+            end
+            raise "Port #{port} not available after #{max_attempts} attempts"
+          end
+
+          def cleanup_port_forward(pid)
+            Process.kill('TERM', pid)
+          rescue Errno::ESRCH
+            # Process already gone
+          end
+        end
 
         def handle_agent_not_found(name, ctx)
           # Get available agents for fuzzy matching
@@ -1309,39 +1515,66 @@ module LanguageOperator
 
         # Parse agent code to extract definition
         def parse_agent_code(code)
-          # This is a simplified parser that creates a mock agent definition
-          # In production, this would use the actual DSL parser
           require_relative '../../dsl/agent_definition'
 
           # Create a minimal agent definition structure
-          # that supports the optimizer's needs
-          agent_def = Struct.new(:tasks, :name) do
+          agent_def = Struct.new(:tasks, :name, :mcp_servers) do
             def initialize
-              super({}, 'agent')
+              super({}, 'agent', {})
             end
           end
 
           agent = agent_def.new
 
-          # Parse tasks from code (simplified)
-          # Look for task definitions
-          code.scan(/task\s+:(\w+),?\s*(.*?)(?=\n\s*(?:task|main|end))/m) do |match|
+          # Parse tasks from code - extract full task definitions
+          code.scan(/task\s+:(\w+),?\s*(.*?)(?=\n\s*(?:task\s+:|main\s+do|end\s*$))/m) do |match|
             task_name = match[0].to_sym
             task_block = match[1]
 
-            # Check if neural (has instructions) or symbolic (has do block)
-            is_neural = task_block.include?('instructions:')
+            # Check if neural (has instructions but no do block) or symbolic
+            is_neural = task_block.include?('instructions:') && !task_block.match?(/\bdo\s*\|/)
 
-            task = Struct.new(:name, :neural?, :instructions, :inputs, :outputs) do
-              def initialize(name, neural)
-                super(name, neural, '', {}, {})
-              end
-            end
+            # Extract instructions
+            instructions = extract_string_value(task_block, 'instructions')
 
-            agent.tasks[task_name] = task.new(task_name, is_neural)
+            # Extract inputs hash
+            inputs = extract_hash_value(task_block, 'inputs')
+
+            # Extract outputs hash
+            outputs = extract_hash_value(task_block, 'outputs')
+
+            task = Struct.new(:name, :neural?, :instructions, :inputs, :outputs).new(
+              task_name, is_neural, instructions, inputs, outputs
+            )
+
+            agent.tasks[task_name] = task
           end
 
           agent
+        end
+
+        # Extract a string value from DSL code (e.g., instructions: "...")
+        def extract_string_value(code, key)
+          # Match both single and double quoted strings, including multi-line
+          match = code.match(/#{key}:\s*(['"])(.*?)\1/m) ||
+                  code.match(/#{key}:\s*(['"])(.+?)\1/m)
+          match ? match[2] : ''
+        end
+
+        # Extract a hash value from DSL code (e.g., inputs: { foo: 'bar' })
+        def extract_hash_value(code, key)
+          match = code.match(/#{key}:\s*\{([^}]*)\}/)
+          return {} unless match
+
+          hash_content = match[1].strip
+          return {} if hash_content.empty?
+
+          # Parse simple key: 'value' or key: "value" pairs
+          result = {}
+          hash_content.scan(/(\w+):\s*(['"])([^'"]*)\2/) do |k, _quote, v|
+            result[k.to_sym] = v
+          end
+          result
         end
 
         # Prompt user for optimization acceptance
@@ -1385,6 +1618,93 @@ module LanguageOperator
           puts proposal[:full_generated_code]
           puts pastel.dim('=' * 70)
           puts
+        end
+
+        # Apply optimization by updating ConfigMap and restarting pod
+        def apply_optimization(ctx, agent_name, proposal)
+          configmap_name = "#{agent_name}-code"
+          task_name = proposal[:task_name]
+
+          # Get current ConfigMap
+          configmap = ctx.client.get_resource('ConfigMap', configmap_name, ctx.namespace)
+          current_code = configmap.dig('data', 'agent.rb')
+
+          raise "ConfigMap '#{configmap_name}' does not contain agent.rb" unless current_code
+
+          # Replace the neural task with the symbolic implementation
+          updated_code = replace_task_in_code(current_code, task_name, proposal[:proposed_code])
+
+          # Build updated ConfigMap resource
+          # Add annotation to prevent controller from overwriting optimized code
+          updated_configmap = {
+            'apiVersion' => 'v1',
+            'kind' => 'ConfigMap',
+            'metadata' => {
+              'name' => configmap_name,
+              'namespace' => ctx.namespace,
+              'resourceVersion' => configmap.metadata.resourceVersion,
+              'annotations' => {
+                'langop.io/optimized' => 'true',
+                'langop.io/optimized-at' => Time.now.iso8601,
+                'langop.io/optimized-task' => task_name
+              }
+            },
+            'data' => {
+              'agent.rb' => updated_code
+            }
+          }
+
+          # Update ConfigMap
+          ctx.client.update_resource('ConfigMap', configmap_name, ctx.namespace, updated_configmap, 'v1')
+
+          # Restart the agent pod to pick up changes
+          restart_agent_pod(ctx, agent_name)
+
+          {
+            success: true,
+            task_name: task_name,
+            updated_code: proposal[:proposed_code],
+            action: 'applied',
+            message: "Optimization for '#{task_name}' applied successfully"
+          }
+        rescue StandardError => e
+          {
+            success: false,
+            task_name: task_name,
+            error: e.message,
+            action: 'failed',
+            message: "Failed to apply optimization: #{e.message}"
+          }
+        end
+
+        # Replace a task definition in agent code
+        def replace_task_in_code(code, task_name, new_task_code)
+          # Match the task definition including any trailing do block
+          # Pattern matches: task :name, ... (neural) or task :name, ... do |inputs| ... end (symbolic)
+          task_pattern = /task\s+:#{Regexp.escape(task_name.to_s)},?\s*.*?(?=\n\s*(?:task\s+:|main\s+do|end\s*$))/m
+
+          raise "Could not find task ':#{task_name}' in agent code" unless code.match?(task_pattern)
+
+          # Ensure new_task_code has proper trailing newline
+          new_code = "#{new_task_code.strip}\n\n"
+
+          code.gsub(task_pattern, new_code.strip)
+        end
+
+        # Restart agent pod by deleting it (Deployment will recreate)
+        def restart_agent_pod(ctx, agent_name)
+          # Find pods for this agent
+          pods = ctx.client.list_resources('Pod', namespace: ctx.namespace, label_selector: "app=#{agent_name}")
+
+          pods.each do |pod|
+            pod_name = pod.dig('metadata', 'name')
+            begin
+              ctx.client.delete_resource('Pod', pod_name, ctx.namespace)
+              Formatters::ProgressFormatter.info("Restarting pod '#{pod_name}'")
+            rescue StandardError => e
+              Formatters::ProgressFormatter.warn("Could not delete pod '#{pod_name}': #{e.message}")
+            end
+          end
         end
       end
     end

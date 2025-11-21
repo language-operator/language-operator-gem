@@ -39,7 +39,7 @@ module LanguageOperator
           uri = URI.join(endpoint, QUERY_PATH)
 
           # Test with minimal POST request since HEAD returns HTML web UI
-          response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https', open_timeout: 2, read_timeout: 2) do |http|
+          response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https', open_timeout: 30, read_timeout: 30) do |http|
             request = Net::HTTP::Post.new(uri.path)
             request['Content-Type'] = 'application/json'
             request['SIGNOZ-API-KEY'] = api_key if api_key
@@ -63,13 +63,91 @@ module LanguageOperator
         # @return [Array<Hash>] Normalized span data
         def query_spans(filter:, time_range:, limit:)
           times = parse_time_range(time_range)
-          request_body = build_query_request(filter, times, limit)
 
-          response = execute_query(request_body)
-          parse_response(response)
+          # First query: get task spans to find trace IDs
+          task_request = build_query_request(filter, times, limit)
+          task_response = execute_query(task_request)
+          task_spans = parse_response(task_response)
+
+          return task_spans if task_spans.empty?
+
+          # Collect unique trace IDs
+          trace_ids = task_spans.map { |s| s[:trace_id] }.compact.uniq
+
+          return task_spans if trace_ids.empty?
+
+          # Second query: get tool spans within those traces
+          tool_spans = query_tool_spans_by_traces(trace_ids, times, limit * 10)
+
+          # Merge task spans and tool spans
+          task_spans + tool_spans
         end
 
         private
+
+        # Query tool execution spans by trace IDs
+        #
+        # @param trace_ids [Array<String>] Trace IDs to query
+        # @param times [Hash] Time range
+        # @param limit [Integer] Max results
+        # @return [Array<Hash>] Tool spans
+        def query_tool_spans_by_traces(trace_ids, times, limit)
+          return [] if trace_ids.empty?
+
+          # Build filter for tool spans in these traces
+          trace_filter = trace_ids.map { |id| "traceID = '#{id}'" }.join(' OR ')
+          filter_expr = "(#{trace_filter}) AND gen_ai.operation.name = 'execute_tool'"
+
+          request_body = build_tool_query_request(filter_expr, times, limit)
+          response = execute_query(request_body)
+          parse_response(response)
+        rescue StandardError => e
+          @logger.warn("Failed to query tool spans: #{e.message}")
+          []
+        end
+
+        # Build query request for tool spans with explicit filter
+        #
+        # @param filter_expr [String] Filter expression
+        # @param times [Hash] Time range
+        # @param limit [Integer] Result limit
+        # @return [Hash] Request body
+        def build_tool_query_request(filter_expr, times, limit)
+          {
+            start: (times[:start].to_f * 1000).to_i,
+            end: (times[:end].to_f * 1000).to_i,
+            requestType: 'raw',
+            variables: {},
+            compositeQuery: {
+              queries: [
+                {
+                  type: 'builder_query',
+                  spec: {
+                    name: 'A',
+                    signal: 'traces',
+                    filter: { expression: filter_expr },
+                    selectFields: [
+                      { name: 'spanID' },
+                      { name: 'traceID' },
+                      { name: 'timestamp' },
+                      { name: 'durationNano' },
+                      { name: 'name' },
+                      { name: 'serviceName' },
+                      { name: 'gen_ai.operation.name' },
+                      { name: 'gen_ai.tool.name' },
+                      { name: 'gen_ai.tool.call.arguments.size' },
+                      { name: 'gen_ai.tool.call.result.size' }
+                    ],
+                    order: [{ key: { name: 'timestamp' }, direction: 'asc' }],
+                    limit: limit,
+                    offset: 0,
+                    disabled: false
+                  }
+                }
+              ]
+            }
+          }
+        end
 
         # Build SigNoz v5 query request body
         #
@@ -104,7 +182,10 @@ module LanguageOperator
                       { name: 'task.input.count' },
                       { name: 'task.output.keys' },
                       { name: 'task.output.count' },
-                      { name: 'gen_ai.operation.name' }
+                      { name: 'gen_ai.operation.name' },
+                      { name: 'gen_ai.tool.name' },
+                      { name: 'gen_ai.tool.call.arguments.size' },
+                      { name: 'gen_ai.tool.call.result.size' }
                     ],
                     order: [
                       {
@@ -211,7 +292,7 @@ module LanguageOperator
         def execute_query(request_body)
           uri = URI.join(@endpoint, QUERY_PATH)
 
-          Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https', open_timeout: 5, read_timeout: 30) do |http|
+          Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https', open_timeout: 30, read_timeout: 60) do |http|
             request = Net::HTTP::Post.new(uri.path)
             request['Content-Type'] = 'application/json'
             request['SIGNOZ-API-KEY'] = @api_key if @api_key
@@ -315,10 +396,12 @@ module LanguageOperator
 
           # Extract gen_ai attributes for tool calls
           attrs['gen_ai.operation.name'] = span_data[:'gen_ai.operation.name'] if span_data[:'gen_ai.operation.name']
+          attrs['gen_ai.tool.name'] = span_data[:'gen_ai.tool.name'] if span_data[:'gen_ai.tool.name']
+          attrs['gen_ai.tool.call.arguments.size'] = span_data[:'gen_ai.tool.call.arguments.size'] if span_data[:'gen_ai.tool.call.arguments.size']
+          attrs['gen_ai.tool.call.result.size'] = span_data[:'gen_ai.tool.call.result.size'] if span_data[:'gen_ai.tool.call.result.size']
 
-          # Extract tool name from span name (format: "execute_tool.tool_name")
-          # This is a workaround since gen_ai.tool.name attribute may not be indexed yet
-          if span_data[:name]&.start_with?('execute_tool.')
+          # Fallback: Extract tool name from span name (format: "execute_tool.tool_name")
+          if attrs['gen_ai.tool.name'].nil? && span_data[:name]&.start_with?('execute_tool.')
             tool_name = span_data[:name].sub('execute_tool.', '')
             attrs['gen_ai.tool.name'] = tool_name unless tool_name.empty?
           end

@@ -38,12 +38,15 @@ module LanguageOperator
       # @param agent_definition [Dsl::AgentDefinition] Agent definition object
       # @param trace_analyzer [TraceAnalyzer] Analyzer for querying execution traces
       # @param pattern_detector [PatternDetector] Detector for generating symbolic code
+      # @param task_synthesizer [TaskSynthesizer, nil] Optional LLM-based synthesizer
       # @param logger [Logger, nil] Logger instance (creates default if nil)
-      def initialize(agent_name:, agent_definition:, trace_analyzer:, pattern_detector:, logger: nil)
+      def initialize(agent_name:, agent_definition:, trace_analyzer:, pattern_detector:, task_synthesizer: nil,
+                     logger: nil)
         @agent_name = agent_name
         @agent_definition = agent_definition
         @trace_analyzer = trace_analyzer
         @pattern_detector = pattern_detector
+        @task_synthesizer = task_synthesizer
         @logger = logger || ::Logger.new($stdout, level: ::Logger::WARN)
       end
 
@@ -54,8 +57,9 @@ module LanguageOperator
       #
       # @param min_consistency [Float] Minimum consistency threshold (0.0-1.0)
       # @param min_executions [Integer] Minimum execution count required
+      # @param time_range [Integer, Range<Time>, nil] Time range for trace queries
       # @return [Array<Hash>] Array of optimization opportunities
-      def analyze(min_consistency: DEFAULT_MIN_CONSISTENCY, min_executions: DEFAULT_MIN_EXECUTIONS)
+      def analyze(min_consistency: DEFAULT_MIN_CONSISTENCY, min_executions: DEFAULT_MIN_EXECUTIONS, time_range: nil)
         opportunities = []
 
         # Find all neural tasks in the agent
@@ -71,7 +75,8 @@ module LanguageOperator
           analysis = @trace_analyzer.analyze_patterns(
             task_name: task[:name],
             min_executions: min_executions,
-            consistency_threshold: min_consistency
+            consistency_threshold: min_consistency,
+            time_range: time_range
           )
 
           next unless analysis
@@ -93,11 +98,13 @@ module LanguageOperator
       # Generate optimization proposal for a specific task
       #
       # Uses PatternDetector to generate symbolic code and calculates
-      # the performance impact of the optimization.
+      # the performance impact of the optimization. Falls back to TaskSynthesizer
+      # (LLM-based) if pattern detection fails and synthesizer is available.
       #
       # @param task_name [String] Name of task to optimize
+      # @param use_synthesis [Boolean] Force use of LLM synthesis instead of pattern detection
       # @return [Hash] Optimization proposal with code, metrics, and metadata
-      def propose(task_name:)
+      def propose(task_name:, use_synthesis: false)
         # Find the task definition
         task_def = find_task_definition(task_name)
         raise ArgumentError, "Task '#{task_name}' not found" unless task_def
@@ -106,10 +113,39 @@ module LanguageOperator
         analysis = @trace_analyzer.analyze_patterns(task_name: task_name)
         raise ArgumentError, "No execution data found for task '#{task_name}'" unless analysis
 
-        # Generate symbolic code using PatternDetector
-        detection_result = @pattern_detector.detect_pattern(analysis_result: analysis)
+        # Get traces for synthesis (if needed)
+        traces = @trace_analyzer.query_task_traces(task_name: task_name, limit: 20)
 
-        raise ArgumentError, "Cannot optimize task '#{task_name}': #{detection_result[:reason]}" unless detection_result[:success]
+        # Try pattern detection first (unless synthesis forced)
+        detection_result = nil
+        detection_result = @pattern_detector.detect_pattern(analysis_result: analysis) unless use_synthesis
+
+        # If pattern detection failed, try LLM synthesis
+        if (use_synthesis || !detection_result&.dig(:success)) && @task_synthesizer
+          @logger.info("Using LLM synthesis for task '#{task_name}'")
+          synthesis_result = @task_synthesizer.synthesize(
+            task_definition: task_def,
+            traces: traces,
+            available_tools: detect_available_tools,
+            consistency_score: analysis[:consistency_score],
+            common_pattern: analysis[:common_pattern]
+          )
+
+          raise ArgumentError, "Cannot optimize task '#{task_name}': #{synthesis_result[:explanation]}" unless synthesis_result[:is_deterministic]
+
+          return build_synthesis_proposal(
+            task_name: task_name,
+            task_def: task_def,
+            analysis: analysis,
+            synthesis_result: synthesis_result
+          )
+
+        end
+
+        # Pattern detection result
+        unless detection_result&.dig(:success)
+          raise ArgumentError, "Cannot optimize task '#{task_name}': #{detection_result&.dig(:reason) || 'No common pattern found'}"
+        end
 
         # Calculate performance impact
         impact = calculate_impact(
@@ -117,7 +153,7 @@ module LanguageOperator
           consistency_score: analysis[:consistency_score]
         )
 
-        # Build proposal
+        # Build proposal from pattern detection
         {
           task_name: task_name,
           current_code: format_current_code(task_def),
@@ -128,7 +164,8 @@ module LanguageOperator
           pattern: analysis[:common_pattern],
           performance_impact: impact,
           validation_violations: detection_result[:validation_violations],
-          ready_to_deploy: detection_result[:ready_to_deploy]
+          ready_to_deploy: detection_result[:ready_to_deploy],
+          synthesis_method: :pattern_detection
         }
       end
 
@@ -191,8 +228,8 @@ module LanguageOperator
       # @param task_def [Dsl::TaskDefinition] Task definition
       # @return [String] Formatted code
       def format_current_code(task_def)
-        inputs_str = task_def.inputs.map { |k, v| "#{k}: '#{v}'" }.join(', ')
-        outputs_str = task_def.outputs.map { |k, v| "#{k}: '#{v}'" }.join(', ')
+        inputs_str = (task_def.inputs || {}).map { |k, v| "#{k}: '#{v}'" }.join(', ')
+        outputs_str = (task_def.outputs || {}).map { |k, v| "#{k}: '#{v}'" }.join(', ')
 
         <<~RUBY
           task :#{task_def.name},
@@ -241,6 +278,52 @@ module LanguageOperator
           cost_reduction_pct: ((cost_saved / avg_neural_cost) * 100).round(1),
           projected_monthly_savings: (cost_saved * execution_count * 30).round(2)
         }
+      end
+
+      # Build proposal from synthesis result
+      #
+      # @param task_name [String] Task name
+      # @param task_def [Dsl::TaskDefinition] Task definition
+      # @param analysis [Hash] Pattern analysis result
+      # @param synthesis_result [Hash] LLM synthesis result
+      # @return [Hash] Optimization proposal
+      def build_synthesis_proposal(task_name:, task_def:, analysis:, synthesis_result:)
+        impact = calculate_impact(
+          execution_count: analysis[:execution_count],
+          consistency_score: synthesis_result[:confidence]
+        )
+
+        {
+          task_name: task_name,
+          current_code: format_current_code(task_def),
+          proposed_code: synthesis_result[:code],
+          full_generated_code: synthesis_result[:code],
+          consistency_score: analysis[:consistency_score],
+          execution_count: analysis[:execution_count],
+          pattern: analysis[:common_pattern],
+          performance_impact: impact,
+          validation_violations: synthesis_result[:validation_errors] || [],
+          ready_to_deploy: synthesis_result[:validation_errors].nil?,
+          synthesis_method: :llm_synthesis,
+          synthesis_confidence: synthesis_result[:confidence],
+          synthesis_explanation: synthesis_result[:explanation]
+        }
+      end
+
+      # Detect available tools from agent definition
+      #
+      # @return [Array<String>] Tool names
+      def detect_available_tools
+        return [] unless @agent_definition.respond_to?(:mcp_servers)
+
+        # Extract tool names from MCP server configurations
+        tools = []
+        @agent_definition.mcp_servers.each_value do |server|
+          tools.concat(server[:tools] || []) if server.is_a?(Hash)
+        end
+        tools.uniq
+      rescue StandardError
+        []
       end
     end
   end

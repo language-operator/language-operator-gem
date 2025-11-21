@@ -92,9 +92,11 @@ module LanguageOperator
       # @param task_name [String] Name of task to analyze
       # @param min_executions [Integer] Minimum executions required for analysis
       # @param consistency_threshold [Float] Required consistency (0.0-1.0)
+      # @param time_range [Integer, Range<Time>, nil] Time range for query (seconds or explicit range)
       # @return [Hash, nil] Analysis results or nil if insufficient data
-      def analyze_patterns(task_name:, min_executions: 10, consistency_threshold: DEFAULT_CONSISTENCY_THRESHOLD)
-        executions = query_task_traces(task_name: task_name, limit: 1000)
+      def analyze_patterns(task_name:, min_executions: 10, consistency_threshold: DEFAULT_CONSISTENCY_THRESHOLD,
+                           time_range: nil)
+        executions = query_task_traces(task_name: task_name, limit: 1000, time_range: time_range || DEFAULT_TIME_RANGE)
 
         if executions.empty?
           @logger.info("No executions found for task '#{task_name}'")
@@ -114,12 +116,19 @@ module LanguageOperator
 
         consistency_data = calculate_consistency(executions)
 
+        # Task is ready for learning only if:
+        # 1. Consistency meets threshold
+        # 2. There's an actual tool pattern to learn (not empty/pure LLM)
+        has_pattern = !consistency_data[:common_pattern].nil? && !consistency_data[:common_pattern].empty?
+        ready = consistency_data[:score] >= consistency_threshold && has_pattern
+
         {
           task_name: task_name,
           execution_count: executions.size,
           consistency_score: consistency_data[:score],
           consistency_threshold: consistency_threshold,
-          ready_for_learning: consistency_data[:score] >= consistency_threshold,
+          ready_for_learning: ready,
+          reason: has_pattern ? nil : 'No tool calls to learn (pure LLM task)',
           common_pattern: consistency_data[:common_pattern],
           input_signatures: consistency_data[:input_signatures],
           analysis_timestamp: Time.now.iso8601

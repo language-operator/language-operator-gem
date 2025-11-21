@@ -159,13 +159,22 @@ module LanguageOperator
         def format_success(result:)
           output = []
           output << ''
-          output << @pastel.green.bold('✓ Optimization applied successfully!')
-          output << ''
-          output << "  Task '#{result[:task_name]}' has been optimized to symbolic execution."
-          output << ''
-          output << @pastel.dim('Next steps:')
-          output << "  • Monitor performance: aictl agent logs #{result[:task_name]}"
-          output << "  • View changes: aictl agent code #{result[:task_name]}"
+
+          if result[:success]
+            output << @pastel.green.bold('✓ Optimization applied successfully!')
+            output << ''
+            output << "  Task '#{result[:task_name]}' has been optimized to symbolic execution."
+            output << ''
+            output << @pastel.dim('Next steps:')
+            output << "  • Monitor performance: aictl agent logs #{result[:task_name]}"
+            output << "  • View changes: aictl agent code #{result[:task_name]}"
+          else
+            output << @pastel.red.bold('✗ Optimization failed!')
+            output << ''
+            output << "  Task: #{result[:task_name]}"
+            output << "  Error: #{result[:error]}"
+          end
+
           output << ''
           output.join("\n")
         end
