@@ -385,28 +385,26 @@ module LanguageOperator
         # @param span_data [Hash] Raw span data from SigNoz v5
         # @return [Hash] Extracted attributes
         def extract_attributes_from_span_data(span_data)
-          attrs = {}
-
-          # Extract task-related attributes
-          attrs['task.name'] = span_data[:'task.name'] if span_data[:'task.name']
-          attrs['task.input.keys'] = span_data[:'task.input.keys'] if span_data[:'task.input.keys']
-          attrs['task.input.count'] = span_data[:'task.input.count'] if span_data[:'task.input.count']
-          attrs['task.output.keys'] = span_data[:'task.output.keys'] if span_data[:'task.output.keys']
-          attrs['task.output.count'] = span_data[:'task.output.count'] if span_data[:'task.output.count']
-
-          # Extract gen_ai attributes for tool calls
-          attrs['gen_ai.operation.name'] = span_data[:'gen_ai.operation.name'] if span_data[:'gen_ai.operation.name']
-          attrs['gen_ai.tool.name'] = span_data[:'gen_ai.tool.name'] if span_data[:'gen_ai.tool.name']
-          attrs['gen_ai.tool.call.arguments.size'] = span_data[:'gen_ai.tool.call.arguments.size'] if span_data[:'gen_ai.tool.call.arguments.size']
-          attrs['gen_ai.tool.call.result.size'] = span_data[:'gen_ai.tool.call.result.size'] if span_data[:'gen_ai.tool.call.result.size']
-
-          # Fallback: Extract tool name from span name (format: "execute_tool.tool_name")
-          if attrs['gen_ai.tool.name'].nil? && span_data[:name]&.start_with?('execute_tool.')
-            tool_name = span_data[:name].sub('execute_tool.', '')
-            attrs['gen_ai.tool.name'] = tool_name unless tool_name.empty?
-          end
-
+          attrs = extract_known_attributes(span_data)
+          extract_tool_name_fallback(attrs, span_data)
           attrs
+        end
+
+        def extract_known_attributes(span_data)
+          keys = %w[task.name task.input.keys task.input.count task.output.keys task.output.count
+                    gen_ai.operation.name gen_ai.tool.name gen_ai.tool.call.arguments.size
+                    gen_ai.tool.call.result.size]
+          keys.each_with_object({}) do |key, attrs|
+            val = span_data[key.to_sym]
+            attrs[key] = val if val
+          end
+        end
+
+        def extract_tool_name_fallback(attrs, span_data)
+          return unless attrs['gen_ai.tool.name'].nil? && span_data[:name]&.start_with?('execute_tool.')
+
+          tool_name = span_data[:name].sub('execute_tool.', '')
+          attrs['gen_ai.tool.name'] = tool_name unless tool_name.empty?
         end
 
         # Parse SigNoz tag maps into flat attributes hash (legacy)

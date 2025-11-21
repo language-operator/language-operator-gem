@@ -105,68 +105,22 @@ module LanguageOperator
       # @param use_synthesis [Boolean] Force use of LLM synthesis instead of pattern detection
       # @return [Hash] Optimization proposal with code, metrics, and metadata
       def propose(task_name:, use_synthesis: false)
-        # Find the task definition
         task_def = find_task_definition(task_name)
         raise ArgumentError, "Task '#{task_name}' not found" unless task_def
 
-        # Get analysis from TraceAnalyzer
         analysis = @trace_analyzer.analyze_patterns(task_name: task_name)
         raise ArgumentError, "No execution data found for task '#{task_name}'" unless analysis
 
-        # Get traces for synthesis (if needed)
         traces = @trace_analyzer.query_task_traces(task_name: task_name, limit: 20)
-
-        # Try pattern detection first (unless synthesis forced)
-        detection_result = nil
         detection_result = @pattern_detector.detect_pattern(analysis_result: analysis) unless use_synthesis
 
-        # If pattern detection failed, try LLM synthesis
-        if (use_synthesis || !detection_result&.dig(:success)) && @task_synthesizer
-          @logger.info("Using LLM synthesis for task '#{task_name}'")
-          synthesis_result = @task_synthesizer.synthesize(
-            task_definition: task_def,
-            traces: traces,
-            available_tools: detect_available_tools,
-            consistency_score: analysis[:consistency_score],
-            common_pattern: analysis[:common_pattern]
-          )
+        return propose_via_synthesis(task_name, task_def, analysis, traces) if should_use_synthesis?(use_synthesis, detection_result)
 
-          raise ArgumentError, "Cannot optimize task '#{task_name}': #{synthesis_result[:explanation]}" unless synthesis_result[:is_deterministic]
-
-          return build_synthesis_proposal(
-            task_name: task_name,
-            task_def: task_def,
-            analysis: analysis,
-            synthesis_result: synthesis_result
-          )
-
-        end
-
-        # Pattern detection result
         unless detection_result&.dig(:success)
           raise ArgumentError, "Cannot optimize task '#{task_name}': #{detection_result&.dig(:reason) || 'No common pattern found'}"
         end
 
-        # Calculate performance impact
-        impact = calculate_impact(
-          execution_count: analysis[:execution_count],
-          consistency_score: analysis[:consistency_score]
-        )
-
-        # Build proposal from pattern detection
-        {
-          task_name: task_name,
-          current_code: format_current_code(task_def),
-          proposed_code: extract_task_code(detection_result[:generated_code]),
-          full_generated_code: detection_result[:generated_code],
-          consistency_score: analysis[:consistency_score],
-          execution_count: analysis[:execution_count],
-          pattern: analysis[:common_pattern],
-          performance_impact: impact,
-          validation_violations: detection_result[:validation_violations],
-          ready_to_deploy: detection_result[:ready_to_deploy],
-          synthesis_method: :pattern_detection
-        }
+        build_pattern_proposal(task_name, task_def, analysis, detection_result)
       end
 
       # Apply optimization proposal
@@ -193,6 +147,40 @@ module LanguageOperator
       end
 
       private
+
+      def should_use_synthesis?(use_synthesis, detection_result)
+        (use_synthesis || !detection_result&.dig(:success)) && @task_synthesizer
+      end
+
+      def propose_via_synthesis(task_name, task_def, analysis, traces)
+        @logger.info("Using LLM synthesis for task '#{task_name}'")
+        synthesis_result = @task_synthesizer.synthesize(
+          task_definition: task_def,
+          traces: traces,
+          available_tools: detect_available_tools,
+          consistency_score: analysis[:consistency_score],
+          common_pattern: analysis[:common_pattern]
+        )
+
+        raise ArgumentError, "Cannot optimize task '#{task_name}': #{synthesis_result[:explanation]}" unless synthesis_result[:is_deterministic]
+
+        build_synthesis_proposal(task_name: task_name, task_def: task_def, analysis: analysis,
+                                 synthesis_result: synthesis_result)
+      end
+
+      def build_pattern_proposal(task_name, task_def, analysis, detection_result)
+        impact = calculate_impact(execution_count: analysis[:execution_count],
+                                  consistency_score: analysis[:consistency_score])
+        {
+          task_name: task_name, current_code: format_current_code(task_def),
+          proposed_code: extract_task_code(detection_result[:generated_code]),
+          full_generated_code: detection_result[:generated_code],
+          consistency_score: analysis[:consistency_score], execution_count: analysis[:execution_count],
+          pattern: analysis[:common_pattern], performance_impact: impact,
+          validation_violations: detection_result[:validation_violations],
+          ready_to_deploy: detection_result[:ready_to_deploy], synthesis_method: :pattern_detection
+        }
+      end
 
       # Find all neural tasks in the agent definition
       #
