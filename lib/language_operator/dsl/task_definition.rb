@@ -229,15 +229,16 @@ module LanguageOperator
       # Execute symbolic implementation
       #
       # @param inputs [Hash] Validated inputs
-      # @param context [Object, nil] Execution context
+      # @param context [Object, nil] Execution context (TaskExecutor)
       # @return [Hash] Result from execute block
       def execute_symbolic(inputs, context)
-        if @execute_block.arity == 1
-          @execute_block.call(inputs)
-        elsif @execute_block.arity == 2
-          @execute_block.call(inputs, context)
+        if context
+          # Execute block in context's scope to make helper methods available
+          # (execute_tool, execute_task, execute_llm, etc.)
+          context.instance_exec(inputs, &@execute_block)
         else
-          @execute_block.call
+          # Fallback for standalone execution without context
+          @execute_block.call(inputs)
         end
       end
 

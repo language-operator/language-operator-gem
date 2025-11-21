@@ -86,12 +86,13 @@ Respond with valid JSON:
        instructions: "Keep the original instructions for documentation",
        inputs: { ... },
        outputs: { ... } do |inputs|
-    # Your code here
-    execute_tool(:tool_name, { arg: value })
+    # Helper methods available: execute_tool, execute_task, execute_llm
+    result = execute_tool(:tool_name, { arg: value })
     { output_key: result }
   end
   ```
-- Use `execute_tool(:tool_name, { arg: value })` for tool calls
+- Use `execute_tool(:tool_name, { arg: value })` for MCP tool calls
+- Use `execute_task(:task_name, inputs: { ... })` to call other tasks
 - Access inputs via the `inputs` hash parameter
 - Return a hash matching the output schema
 - Do NOT use system(), eval(), or other unsafe methods
