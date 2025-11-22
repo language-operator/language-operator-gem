@@ -38,7 +38,7 @@ module LanguageOperator
       def initialize(llm_client:, validator:, logger: nil)
         @llm_client = llm_client
         @validator = validator
-        @logger = logger || ::Logger.new($stdout, level: ::Logger::WARN)
+        @logger = logger || ::Logger.new($stdout, level: ::Logger::INFO)
       end
 
       # Synthesize deterministic code for a task
