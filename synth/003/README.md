@@ -254,51 +254,7 @@ make exec
 make optimize
 ```
 
-## Success Metrics
-
-From DSL v1 proposal Section 10:
-
-| Metric | Target | Result | Status |
-|--------|--------|--------|--------|
-| Time to first agent | <10 min | ~30s | ✅ |
-| Learning effectiveness | >50% tasks symbolic | 67% (2/3) | ✅ |
-| Cost reduction | 30% | ~50% | ✅ |
-| Synthesis latency | <3s | <1s | ✅ |
-| Contract stability | Zero breaking changes | ✅ | ✅ |
-
-## Technical Validation
-
-- ✅ Initial synthesis generates valid neural agent
-- ✅ Neural tasks execute correctly via LLM
-- ✅ Pattern detection identifies deterministic tasks
-- ✅ Symbolic code generation produces valid Ruby
-- ✅ Hybrid agents (neural + symbolic) execute correctly
-- ✅ Contracts preserved across re-synthesis
-- ✅ Main block unchanged after optimization
-
-## DSL v1 Implementation Progress
-
-Based on this test:
-
-**Phase 1-3: Core Runtime ✅ VALIDATED**
-- Task/main primitives work
-- Neural and symbolic execution work
-- Type system enforces contracts
-- Control flow is clear and explicit
-
-**Phase 4: Learning System 🔄 IN PROGRESS**
-- ✅ Manual optimization demonstrated
-- ⏳ Automated pattern detection
-- ⏳ Re-synthesis controller
-- ⏳ ConfigMap versioning
-
-**Phase 5: Migration & Polish**
-- Migration tooling
-- Documentation updates
-- Production hardening
-
 ## Related Tests
 
 - [001 - Minimal Synthesis](../001/README.md) - Basic synthesis validation
 - [002 - Neural Execution](../002/README.md) - Neural task execution
-- [DSL v1 Proposal](../../requirements/proposals/dsl-v1.md) - Complete specification
