@@ -527,6 +527,7 @@ module LanguageOperator
             require_relative '../../learning/pattern_detector'
             require_relative '../../learning/optimizer'
             require_relative '../../learning/task_synthesizer'
+            require_relative '../../learning/semantic_validator'
             require_relative '../../agent/safety/ast_validator'
             require_relative '../formatters/optimization_formatter'
 
@@ -591,12 +592,18 @@ module LanguageOperator
               Formatters::ProgressFormatter.warn('Could not create LLM client for synthesis')
             end
 
+            # Create semantic validator
+            semantic_validator = LanguageOperator::Learning::SemanticValidator.new(
+              agent_definition: agent_definition
+            )
+
             optimizer = LanguageOperator::Learning::Optimizer.new(
               agent_name: name,
               agent_definition: agent_definition,
               trace_analyzer: trace_analyzer,
               pattern_detector: pattern_detector,
-              task_synthesizer: task_synthesizer
+              task_synthesizer: task_synthesizer,
+              semantic_validator: semantic_validator
             )
 
             formatter = Formatters::OptimizationFormatter.new
@@ -614,7 +621,11 @@ module LanguageOperator
             end
 
             # Exit if no opportunities
-            return if opportunities.empty?
+            if opportunities.empty?
+              puts "No optimization opportunities found for agent '#{name}'"
+              puts 'Tasks need at least 10 executions before optimization can begin.'
+              return
+            end
 
             # Filter opportunities:
             # - If synthesis available: try any task with enough executions
@@ -670,6 +681,138 @@ module LanguageOperator
 
               puts
             end
+          end
+        end
+
+        desc 'rollback NAME', 'Rollback agent optimization to a previous version'
+        long_desc <<-DESC
+          Rollback an optimized agent to a previous ConfigMap version.
+
+          This command lists all available versions of the agent's code ConfigMap
+          and allows you to select a previous version to restore. Useful when an
+          optimization introduces bugs or performance regressions.
+
+          Examples:
+            aictl agent rollback my-agent                  # Interactive version selection
+            aictl agent rollback my-agent --version v2     # Rollback to specific version
+            aictl agent rollback my-agent --list           # List available versions only
+        DESC
+        option :cluster, type: :string, desc: 'Override current cluster context'
+        option :version, type: :string, desc: 'Specific version to rollback to (e.g., v2)'
+        option :list, type: :boolean, default: false, desc: 'List available versions only'
+        option :force, type: :boolean, default: false, desc: 'Skip confirmation'
+        def rollback(name)
+          handle_command_error('rollback agent') do
+            ctx = Helpers::ClusterContext.from_options(options)
+            base_configmap_name = "#{name}-code"
+
+            # Get current ConfigMap
+            current_configmap = ctx.client.get_resource('ConfigMap', base_configmap_name, ctx.namespace)
+            current_version = current_configmap.dig('metadata', 'annotations', 'langop.io/version') || 'v0'
+
+            # List all versioned ConfigMaps
+            configmaps = ctx.client.list_resources(
+              'ConfigMap',
+              namespace: ctx.namespace,
+              label_selector: "langop.io/agent=#{name},langop.io/component=agent-code"
+            )
+
+            # Filter and sort versions
+            versioned_cms = configmaps.select do |cm|
+              cm.dig('metadata', 'name').match?(/#{name}-code-v\d+/)
+            end
+
+            if versioned_cms.empty?
+              Formatters::ProgressFormatter.error("No versioned ConfigMaps found for agent '#{name}'")
+              puts 'Agent must be optimized at least once before rollback is possible.'
+              return
+            end
+
+            sorted_cms = versioned_cms.sort_by do |cm|
+              version_str = cm.dig('metadata', 'annotations', 'langop.io/version') || 'v0'
+              -version_str.sub(/^v/, '').to_i
+            end
+
+            # List mode: just show versions
+            if options[:list]
+              puts
+              puts pastel.cyan("Available versions for '#{name}':")
+              puts
+              sorted_cms.each do |cm|
+                version = cm.dig('metadata', 'annotations', 'langop.io/version')
+                optimized_at = cm.dig('metadata', 'annotations', 'langop.io/optimized-at')
+                task = cm.dig('metadata', 'annotations', 'langop.io/optimized-task')
+                is_current = version == current_version
+
+                status = is_current ? pastel.green('(current)') : ''
+                puts "  #{pastel.bold(version)} #{status}"
+                puts "    Optimized: #{format_timestamp(Time.parse(optimized_at))}" if optimized_at
+                puts "    Task: #{task}" if task
+                puts
+              end
+              return
+            end
+
+            # Determine target version
+            target_version = options[:version] || select_version_interactively(sorted_cms, current_version)
+
+            return unless target_version
+
+            # Find the target ConfigMap
+            target_cm = sorted_cms.find do |cm|
+              cm.dig('metadata', 'annotations', 'langop.io/version') == target_version
+            end
+
+            unless target_cm
+              Formatters::ProgressFormatter.error("Version '#{target_version}' not found")
+              return
+            end
+
+            # Confirm rollback
+            unless options[:force]
+              puts
+              puts "This will rollback agent '#{name}' from #{current_version} to #{target_version}"
+              puts pastel.yellow('This operation will restart the agent pod.')
+              puts
+              return unless TTY::Prompt.new.yes?('Continue with rollback?')
+            end
+
+            # Perform rollback
+            Formatters::ProgressFormatter.start("Rolling back to #{target_version}...")
+
+            # Get the code from target version
+            target_code = target_cm.dig('data', 'agent.rb')
+
+            # Update base ConfigMap
+            updated_base_configmap = {
+              'apiVersion' => 'v1',
+              'kind' => 'ConfigMap',
+              'metadata' => {
+                'name' => base_configmap_name,
+                'namespace' => ctx.namespace,
+                'resourceVersion' => current_configmap.metadata.resourceVersion,
+                'labels' => current_configmap.dig('metadata', 'labels') || {},
+                'annotations' => {
+                  'langop.io/version' => target_version,
+                  'langop.io/rolled-back' => 'true',
+                  'langop.io/rolled-back-at' => Time.now.iso8601,
+                  'langop.io/previous-version' => current_version
+                }
+              },
+              'data' => {
+                'agent.rb' => target_code
+              }
+            }
+
+            ctx.client.update_resource('ConfigMap', base_configmap_name, ctx.namespace, updated_base_configmap, 'v1')
+
+            # Restart pod
+            restart_agent_pod(ctx, name)
+
+            Formatters::ProgressFormatter.success("Successfully rolled back to #{target_version}")
+            puts
+            puts "Agent '#{name}' is now running version #{target_version}"
+            puts
           end
         end
 
@@ -1585,28 +1728,22 @@ module LanguageOperator
           choices = [
             { name: 'Yes - apply this optimization', value: :yes },
             { name: 'No - skip this task', value: :no },
-            { name: 'View full code diff', value: :diff },
-            { name: 'Skip all remaining', value: :skip_all }
+            { name: 'Cancel', value: :skip_all }
           ]
 
-          loop do
-            choice = prompt.select(
-              "Accept optimization for '#{proposal[:task_name]}'?",
-              choices,
-              per_page: 10
-            )
+          choice = prompt.select(
+            "Accept optimization for '#{proposal[:task_name]}'?",
+            choices,
+            per_page: 10
+          )
 
-            case choice
-            when :yes
-              return true
-            when :no
-              return false
-            when :diff
-              show_code_diff(proposal)
-              # Loop to ask again
-            when :skip_all
-              throw :skip_all
-            end
+          case choice
+          when :yes
+            true
+          when :no
+            false
+          when :skip_all
+            throw :skip_all
           end
         end
 
@@ -1620,30 +1757,82 @@ module LanguageOperator
           puts
         end
 
-        # Apply optimization by updating ConfigMap and restarting pod
+        # Apply optimization by creating versioned ConfigMap and updating Deployment
         def apply_optimization(ctx, agent_name, proposal)
-          configmap_name = "#{agent_name}-code"
+          base_configmap_name = "#{agent_name}-code"
           task_name = proposal[:task_name]
 
-          # Get current ConfigMap
-          configmap = ctx.client.get_resource('ConfigMap', configmap_name, ctx.namespace)
-          current_code = configmap.dig('data', 'agent.rb')
+          # Get current ConfigMap and determine next version
+          current_configmap = ctx.client.get_resource('ConfigMap', base_configmap_name, ctx.namespace)
+          current_code = current_configmap.dig('data', 'agent.rb')
 
-          raise "ConfigMap '#{configmap_name}' does not contain agent.rb" unless current_code
+          raise "ConfigMap '#{base_configmap_name}' does not contain agent.rb" unless current_code
+
+          # Get current version from annotations (default to v0 if not set)
+          current_version_str = current_configmap.dig('metadata', 'annotations', 'langop.io/version') || 'v0'
+          current_version = current_version_str.sub(/^v/, '').to_i
+          new_version = current_version + 1
+          new_version_str = "v#{new_version}"
 
           # Replace the neural task with the symbolic implementation
-          updated_code = replace_task_in_code(current_code, task_name, proposal[:proposed_code])
+          # Build full task code from body code
+          full_task_code = build_full_task_code(proposal[:task_definition], proposal[:proposed_code])
+          updated_code = replace_task_in_code(current_code, task_name, full_task_code)
 
-          # Build updated ConfigMap resource
-          # Add annotation to prevent controller from overwriting optimized code
-          updated_configmap = {
+          # Create new versioned ConfigMap name
+          versioned_configmap_name = "#{agent_name}-code-#{new_version_str}"
+
+          # Build new versioned ConfigMap with ownerReferences for automatic garbage collection
+          new_configmap = {
             'apiVersion' => 'v1',
             'kind' => 'ConfigMap',
             'metadata' => {
-              'name' => configmap_name,
+              'name' => versioned_configmap_name,
               'namespace' => ctx.namespace,
-              'resourceVersion' => configmap.metadata.resourceVersion,
+              'labels' => {
+                'app' => agent_name,
+                'langop.io/agent' => agent_name,
+                'langop.io/component' => 'agent-code'
+              },
               'annotations' => {
+                'langop.io/version' => new_version_str,
+                'langop.io/optimized' => 'true',
+                'langop.io/optimized-at' => Time.now.iso8601,
+                'langop.io/optimized-task' => task_name,
+                'langop.io/previous-version' => current_version_str
+              },
+              'ownerReferences' => [
+                {
+                  'apiVersion' => 'v1',
+                  'kind' => 'ConfigMap',
+                  'name' => base_configmap_name,
+                  'uid' => current_configmap.metadata.uid,
+                  'controller' => false,
+                  'blockOwnerDeletion' => false
+                }
+              ]
+            },
+            'data' => {
+              'agent.rb' => updated_code
+            }
+          }
+
+          # Create the new versioned ConfigMap
+          ctx.client.create_resource(new_configmap)
+
+          # Update the base ConfigMap to point to the new version and include updated code
+          # This maintains backward compatibility with agents not using versioning
+          updated_base_configmap = {
+            'apiVersion' => 'v1',
+            'kind' => 'ConfigMap',
+            'metadata' => {
+              'name' => base_configmap_name,
+              'namespace' => ctx.namespace,
+              'resourceVersion' => current_configmap.metadata.resourceVersion,
+              'labels' => current_configmap.dig('metadata', 'labels') || {},
+              'annotations' => {
+                'langop.io/version' => new_version_str,
+                'langop.io/latest-versioned-configmap' => versioned_configmap_name,
                 'langop.io/optimized' => 'true',
                 'langop.io/optimized-at' => Time.now.iso8601,
                 'langop.io/optimized-task' => task_name
@@ -1654,18 +1843,23 @@ module LanguageOperator
             }
           }
 
-          # Update ConfigMap
-          ctx.client.update_resource('ConfigMap', configmap_name, ctx.namespace, updated_configmap, 'v1')
+          # Update the base ConfigMap
+          ctx.client.update_resource('ConfigMap', base_configmap_name, ctx.namespace, updated_base_configmap, 'v1')
 
           # Restart the agent pod to pick up changes
           restart_agent_pod(ctx, agent_name)
 
+          # Clean up old versions (keep last 5)
+          cleanup_old_configmap_versions(ctx, agent_name, keep_last: 5)
+
           {
             success: true,
             task_name: task_name,
+            version: new_version_str,
+            configmap: versioned_configmap_name,
             updated_code: proposal[:proposed_code],
             action: 'applied',
-            message: "Optimization for '#{task_name}' applied successfully"
+            message: "Optimization for '#{task_name}' applied as #{new_version_str}"
           }
         rescue StandardError => e
           {
@@ -1675,6 +1869,57 @@ module LanguageOperator
             action: 'failed',
             message: "Failed to apply optimization: #{e.message}"
           }
+        end
+
+        # Cleanup old versioned ConfigMaps, keeping only the most recent N versions
+        def cleanup_old_configmap_versions(ctx, agent_name, keep_last: 5)
+          # Find all versioned ConfigMaps for this agent
+          configmaps = ctx.client.list_resources(
+            'ConfigMap',
+            namespace: ctx.namespace,
+            label_selector: "langop.io/agent=#{agent_name},langop.io/component=agent-code"
+          )
+
+          # Filter to only versioned ConfigMaps (exclude base ConfigMap)
+          versioned_cms = configmaps.select do |cm|
+            cm.dig('metadata', 'name').match?(/#{agent_name}-code-v\d+/)
+          end
+
+          # Sort by version number (descending)
+          sorted_cms = versioned_cms.sort_by do |cm|
+            version_str = cm.dig('metadata', 'annotations', 'langop.io/version') || 'v0'
+            -version_str.sub(/^v/, '').to_i # Negative for descending sort
+          end
+
+          # Delete old versions beyond keep_last
+          to_delete = sorted_cms[keep_last..] || []
+          to_delete.each do |cm|
+            cm_name = cm.dig('metadata', 'name')
+            begin
+              ctx.client.delete_resource('ConfigMap', cm_name, ctx.namespace)
+              Formatters::ProgressFormatter.info("Cleaned up old version '#{cm_name}'")
+            rescue StandardError => e
+              Formatters::ProgressFormatter.warn("Could not delete old ConfigMap '#{cm_name}': #{e.message}")
+            end
+          end
+        end
+
+        # Build full task code from task definition and body code
+        def build_full_task_code(task_definition, body_code)
+          inputs_str = (task_definition.inputs || {}).map { |k, v| "#{k}: '#{v}'" }.join(', ')
+          outputs_str = (task_definition.outputs || {}).map { |k, v| "#{k}: '#{v}'" }.join(', ')
+
+          # Indent the body code properly (2 spaces)
+          body_lines = body_code.strip.lines
+          indented_body = body_lines.map { |line| "  #{line}" }.join
+          indented_body += "\n" unless indented_body.end_with?("\n")
+
+          <<~RUBY
+            task :#{task_definition.name},
+                 inputs: { #{inputs_str} },
+                 outputs: { #{outputs_str} } do |inputs|
+            #{indented_body}end
+          RUBY
         end
 
         # Replace a task definition in agent code
@@ -1705,6 +1950,38 @@ module LanguageOperator
               Formatters::ProgressFormatter.warn("Could not delete pod '#{pod_name}': #{e.message}")
             end
           end
+        end
+
+        # Interactive version selection for rollback
+        def select_version_interactively(sorted_cms, current_version)
+          require 'tty-prompt'
+          prompt = TTY::Prompt.new
+
+          puts
+          puts pastel.cyan('Available versions:')
+          puts
+
+          choices = sorted_cms.map do |cm|
+            version = cm.dig('metadata', 'annotations', 'langop.io/version')
+            optimized_at = cm.dig('metadata', 'annotations', 'langop.io/optimized-at')
+            task = cm.dig('metadata', 'annotations', 'langop.io/optimized-task')
+            is_current = version == current_version
+
+            label = if is_current
+                      "#{version} (current) - Task: #{task}"
+                    else
+                      timestamp = optimized_at ? format_timestamp(Time.parse(optimized_at)) : 'unknown'
+                      "#{version} - #{timestamp} - Task: #{task}"
+                    end
+
+            { name: label, value: version, disabled: is_current ? '(current version)' : false }
+          end
+
+          prompt.select('Select version to rollback to:', choices, per_page: 10)
+        rescue TTY::Reader::InputInterrupt
+          puts
+          puts pastel.yellow('Rollback cancelled')
+          nil
         end
       end
     end

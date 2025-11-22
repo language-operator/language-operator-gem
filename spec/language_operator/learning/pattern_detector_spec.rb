@@ -47,8 +47,8 @@ RSpec.describe LanguageOperator::Learning::PatternDetector do
 
         expect(result[:success]).to be true
         expect(result[:task_name]).to eq('fetch_user')
-        expect(result[:generated_code]).to include('execute_task(:db_fetch')
-        expect(result[:generated_code]).to include('execute_task(:cache_get')
+        expect(result[:generated_code]).to include("execute_tool('db_fetch'")
+        expect(result[:generated_code]).to include("execute_tool('cache_get'")
         expect(result[:generated_code]).to include('require \'language_operator\'')
       end
 
@@ -201,7 +201,7 @@ RSpec.describe LanguageOperator::Learning::PatternDetector do
       expect(code).to include('require \'language_operator\'')
       expect(code).to include('agent "get-data-symbolic"')
       expect(code).to include('task :core_pattern')
-      expect(code).to include('execute_task(:fetch_api, inputs: inputs)')
+      expect(code).to include("execute_tool('fetch_api', inputs)")
       expect(code).to include('final_result = step1_result')
       expect(code).to include('{ result: final_result }')
     end
@@ -212,8 +212,8 @@ RSpec.describe LanguageOperator::Learning::PatternDetector do
         task_name: 'cache_user'
       )
 
-      expect(code).to include('step1_result = execute_task(:db_fetch, inputs: inputs)')
-      expect(code).to include('final_result = execute_task(:cache_set, inputs: step1_result)')
+      expect(code).to include("step1_result = execute_tool('db_fetch', inputs)")
+      expect(code).to include("final_result = execute_tool('cache_set', step1_result)")
       expect(code).to include('{ result: final_result }')
     end
 
@@ -223,9 +223,9 @@ RSpec.describe LanguageOperator::Learning::PatternDetector do
         task_name: 'sync_data'
       )
 
-      expect(code).to include('step1_result = execute_task(:db_fetch, inputs: inputs)')
-      expect(code).to include('step2_result = execute_task(:transform, inputs: step1_result)')
-      expect(code).to include('final_result = execute_task(:api_send, inputs: step2_result)')
+      expect(code).to include("step1_result = execute_tool('db_fetch', inputs)")
+      expect(code).to include("step2_result = execute_tool('transform', step1_result)")
+      expect(code).to include("final_result = execute_tool('api_send', step2_result)")
       expect(code).to include('{ result: final_result }')
     end
 
@@ -235,11 +235,11 @@ RSpec.describe LanguageOperator::Learning::PatternDetector do
         task_name: 'etl_pipeline'
       )
 
-      expect(code).to include('step1_result = execute_task(:fetch, inputs: inputs)')
-      expect(code).to include('step2_result = execute_task(:validate, inputs: step1_result)')
-      expect(code).to include('step3_result = execute_task(:transform, inputs: step2_result)')
-      expect(code).to include('step4_result = execute_task(:enrich, inputs: step3_result)')
-      expect(code).to include('final_result = execute_task(:send, inputs: step4_result)')
+      expect(code).to include("step1_result = execute_tool('fetch', inputs)")
+      expect(code).to include("step2_result = execute_tool('validate', step1_result)")
+      expect(code).to include("step3_result = execute_tool('transform', step2_result)")
+      expect(code).to include("step4_result = execute_tool('enrich', step3_result)")
+      expect(code).to include("final_result = execute_tool('send', step4_result)")
     end
 
     it 'includes proper agent metadata' do
@@ -371,8 +371,8 @@ RSpec.describe LanguageOperator::Learning::PatternDetector do
         task_name: 'test'
       )
 
-      expect(code).to include('execute_task(:db_fetch')
-      expect(code).to include('execute_task(:cache_get')
+      expect(code).to include("execute_tool('db_fetch'")
+      expect(code).to include("execute_tool('cache_get'")
     end
 
     it 'handles task names with special characters' do
@@ -392,7 +392,7 @@ RSpec.describe LanguageOperator::Learning::PatternDetector do
       )
 
       (1..10).each do |i|
-        expect(code).to include("execute_task(:tool#{i}")
+        expect(code).to include("execute_tool('tool#{i}")
       end
     end
   end
@@ -422,9 +422,9 @@ RSpec.describe LanguageOperator::Learning::PatternDetector do
       expect(result[:ready_to_deploy]).to be true
       expect(result[:validation_violations]).to be_empty
       expect(result[:generated_code]).to include('agent "fetch-user-profile-symbolic"')
-      expect(result[:generated_code]).to include('execute_task(:database_query')
-      expect(result[:generated_code]).to include('execute_task(:cache_store')
-      expect(result[:generated_code]).to include('execute_task(:api_enrich')
+      expect(result[:generated_code]).to include("execute_tool('database_query'")
+      expect(result[:generated_code]).to include("execute_tool('cache_store'")
+      expect(result[:generated_code]).to include("execute_tool('api_enrich'")
     end
   end
 end

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'pastel'
+require 'rouge'
 
 module LanguageOperator
   module CLI
@@ -9,6 +10,8 @@ module LanguageOperator
       class OptimizationFormatter
         def initialize
           @pastel = Pastel.new
+          @rouge_formatter = Rouge::Formatters::Terminal256.new
+          @ruby_lexer = Rouge::Lexers::Ruby.new
         end
 
         # Format analysis results showing optimization opportunities
@@ -114,19 +117,23 @@ module LanguageOperator
           output << @pastel.dim('=' * 70)
           output << ''
 
-          # Current code
-          output << @pastel.yellow.bold('Current (Neural):')
+          # Current code (syntax highlighted)
+          output << @pastel.white.bold('Current (Neural):')
           output << @pastel.dim('─' * 70)
-          proposal[:current_code].each_line do |line|
-            output << @pastel.yellow("  #{line.rstrip}")
+          formatted_current = format_with_rubocop(proposal[:current_code])
+          highlighted_current = @rouge_formatter.format(@ruby_lexer.lex(formatted_current))
+          highlighted_current.each_line do |line|
+            output << "  #{line.rstrip}"
           end
           output << ''
 
-          # Proposed code
+          # Proposed code (wrapped with task definition and syntax highlighted)
           output << @pastel.green.bold('Proposed (Symbolic):')
           output << @pastel.dim('─' * 70)
-          proposal[:proposed_code].each_line do |line|
-            output << @pastel.green("  #{line.rstrip}")
+          wrapped_code = wrap_task_code(proposal[:proposed_code], proposal[:task_definition])
+          highlighted = @rouge_formatter.format(@ruby_lexer.lex(wrapped_code))
+          highlighted.each_line do |line|
+            output << "  #{line.rstrip}"
           end
           output << ''
 
@@ -136,7 +143,6 @@ module LanguageOperator
           impact = proposal[:performance_impact]
           output << format_impact_line('Execution Time:', impact[:current_avg_time], impact[:optimized_avg_time], 's', impact[:time_reduction_pct])
           output << format_impact_line('Cost Per Call:', impact[:current_avg_cost], impact[:optimized_avg_cost], '$', impact[:cost_reduction_pct])
-          output << ''
           output << "  #{@pastel.dim('Projected Monthly Savings:')} #{@pastel.green.bold("$#{impact[:projected_monthly_savings]}")}"
           output << ''
 
@@ -147,6 +153,18 @@ module LanguageOperator
           output << "  #{@pastel.dim('Pattern Consistency:')} #{format_percentage(proposal[:consistency_score])}"
           output << "  #{@pastel.dim('Tool Sequence:')} #{proposal[:pattern]}"
           output << "  #{@pastel.dim('Validation:')} #{proposal[:validation_violations].empty? ? @pastel.green('✓ Passed') : @pastel.red('✗ Failed')}"
+          output << ''
+
+          # Show validation failures if present
+          unless proposal[:validation_violations].empty?
+            output << @pastel.bold('Validation Failures:')
+            output << @pastel.dim('─' * 70)
+            proposal[:validation_violations].each do |violation|
+              output << format_violation(violation)
+            end
+            output << ''
+          end
+
           output << ''
 
           output.join("\n")
@@ -216,9 +234,85 @@ module LanguageOperator
         def format_impact_line(label, current, optimized, unit, reduction_pct)
           current_str = unit == '$' ? format('$%.4f', current) : "#{current}#{unit}"
           optimized_str = unit == '$' ? format('$%.4f', optimized) : "#{optimized}#{unit}"
+          benefit_text = unit == '$' ? 'cheaper' : 'faster'
 
           "  #{@pastel.dim(label)} #{current_str} → #{@pastel.green(optimized_str)} " \
-            "#{@pastel.green("(#{reduction_pct}% faster)")}"
+            "#{@pastel.green("(#{reduction_pct}% #{benefit_text})")}"
+        end
+
+        # Wrap task body code with task definition for display
+        def wrap_task_code(body_code, task_definition)
+          return body_code unless task_definition
+
+          inputs_str = (task_definition.inputs || {}).map { |k, v| "#{k}: '#{v}'" }.join(', ')
+          outputs_str = (task_definition.outputs || {}).map { |k, v| "#{k}: '#{v}'" }.join(', ')
+
+          # Indent the body code properly (2 spaces)
+          # Ensure the body ends with a newline before the final 'end'
+          body_lines = body_code.strip.lines
+          indented_body = body_lines.map { |line| "  #{line}" }.join
+          indented_body += "\n" unless indented_body.end_with?("\n")
+
+          # Build the complete task code
+          complete_code = <<~RUBY
+            task :#{task_definition.name},
+                 inputs: { #{inputs_str} },
+                 outputs: { #{outputs_str} } do |inputs|
+            #{indented_body}end
+          RUBY
+
+          # Format with RuboCop
+          format_with_rubocop(complete_code)
+        end
+
+        # Format code using RuboCop's autocorrect
+        def format_with_rubocop(code)
+          require 'rubocop'
+          require 'tempfile'
+
+          # Write code to a temp file
+          Tempfile.create(['task', '.rb']) do |f|
+            f.write(code)
+            f.flush
+
+            # Run RuboCop autocorrect
+            config_store = RuboCop::ConfigStore.new
+            options = {
+              auto_correct: true,
+              stderr: true,
+              formatters: []
+            }
+
+            runner = RuboCop::Runner.new(options, config_store)
+            runner.run([f.path])
+
+            # Read the formatted code
+            File.read(f.path)
+          end
+        rescue StandardError => e
+          # If RuboCop fails, return original code
+          @logger&.debug("RuboCop formatting failed: #{e.message}")
+          code
+        end
+
+        # Format a validation violation
+        def format_violation(violation)
+          case violation
+          when Hash
+            type = violation[:type] || 'error'
+            message = violation[:message] || violation[:error] || 'Unknown validation error'
+            details = violation[:method] || violation[:line]
+
+            if details
+              "  #{@pastel.red('•')} #{@pastel.yellow("[#{type}]")} #{message} #{@pastel.dim("(#{details})")}"
+            else
+              "  #{@pastel.red('•')} #{@pastel.yellow("[#{type}]")} #{message}"
+            end
+          when String
+            "  #{@pastel.red('•')} #{violation}"
+          else
+            "  #{@pastel.red('•')} #{violation.inspect}"
+          end
         end
       end
     end

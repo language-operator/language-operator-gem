@@ -80,19 +80,38 @@ Respond with valid JSON:
 ```
 
 **Code Requirements (if symbolic):**
-- Use the DSL task format with a do block:
+- IMPORTANT: Only generate the code that goes INSIDE the task block
+- Do NOT include the outer `task :name, inputs:, outputs: do |inputs|` wrapper
+- The code will be inserted into this structure automatically:
   ```ruby
-  task :task_name,
-       instructions: "Keep the original instructions for documentation",
-       inputs: { ... },
-       outputs: { ... } do |inputs|
-    # Helper methods available: execute_tool, execute_task, execute_llm
-    result = execute_tool(:tool_name, { arg: value })
-    { output_key: result }
+  task :{{.TaskName}},
+       inputs: { {{.Inputs}} },
+       outputs: { {{.Outputs}} } do |inputs|
+    %%YOUR_CODE_HERE%%
   end
   ```
-- Use `execute_tool(:tool_name, { arg: value })` for MCP tool calls
-- Use `execute_task(:task_name, inputs: { ... })` to call other tasks
-- Access inputs via the `inputs` hash parameter
-- Return a hash matching the output schema
-- Do NOT use system(), eval(), or other unsafe methods
+
+- Your generated code should be ONLY the body that replaces `%%YOUR_CODE_HERE%%`
+- Example of what to generate:
+  ```ruby
+  # Good - just the body code:
+  result = execute_tool('read_file', { path: inputs[:file_path] })
+  line_count = result.split("\n").length
+  { content: result, lines: line_count }
+
+  # Bad - includes task wrapper (do NOT do this):
+  task :my_task, inputs: { ... }, outputs: { ... } do |inputs|
+    result = execute_tool('read_file', { path: inputs[:file_path] })
+    { content: result }
+  end
+  ```
+
+- Available helper methods in the execution context:
+  - `execute_tool('tool_name', { arg: value })` - Call an MCP tool (tool name is String)
+  - `execute_task(:task_name, inputs: { ... })` - Call another task (task name is Symbol)
+  - `execute_llm(prompt)` - Call LLM directly
+  - `logger` - Logger instance
+
+- The `inputs` parameter is a hash with the keys defined in the task inputs schema
+- Your code must return a hash matching the outputs schema exactly (same keys)
+- Do NOT use system(), eval(), fork(), or other unsafe methods

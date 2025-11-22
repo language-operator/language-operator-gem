@@ -273,12 +273,54 @@ module LanguageOperator
 
       # Normalize tool calls for pattern matching
       #
+      # Collapses consecutive identical tool calls to reduce pattern verbosity
+      # For example: "get_file → get_file → get_file" becomes "get_file (×3)"
+      #
       # @param tool_calls [Array<Hash>] Tool call sequence
       # @return [String] Normalized pattern signature
       def normalize_tool_calls(tool_calls)
         return '' unless tool_calls.is_a?(Array)
 
-        tool_calls.map { |tc| tc[:tool_name] }.join(' → ')
+        tool_names = tool_calls.map { |tc| tc[:tool_name] }
+        collapse_consecutive_duplicates(tool_names)
+      end
+
+      # Collapse consecutive duplicate tool calls for readability
+      #
+      # @param tool_names [Array<String>] Sequence of tool names
+      # @return [String] Collapsed pattern string
+      def collapse_consecutive_duplicates(tool_names)
+        return '' if tool_names.empty?
+
+        collapsed = []
+        current_tool = nil
+        count = 0
+
+        tool_names.each do |tool|
+          if tool == current_tool
+            count += 1
+          else
+            # Add previous tool (if any) to result
+            collapsed << format_tool_with_count(current_tool, count) if current_tool
+            # Start new sequence
+            current_tool = tool
+            count = 1
+          end
+        end
+
+        # Add final tool
+        collapsed << format_tool_with_count(current_tool, count) if current_tool
+
+        collapsed.join(' → ')
+      end
+
+      # Format tool name with count if > 1
+      #
+      # @param tool_name [String] Tool name
+      # @param count [Integer] Number of consecutive calls
+      # @return [String] Formatted tool name
+      def format_tool_with_count(tool_name, count)
+        count > 1 ? "#{tool_name} (×#{count})" : tool_name
       end
     end
   end

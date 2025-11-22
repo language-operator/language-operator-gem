@@ -39,14 +39,16 @@ module LanguageOperator
       # @param trace_analyzer [TraceAnalyzer] Analyzer for querying execution traces
       # @param pattern_detector [PatternDetector] Detector for generating symbolic code
       # @param task_synthesizer [TaskSynthesizer, nil] Optional LLM-based synthesizer
+      # @param semantic_validator [SemanticValidator, nil] Optional semantic code validator
       # @param logger [Logger, nil] Logger instance (creates default if nil)
       def initialize(agent_name:, agent_definition:, trace_analyzer:, pattern_detector:, task_synthesizer: nil,
-                     logger: nil)
+                     semantic_validator: nil, logger: nil)
         @agent_name = agent_name
         @agent_definition = agent_definition
         @trace_analyzer = trace_analyzer
         @pattern_detector = pattern_detector
         @task_synthesizer = task_synthesizer
+        @semantic_validator = semantic_validator
         @logger = logger || ::Logger.new($stdout, level: ::Logger::WARN)
       end
 
@@ -158,7 +160,7 @@ module LanguageOperator
         synthesis_result = @task_synthesizer.synthesize(
           task_definition: task_def,
           traces: traces,
-          available_tools: detect_available_tools,
+          available_tools: detect_available_tools(traces),
           consistency_score: analysis[:consistency_score],
           common_pattern: analysis[:common_pattern]
         )
@@ -172,14 +174,27 @@ module LanguageOperator
       def build_pattern_proposal(task_name, task_def, analysis, detection_result)
         impact = calculate_impact(execution_count: analysis[:execution_count],
                                   consistency_score: analysis[:consistency_score])
+
+        proposed_code = extract_task_code(detection_result[:generated_code])
+
+        # Add semantic validation if validator available
+        all_violations = detection_result[:validation_violations].dup
+        if @semantic_validator
+          semantic_result = @semantic_validator.validate(code: proposed_code, task_definition: task_def)
+          all_violations.concat(semantic_result[:violations]) unless semantic_result[:valid]
+        end
+
         {
-          task_name: task_name, current_code: format_current_code(task_def),
-          proposed_code: extract_task_code(detection_result[:generated_code]),
+          task_name: task_name,
+          task_definition: task_def,
+          current_code: format_current_code(task_def),
+          proposed_code: proposed_code,
           full_generated_code: detection_result[:generated_code],
           consistency_score: analysis[:consistency_score], execution_count: analysis[:execution_count],
           pattern: analysis[:common_pattern], performance_impact: impact,
-          validation_violations: detection_result[:validation_violations],
-          ready_to_deploy: detection_result[:ready_to_deploy], synthesis_method: :pattern_detection
+          validation_violations: all_violations,
+          ready_to_deploy: all_violations.empty? && detection_result[:ready_to_deploy],
+          synthesis_method: :pattern_detection
         }
       end
 
@@ -282,8 +297,21 @@ module LanguageOperator
           consistency_score: synthesis_result[:confidence]
         )
 
+        # Collect all validation violations
+        all_violations = synthesis_result[:validation_errors] || []
+
+        # Add semantic validation if validator available
+        if @semantic_validator
+          semantic_result = @semantic_validator.validate(
+            code: synthesis_result[:code],
+            task_definition: task_def
+          )
+          all_violations.concat(semantic_result[:violations]) unless semantic_result[:valid]
+        end
+
         {
           task_name: task_name,
+          task_definition: task_def,
           current_code: format_current_code(task_def),
           proposed_code: synthesis_result[:code],
           full_generated_code: synthesis_result[:code],
@@ -291,8 +319,8 @@ module LanguageOperator
           execution_count: analysis[:execution_count],
           pattern: analysis[:common_pattern],
           performance_impact: impact,
-          validation_violations: synthesis_result[:validation_errors] || [],
-          ready_to_deploy: synthesis_result[:validation_errors].nil?,
+          validation_violations: all_violations,
+          ready_to_deploy: all_violations.empty?,
           synthesis_method: :llm_synthesis,
           synthesis_confidence: synthesis_result[:confidence],
           synthesis_explanation: synthesis_result[:explanation]
@@ -302,16 +330,16 @@ module LanguageOperator
       # Detect available tools from agent definition
       #
       # @return [Array<String>] Tool names
-      def detect_available_tools
-        return [] unless @agent_definition.respond_to?(:mcp_servers)
+      def detect_available_tools(traces)
+        # Extract unique tool names from execution traces
+        tools = traces.flat_map do |trace|
+          (trace[:tool_calls] || []).map { |tc| tc[:tool_name] }
+        end.compact.uniq.sort
 
-        # Extract tool names from MCP server configurations
-        tools = []
-        @agent_definition.mcp_servers.each_value do |server|
-          tools.concat(server[:tools] || []) if server.is_a?(Hash)
-        end
-        tools.uniq
-      rescue StandardError
+        @logger.debug("Detected tools from traces: #{tools.join(', ')}") if tools.any?
+        tools
+      rescue StandardError => e
+        @logger.warn("Failed to detect tools from traces: #{e.message}")
         []
       end
     end

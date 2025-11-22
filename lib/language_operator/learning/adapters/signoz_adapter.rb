@@ -340,17 +340,20 @@ module LanguageOperator
           # }
 
           results = response.dig(:data, :data, :results) || []
-          spans = []
+          spans_by_id = {}
 
           results.each do |result|
             rows = result[:rows] || []
             rows.each do |row|
               span_data = row[:data] || {}
-              spans << normalize_span(span_data)
+              normalized = normalize_span(span_data)
+              # Deduplicate by span_id - SigNoz can return duplicate rows for multi-value attributes
+              span_id = normalized[:span_id]
+              spans_by_id[span_id] = normalized if span_id
             end
           end
 
-          spans
+          spans_by_id.values
         end
 
         # Normalize SigNoz span to common format

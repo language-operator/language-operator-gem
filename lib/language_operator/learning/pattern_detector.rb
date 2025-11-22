@@ -82,22 +82,33 @@ module LanguageOperator
       # Generate symbolic Ruby code from tool call pattern
       #
       # Converts a deterministic tool call sequence into a valid Ruby DSL v1
-      # task definition with chained execute_task calls.
+      # task definition with chained execute_tool calls.
       #
       # @param pattern [String] Tool sequence like "db_fetch → cache_get → api"
       # @param task_name [String] Name of the task being learned
-      # @return [String] Complete Ruby DSL v1 agent definition
-      def generate_symbolic_code(pattern:, task_name:)
+      # @param task_definition [Dsl::TaskDefinition, nil] Optional task definition for schema
+      # @param fragment_only [Boolean] If true, returns only task fragment (default: false)
+      # @return [String] Complete Ruby DSL v1 agent definition or task fragment
+      def generate_symbolic_code(pattern:, task_name:, task_definition: nil, fragment_only: false)
         sequence = extract_tool_sequence(pattern)
 
-        # Generate the task code body with chained execute_task calls
-        task_body = generate_task_code(sequence: sequence)
+        # Generate the task code body with chained execute_tool calls
+        task_body = generate_task_code(sequence: sequence, task_definition: task_definition)
 
-        # Wrap in complete agent definition
-        generate_agent_wrapper(
-          task_name: task_name,
-          task_body: task_body
-        )
+        if fragment_only
+          # Generate just the task definition
+          generate_task_fragment(
+            task_name: task_name,
+            task_body: task_body,
+            task_definition: task_definition
+          )
+        else
+          # Wrap in complete agent definition (backward compatibility)
+          generate_agent_wrapper(
+            task_name: task_name,
+            task_body: task_body
+          )
+        end
       end
 
       # Validate generated code with ASTValidator
@@ -184,43 +195,90 @@ module LanguageOperator
         pattern.split('→').map(&:strip).map(&:to_sym)
       end
 
-      # Generate task code body with chained execute_task calls
+      # Generate task code body with chained execute_tool calls
       #
       # Creates Ruby code that executes tools in sequence, passing outputs
       # from each tool to the next one as inputs.
       #
       # @param sequence [Array<Symbol>] Tool sequence
+      # @param task_definition [Dsl::TaskDefinition, nil] Optional task definition for schema
       # @return [String] Ruby code for task body
-      def generate_task_code(sequence:)
-        return '      { result: {} }' if sequence.empty?
+      def generate_task_code(sequence:, task_definition: nil)
+        # Determine the output structure from task definition
+        output_keys = if task_definition&.outputs&.any?
+                        task_definition.outputs.keys
+                      else
+                        [:result]
+                      end
+
+        return "      { #{output_keys.map { |k| "#{k}: {}" }.join(', ')} }" if sequence.empty?
 
         lines = []
 
         # First call: use original inputs
         first_tool = sequence[0]
-        lines << "step1_result = execute_task(:#{first_tool}, inputs: inputs)"
+        lines << "step1_result = execute_tool('#{first_tool}', inputs)"
 
         # Middle calls: chain outputs from previous step
         if sequence.size > 1
           sequence[1..-2].each_with_index do |tool, index|
             step_num = index + 2
             prev_step = "step#{step_num - 1}_result"
-            lines << "step#{step_num}_result = execute_task(:#{tool}, inputs: #{prev_step})"
+            lines << "step#{step_num}_result = execute_tool('#{tool}', #{prev_step})"
           end
 
           # Final call
           final_tool = sequence[-1]
           last_step = "step#{sequence.size - 1}_result"
-          lines << "final_result = execute_task(:#{final_tool}, inputs: #{last_step})"
+          lines << "final_result = execute_tool('#{final_tool}', #{last_step})"
         else
           lines << 'final_result = step1_result'
         end
 
-        # Return statement
-        lines << '{ result: final_result }'
+        # Return statement matching the output schema
+        if output_keys.size == 1
+          lines << "{ #{output_keys.first}: final_result }"
+        else
+          # For multiple output keys, try to map final_result intelligently
+          # This is a simplification - real implementation might need more context
+          lines << '# Map final_result to output schema'
+          lines << '{'
+          output_keys.each do |key|
+            lines << "  #{key}: final_result[:#{key}] || final_result,"
+          end
+          lines << '}'
+        end
 
         # Indent and join
         lines.map { |line| "      #{line}" }.join("\n")
+      end
+
+      # Generate task fragment (just the task definition)
+      #
+      # @param task_name [String] Name of the task
+      # @param task_body [String] Generated task code body
+      # @param task_definition [Dsl::TaskDefinition, nil] Optional task definition for schema
+      # @return [String] Just the task definition
+      def generate_task_fragment(task_name:, task_body:, task_definition: nil)
+        # Use actual schema from task definition if available
+        if task_definition
+          inputs_str = (task_definition.inputs || {}).map { |k, v| "#{k}: '#{v}'" }.join(', ')
+          outputs_str = (task_definition.outputs || {}).map { |k, v| "#{k}: '#{v}'" }.join(', ')
+          task_definition.instructions
+        else
+          # Fallback to generic schema
+          inputs_str = "data: 'hash'"
+          outputs_str = "result: 'hash'"
+          'Learned symbolic implementation from execution patterns'
+        end
+
+        <<~RUBY
+          task :#{task_name},
+               inputs: { #{inputs_str} },
+               outputs: { #{outputs_str} } do |inputs|
+          #{task_body}
+          end
+        RUBY
       end
 
       # Generate complete agent wrapper with task definition

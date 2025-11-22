@@ -59,7 +59,7 @@ module LanguageOperator
           common_pattern: common_pattern
         )
 
-        @logger.info("Task synthesis prompt:\n#{prompt}")
+        @logger.debug("Task synthesis prompt:\n#{prompt}")
 
         # Call LLM
         response = call_llm(prompt)
@@ -174,7 +174,7 @@ module LanguageOperator
       # @param idx [Integer] Trace index
       # @return [String] Formatted trace
       def format_single_trace(trace, idx)
-        tool_sequence = trace[:tool_calls]&.map { |tc| tc[:tool_name] }&.join(' → ') || '(no tools)'
+        tool_sequence = collapse_tool_sequence(trace[:tool_calls])
         duration = trace[:duration_ms]&.round(1) || 'unknown'
         inputs_summary = trace[:inputs]&.keys&.join(', ') || 'none'
         tool_details = format_tool_calls(trace[:tool_calls])
@@ -187,6 +187,41 @@ module LanguageOperator
           - **Tool Calls:**
           #{tool_details}
         TRACE
+      end
+
+      # Collapse consecutive duplicate tool calls in sequence
+      #
+      # @param tool_calls [Array<Hash>, nil] Tool call data
+      # @return [String] Collapsed sequence string
+      def collapse_tool_sequence(tool_calls)
+        return '(no tools)' unless tool_calls&.any?
+
+        tool_names = tool_calls.map { |tc| tc[:tool_name] }
+        collapsed = []
+        current_tool = nil
+        count = 0
+
+        tool_names.each do |tool|
+          if tool == current_tool
+            count += 1
+          else
+            collapsed << format_tool_count(current_tool, count) if current_tool
+            current_tool = tool
+            count = 1
+          end
+        end
+
+        collapsed << format_tool_count(current_tool, count) if current_tool
+        collapsed.join(' → ')
+      end
+
+      # Format tool with count if > 1
+      #
+      # @param tool_name [String] Tool name
+      # @param count [Integer] Number of consecutive calls
+      # @return [String] Formatted string
+      def format_tool_count(tool_name, count)
+        count > 1 ? "#{tool_name} (×#{count})" : tool_name
       end
 
       # Format tool call details
@@ -251,11 +286,14 @@ module LanguageOperator
 
         parsed = JSON.parse(json_str, symbolize_names: true)
 
+        # Extract just the task body if LLM included the full task wrapper
+        code = extract_task_body(parsed[:code]) if parsed[:code]
+
         {
           is_deterministic: parsed[:is_deterministic] == true,
           confidence: parsed[:confidence].to_f,
           explanation: parsed[:explanation] || 'No explanation provided',
-          code: parsed[:code]
+          code: code
         }
       rescue JSON::ParserError => e
         @logger.warn("Failed to parse LLM response as JSON: #{e.message}")
@@ -265,6 +303,26 @@ module LanguageOperator
           explanation: "Failed to parse synthesis response: #{e.message}",
           code: nil
         }
+      end
+
+      # Extract task body from code if LLM included the full task wrapper
+      #
+      # @param code [String, nil] Generated code
+      # @return [String, nil] Task body code or original if no wrapper found
+      def extract_task_body(code)
+        return nil if code.nil?
+
+        # Check if code includes the task wrapper
+        if code =~ /task\s+:\w+.*do\s*\|(\w+)\|(.*?)end\s*\z/m
+          # Extract just the body between do |inputs| and end
+          body = ::Regexp.last_match(2)
+          return body.strip if body
+
+          @logger.debug('Extracted task body from LLM-generated wrapper')
+        end
+
+        # Return original code if no wrapper found (already just the body)
+        code
       end
 
       # Validate generated code
