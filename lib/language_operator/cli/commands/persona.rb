@@ -19,7 +19,7 @@ module LanguageOperator
       # Persona management commands
       class Persona < BaseCommand
         include Helpers::ClusterValidator
-        include Helpers::PastelHelper
+        include Helpers::UxHelper
 
         desc 'list', 'List all personas in current cluster'
         option :cluster, type: :string, desc: 'Override current cluster context'
@@ -144,7 +144,7 @@ module LanguageOperator
 
             # Interactive prompts
             require 'tty-prompt'
-            prompt = TTY::Prompt.new
+            # prompt available via UxHelper
 
             puts
             puts '=' * 80

@@ -1,9 +1,8 @@
 # frozen_string_literal: true
 
-require 'tty-prompt'
-require 'pastel'
 require 'k8s-ruby'
 require_relative '../formatters/progress_formatter'
+require_relative '../helpers/ux_helper'
 require_relative '../../config/cluster_config'
 require_relative '../../kubernetes/client'
 require_relative '../../kubernetes/resource_builder'
@@ -13,9 +12,10 @@ module LanguageOperator
     module Wizards
       # Interactive quickstart wizard for first-time setup
       class QuickstartWizard
+        include Helpers::UxHelper
+
         def initialize
-          @prompt = TTY::Prompt.new
-          @pastel = Pastel.new
+          # UxHelper provides pastel and prompt methods
         end
 
         def run
@@ -38,19 +38,16 @@ module LanguageOperator
 
         private
 
-        attr_reader :prompt, :pastel
-
         def show_welcome
           puts
-          puts pastel.cyan('╭────────────────────────────────────────────────╮')
-          puts "#{pastel.cyan('│')}  Welcome to Language Operator! 🎉              #{pastel.cyan('│')}"
-          puts "#{pastel.cyan('│')}  Let's get you set up (takes ~5 minutes)       #{pastel.cyan('│')}"
-          puts pastel.cyan('╰────────────────────────────────────────────────╯')
-          puts
-          puts 'This wizard will help you:'
-          puts '  1. Connect to your Kubernetes cluster'
-          puts '  2. Configure a language model'
-          puts '  3. Create your first autonomous agent'
+          puts box(<<~MSG.chomp, title: 'Welcome to Language Operator! 🎉')
+            Let's get you set up (takes ~5 minutes)
+
+            This wizard will help you:
+              1. Connect to your Kubernetes cluster
+              2. Configure a language model
+              3. Create your first autonomous agent
+          MSG
           puts
           puts pastel.dim('Press Enter to begin...')
           $stdin.gets

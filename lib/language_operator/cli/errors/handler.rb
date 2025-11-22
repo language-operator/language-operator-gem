@@ -1,14 +1,16 @@
 # frozen_string_literal: true
 
-require 'pastel'
 require_relative 'suggestions'
 require_relative '../formatters/progress_formatter'
+require_relative '../helpers/ux_helper'
 
 module LanguageOperator
   module CLI
     module Errors
       # Central error handler with context-aware suggestions
       class Handler
+        extend Helpers::UxHelper
+
         class << self
           # Handle an error with context and provide helpful suggestions
           def handle(error, context = {})
@@ -168,10 +170,6 @@ module LanguageOperator
             else
               :resource_not_found
             end
-          end
-
-          def pastel
-            @pastel ||= Pastel.new
           end
         end
       end

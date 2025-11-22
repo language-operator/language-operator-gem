@@ -9,7 +9,7 @@ module LanguageOperator
       #
       # Provides consistent colored status dots (●) for resource states
       class StatusFormatter
-        extend Helpers::PastelHelper
+        extend Helpers::UxHelper
 
         # Format a status string with colored indicator
         #

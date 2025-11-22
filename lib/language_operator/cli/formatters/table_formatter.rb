@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
-require 'tty-table'
-require_relative '../helpers/pastel_helper'
+require_relative '../helpers/ux_helper'
 require_relative 'status_formatter'
 
 module LanguageOperator
@@ -10,7 +9,7 @@ module LanguageOperator
       # Table output for CLI list commands
       class TableFormatter
         class << self
-          include Helpers::PastelHelper
+          include Helpers::UxHelper
 
           def clusters(clusters)
             return ProgressFormatter.info('No clusters found') if clusters.empty?
@@ -27,8 +26,7 @@ module LanguageOperator
               ]
             end
 
-            table = TTY::Table.new(headers, rows)
-            puts table.render(:unicode, padding: [0, 1])
+            puts table(headers, rows)
           end
 
           def agents(agents)
@@ -45,8 +43,7 @@ module LanguageOperator
               ]
             end
 
-            table = TTY::Table.new(headers, rows)
-            puts table.render(:unicode, padding: [0, 1])
+            puts table(headers, rows)
           end
 
           def all_agents(agents_by_cluster)
@@ -68,8 +65,7 @@ module LanguageOperator
               end
             end
 
-            table = TTY::Table.new(headers, rows)
-            puts table.render(:unicode, padding: [0, 1])
+            puts table(headers, rows)
           end
 
           def tools(tools)
@@ -85,8 +81,7 @@ module LanguageOperator
               ]
             end
 
-            table = TTY::Table.new(headers, rows)
-            puts table.render(:unicode, padding: [0, 1])
+            puts table(headers, rows)
           end
 
           def personas(personas)
@@ -102,8 +97,7 @@ module LanguageOperator
               ]
             end
 
-            table = TTY::Table.new(headers, rows)
-            puts table.render(:unicode, padding: [0, 1])
+            puts table(headers, rows)
           end
 
           def models(models)
@@ -119,8 +113,7 @@ module LanguageOperator
               ]
             end
 
-            table = TTY::Table.new(headers, rows)
-            puts table.render(:unicode, padding: [0, 1])
+            puts table(headers, rows)
           end
 
           def status_dashboard(cluster_summary, current_cluster: nil)
@@ -140,8 +133,7 @@ module LanguageOperator
               ]
             end
 
-            table = TTY::Table.new(headers, rows)
-            puts table.render(:unicode, padding: [0, 1])
+            puts table(headers, rows)
 
             return unless current_cluster
 

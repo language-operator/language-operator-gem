@@ -14,7 +14,7 @@ module LanguageOperator
     module Commands
       # System status and overview command
       class Status < BaseCommand
-        include Helpers::PastelHelper
+        include Helpers::UxHelper
 
         desc 'overview', 'Show system status and overview'
         def overview

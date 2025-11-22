@@ -24,7 +24,7 @@ module LanguageOperator
       # Agent management commands
       class Agent < BaseCommand
         include Helpers::ClusterValidator
-        include Helpers::PastelHelper
+        include Helpers::UxHelper
 
         desc 'create [DESCRIPTION]', 'Create a new agent with natural language description'
         long_desc <<-DESC
@@ -774,7 +774,7 @@ module LanguageOperator
               puts "This will rollback agent '#{name}' from #{current_version} to #{target_version}"
               puts pastel.yellow('This operation will restart the agent pod.')
               puts
-              return unless TTY::Prompt.new.yes?('Continue with rollback?')
+              return unless prompt.yes?('Continue with rollback?')
             end
 
             # Perform rollback
@@ -1723,7 +1723,7 @@ module LanguageOperator
         # Prompt user for optimization acceptance
         def prompt_for_optimization_acceptance(proposal)
           require 'tty-prompt'
-          prompt = TTY::Prompt.new
+          # prompt available via UxHelper
 
           choices = [
             { name: 'Yes - apply this optimization', value: :yes },
@@ -1955,7 +1955,7 @@ module LanguageOperator
         # Interactive version selection for rollback
         def select_version_interactively(sorted_cms, current_version)
           require 'tty-prompt'
-          prompt = TTY::Prompt.new
+          # prompt available via UxHelper
 
           puts
           puts pastel.cyan('Available versions:')

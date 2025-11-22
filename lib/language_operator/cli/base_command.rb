@@ -1,11 +1,20 @@
 # frozen_string_literal: true
 
 require 'thor'
+require_relative 'helpers/ux_helper'
 
 module LanguageOperator
   module CLI
     # Base class for all CLI commands providing shared functionality
+    #
+    # Automatically includes {Helpers::UxHelper} to provide:
+    # - +pastel+ - Colorized terminal output
+    # - +prompt+ - Interactive user prompts
+    #
+    # All commands inheriting from BaseCommand get these helpers automatically.
     class BaseCommand < Thor
+      include Helpers::UxHelper
+
       no_commands do
         # Lazy-initialized cluster context from options
         # @return [Helpers::ClusterContext]

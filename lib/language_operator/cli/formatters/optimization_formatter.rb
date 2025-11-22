@@ -1,15 +1,16 @@
 # frozen_string_literal: true
 
-require 'pastel'
 require 'rouge'
+require_relative '../helpers/ux_helper'
 
 module LanguageOperator
   module CLI
     module Formatters
       # Formats optimization analysis and proposals for CLI display
       class OptimizationFormatter
+        include Helpers::UxHelper
+
         def initialize
-          @pastel = Pastel.new
           @rouge_formatter = Rouge::Formatters::Terminal256.new
           @ruby_lexer = Rouge::Lexers::Ruby.new
         end

@@ -60,6 +60,7 @@ Gem::Specification.new do |spec|
   # Beautiful CLI output
   spec.add_dependency 'pastel', '~> 0.8'
   spec.add_dependency 'rouge', '~> 4.0'
+  spec.add_dependency 'tty-box', '~> 0.7'
   spec.add_dependency 'tty-prompt', '~> 0.23'
   spec.add_dependency 'tty-spinner', '~> 0.9'
   spec.add_dependency 'tty-table', '~> 0.12'

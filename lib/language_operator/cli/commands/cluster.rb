@@ -15,7 +15,7 @@ module LanguageOperator
     module Commands
       # Cluster management commands
       class Cluster < BaseCommand
-        include Helpers::PastelHelper
+        include Helpers::UxHelper
 
         desc 'create NAME', 'Create a new language cluster'
         option :namespace, type: :string, desc: 'Kubernetes namespace (defaults to current context namespace)'

@@ -1,19 +1,17 @@
 # frozen_string_literal: true
 
-require 'tty-prompt'
-require 'pastel'
 require_relative '../helpers/schedule_builder'
+require_relative '../helpers/ux_helper'
 
 module LanguageOperator
   module CLI
     module Wizards
       # Interactive wizard for creating agents
       class AgentWizard
-        attr_reader :prompt, :pastel
+        include Helpers::UxHelper
 
         def initialize
-          @prompt = TTY::Prompt.new
-          @pastel = Pastel.new
+          # UxHelper provides pastel and prompt methods
         end
 
         # Run the wizard and return the generated description
@@ -43,9 +41,7 @@ module LanguageOperator
 
         def show_welcome
           puts
-          puts pastel.cyan('╭────────────────────────────────────────╮')
-          puts pastel.cyan('│  Let\'s create your agent! 🤖           │')
-          puts pastel.cyan('╰────────────────────────────────────────╯')
+          puts box("Let's create your agent! 🤖")
           puts
         end
 
@@ -216,23 +212,21 @@ module LanguageOperator
 
         def show_preview(description, schedule_info, tools_config)
           puts
-          puts pastel.cyan('╭─ Preview ──────────────────────────────╮')
-          puts '│'
-          puts "│  #{pastel.bold('Task:')} #{description}"
+
+          content = []
+          content << "#{pastel.bold('Task:')} #{description}"
 
           if schedule_info[:type] == :manual
-            puts "│  #{pastel.bold('Mode:')} Manual trigger"
+            content << "#{pastel.bold('Mode:')} Manual trigger"
           else
             schedule_text = schedule_info[:description] || 'on demand'
-            puts "│  #{pastel.bold('Schedule:')} #{schedule_text}"
+            content << "#{pastel.bold('Schedule:')} #{schedule_text}"
           end
 
-          puts "│  #{pastel.bold('Cron:')} #{pastel.dim(schedule_info[:cron])}" if schedule_info[:cron]
+          content << "#{pastel.bold('Cron:')} #{pastel.dim(schedule_info[:cron])}" if schedule_info[:cron]
+          content << "#{pastel.bold('Tools:')} #{tools_config[:tools].join(', ')}" if tools_config[:tools]&.any?
 
-          puts "│  #{pastel.bold('Tools:')} #{tools_config[:tools].join(', ')}" if tools_config[:tools]&.any?
-
-          puts '│'
-          puts pastel.cyan('╰────────────────────────────────────────╯')
+          puts box(content.join("\n"), title: 'Preview')
           puts
         end
 

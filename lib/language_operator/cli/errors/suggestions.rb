@@ -1,13 +1,15 @@
 # frozen_string_literal: true
 
 require 'did_you_mean'
-require 'pastel'
+require_relative '../helpers/ux_helper'
 
 module LanguageOperator
   module CLI
     module Errors
       # Provides helpful suggestions for error recovery
       class Suggestions
+        extend Helpers::UxHelper
+
         class << self
           # Find similar resource names using fuzzy matching
           def find_similar(input_name, available_names, limit: 3)
@@ -164,10 +166,6 @@ module LanguageOperator
             else
               resource_type.downcase
             end
-          end
-
-          def pastel
-            @pastel ||= Pastel.new
           end
         end
       end

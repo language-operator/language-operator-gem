@@ -9,7 +9,7 @@ module LanguageOperator
       # Formatter for displaying syntax-highlighted code in the terminal
       class CodeFormatter
         class << self
-          include Helpers::PastelHelper
+          include Helpers::UxHelper
 
           # Display Ruby code with syntax highlighting
           #

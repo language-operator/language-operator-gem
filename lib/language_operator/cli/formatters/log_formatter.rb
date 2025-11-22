@@ -11,7 +11,7 @@ module LanguageOperator
       # Formatter for displaying agent execution logs with color and icons
       class LogFormatter
         class << self
-          include Helpers::PastelHelper
+          include Helpers::UxHelper
 
           # Format a single log line from kubectl output
           #

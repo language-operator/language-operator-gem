@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
-require 'tty-spinner'
-require_relative '../helpers/pastel_helper'
+require_relative '../helpers/ux_helper'
 require_relative 'log_style'
 
 module LanguageOperator
@@ -10,22 +9,21 @@ module LanguageOperator
       # Beautiful progress output for CLI operations
       class ProgressFormatter
         class << self
-          include Helpers::PastelHelper
+          include Helpers::UxHelper
 
           def with_spinner(message, success_msg: nil, &block)
-            success_icon = LogStyle.styled_icon(:success, pastel)
-            spinner = TTY::Spinner.new(":spinner #{message}...", format: :dots, success_mark: success_icon)
-            spinner.auto_spin
+            spin = spinner("#{message}...")
+            spin.auto_spin
 
             result = block.call
 
             # Determine what to show after spinner completes
             final_status = success_msg || 'done'
 
-            spinner.success(final_status)
+            spin.success(final_status)
             result
           rescue StandardError => e
-            spinner.error(e.message)
+            spin.error(e.message)
             raise
           end
 
