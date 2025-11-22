@@ -7,20 +7,11 @@ module LanguageOperator
       class << self
         # Build a LanguageCluster resource
         def language_cluster(name, namespace: nil, labels: {})
-          {
-            'apiVersion' => 'langop.io/v1alpha1',
-            'kind' => 'LanguageCluster',
-            'metadata' => {
-              'name' => name,
-              'namespace' => namespace || 'default',
-              'labels' => default_labels.merge(labels)
-            },
-            'spec' => {
-              'namespace' => namespace || name,
-              'resourceQuota' => default_resource_quota,
-              'networkPolicy' => default_network_policy
-            }
-          }
+          build_resource('LanguageCluster', name, {
+                           'namespace' => namespace || name,
+                           'resourceQuota' => default_resource_quota,
+                           'networkPolicy' => default_network_policy
+                         }, namespace: namespace, labels: labels)
         end
 
         # Build a LanguageAgent resource
@@ -44,33 +35,15 @@ module LanguageOperator
           # Enable workspace by default for state persistence
           spec['workspace'] = { 'enabled' => workspace } if workspace
 
-          {
-            'apiVersion' => 'langop.io/v1alpha1',
-            'kind' => 'LanguageAgent',
-            'metadata' => {
-              'name' => name,
-              'namespace' => cluster || 'default',
-              'labels' => default_labels.merge(labels)
-            },
-            'spec' => spec
-          }
+          build_resource('LanguageAgent', name, spec, namespace: cluster, labels: labels)
         end
 
         # Build a LanguageTool resource
         def language_tool(name, type:, config: {}, cluster: nil, labels: {})
-          {
-            'apiVersion' => 'langop.io/v1alpha1',
-            'kind' => 'LanguageTool',
-            'metadata' => {
-              'name' => name,
-              'namespace' => cluster || 'default',
-              'labels' => default_labels.merge(labels)
-            },
-            'spec' => {
-              'type' => type,
-              'config' => config
-            }
-          }
+          build_resource('LanguageTool', name, {
+                           'type' => type,
+                           'config' => config
+                         }, namespace: cluster, labels: labels)
         end
 
         # Build a LanguageModel resource
@@ -81,49 +54,22 @@ module LanguageOperator
           }
           spec['endpoint'] = endpoint if endpoint
 
-          {
-            'apiVersion' => 'langop.io/v1alpha1',
-            'kind' => 'LanguageModel',
-            'metadata' => {
-              'name' => name,
-              'namespace' => cluster || 'default',
-              'labels' => default_labels.merge(labels)
-            },
-            'spec' => spec
-          }
+          build_resource('LanguageModel', name, spec, namespace: cluster, labels: labels)
         end
 
         # Build a LanguagePersona resource
         def language_persona(name, description:, tone:, system_prompt:, cluster: nil, labels: {})
-          {
-            'apiVersion' => 'langop.io/v1alpha1',
-            'kind' => 'LanguagePersona',
-            'metadata' => {
-              'name' => name,
-              'namespace' => cluster || 'default',
-              'labels' => default_labels.merge(labels)
-            },
-            'spec' => {
-              'displayName' => name.split('-').map(&:capitalize).join(' '),
-              'description' => description,
-              'tone' => tone,
-              'systemPrompt' => system_prompt
-            }
-          }
+          build_resource('LanguagePersona', name, {
+                           'displayName' => name.split('-').map(&:capitalize).join(' '),
+                           'description' => description,
+                           'tone' => tone,
+                           'systemPrompt' => system_prompt
+                         }, namespace: cluster, labels: labels)
         end
 
         # Build a LanguagePersona resource with full spec control
         def build_persona(name:, spec:, namespace: nil, labels: {})
-          {
-            'apiVersion' => 'langop.io/v1alpha1',
-            'kind' => 'LanguagePersona',
-            'metadata' => {
-              'name' => name,
-              'namespace' => namespace || 'default',
-              'labels' => default_labels.merge(labels)
-            },
-            'spec' => spec
-          }
+          build_resource('LanguagePersona', name, spec, namespace: namespace, labels: labels)
         end
 
         # Build a Kubernetes Service resource for a reactive agent
@@ -164,6 +110,27 @@ module LanguageOperator
         end
 
         private
+
+        # Build a standard language-operator Kubernetes resource
+        #
+        # @param kind [String] The Kubernetes resource kind
+        # @param name [String] The resource name
+        # @param spec [Hash] The resource spec
+        # @param namespace [String, nil] The namespace (defaults to 'default')
+        # @param labels [Hash] Additional labels to merge with defaults
+        # @return [Hash] Complete Kubernetes resource manifest
+        def build_resource(kind, name, spec, namespace: nil, labels: {})
+          {
+            'apiVersion' => 'langop.io/v1alpha1',
+            'kind' => kind,
+            'metadata' => {
+              'name' => name,
+              'namespace' => namespace || 'default',
+              'labels' => default_labels.merge(labels)
+            },
+            'spec' => spec
+          }
+        end
 
         def default_labels
           {
