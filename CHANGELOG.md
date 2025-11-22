@@ -15,11 +15,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed workflow/step schema definitions
   - Users must migrate to DSL v1 (task/main model)
   - See `requirements/proposals/dsl-v1.md` for migration guide
+- Removed deprecated `lib/language_operator/ux/` directory
+  - Consolidated wizards under `lib/language_operator/cli/wizards/`
+  - Extracted reusable helpers to `lib/language_operator/cli/helpers/`
+  - All wizards now use UxHelper pattern
 
 ### Changed
 - Updated agent definition examples to use task/main pattern
 - Updated JSON schema artifacts to reflect DSL v1 only
 - Updated documentation to focus exclusively on task/main model
+- Migrated all CLI commands to use new wizard implementations:
+  - `aictl agent create` uses `Wizards::AgentWizard`
+  - `aictl model create` uses `Wizards::ModelWizard`
+  - `aictl quickstart` uses `Wizards::QuickstartWizard`
 
 ### Added
 - **Schema Version Method**: Added `LanguageOperator::Dsl::Schema.version` method that returns the current schema version (linked to gem version)

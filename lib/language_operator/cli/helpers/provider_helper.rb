@@ -5,23 +5,21 @@ require 'json'
 require 'uri'
 
 module LanguageOperator
-  module Ux
-    module Concerns
-      # Mixin for common LLM provider operations
+  module CLI
+    module Helpers
+      # LLM provider operations for CLI wizards
       #
-      # Provides helpers for testing provider connections, fetching available models,
-      # and handling provider-specific configuration.
+      # Provides helpers for testing provider connections and fetching available models.
       #
       # @example
-      #   class MyFlow < Base
-      #     include Concerns::ProviderHelpers
+      #   class ModelWizard
+      #     include Helpers::ProviderHelper
       #
-      #     def setup
-      #       result = test_provider_connection(:anthropic, api_key: 'sk-...')
-      #       models = fetch_provider_models(:openai, api_key: 'sk-...')
+      #     def test_anthropic_connection(api_key)
+      #       test_provider_connection(:anthropic, api_key: api_key)
       #     end
       #   end
-      module ProviderHelpers
+      module ProviderHelper
         # Test connection to an LLM provider
         #
         # @param provider [Symbol] Provider type (:anthropic, :openai, :openai_compatible)
@@ -65,25 +63,8 @@ module LanguageOperator
             fetch_openai_compatible_models(endpoint, api_key)
           end
         rescue StandardError => e
-          CLI::Formatters::ProgressFormatter.warn("Could not fetch models: #{e.message}")
+          Formatters::ProgressFormatter.warn("Could not fetch models: #{e.message}")
           nil
-        end
-
-        # Get provider display information
-        #
-        # @param provider [Symbol] Provider type
-        # @return [Hash] Hash with :name, :docs_url keys
-        def provider_info(provider)
-          case provider
-          when :anthropic
-            { name: 'Anthropic', docs_url: 'https://console.anthropic.com' }
-          when :openai
-            { name: 'OpenAI', docs_url: 'https://platform.openai.com/api-keys' }
-          when :openai_compatible
-            { name: 'OpenAI-Compatible', docs_url: nil }
-          else
-            { name: provider.to_s.capitalize, docs_url: nil }
-          end
         end
 
         private

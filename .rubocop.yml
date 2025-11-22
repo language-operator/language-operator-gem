@@ -8,7 +8,6 @@ AllCops:
   TargetRubyVersion: 3.4
   SuggestExtensions: false
   Exclude:
-    - 'lib/language_operator/ux/base.rb'  # Base class provides the same pattern
     - 'vendor/**/*'
     - 'tmp/**/*'
     - 'bin/bump-version'
@@ -19,7 +18,6 @@ AllCops:
 LanguageOperator/UseUxHelper:
   Enabled: true
   Exclude:
-    - 'lib/language_operator/ux/base.rb'  # Base class provides the same pattern
     - 'lib/language_operator/cli/helpers/ux_helper.rb'  # Allow in the helper itself
     - 'spec/**/*'  # Allow in tests for mocking
 
@@ -30,7 +28,6 @@ Metrics/BlockLength:
 Metrics/MethodLength:
   Max: 35
   Exclude:
-    - 'lib/language_operator/ux/base.rb'  # Base class provides the same pattern
     - 'spec/**/*'
     - 'lib/language_operator/dsl/**/*'
     - 'lib/language_operator/cli/**/*'
@@ -40,7 +37,6 @@ Metrics/MethodLength:
 Metrics/AbcSize:
   Max: 35
   Exclude:
-    - 'lib/language_operator/ux/base.rb'  # Base class provides the same pattern
     - 'spec/**/*'
     - 'lib/language_operator/dsl/**/*'
     - 'lib/language_operator/cli/**/*'
@@ -50,7 +46,6 @@ Metrics/AbcSize:
 Metrics/ClassLength:
   Max: 175
   Exclude:
-    - 'lib/language_operator/ux/base.rb'  # Base class provides the same pattern
     - 'spec/**/*'
     - 'lib/language_operator/cli/**/*'
     - 'lib/language_operator/agent/**/*'
@@ -60,13 +55,11 @@ Metrics/ClassLength:
 Metrics/ModuleLength:
   Max: 150
   Exclude:
-    - 'lib/language_operator/ux/base.rb'  # Base class provides the same pattern
     - 'spec/**/*'
 
 Metrics/CyclomaticComplexity:
   Max: 15
   Exclude:
-    - 'lib/language_operator/ux/base.rb'  # Base class provides the same pattern
     - 'spec/**/*'
     - 'lib/language_operator/dsl/**/*'
     - 'lib/language_operator/cli/**/*'
@@ -74,7 +67,6 @@ Metrics/CyclomaticComplexity:
 Metrics/PerceivedComplexity:
   Max: 15
   Exclude:
-    - 'lib/language_operator/ux/base.rb'  # Base class provides the same pattern
     - 'spec/**/*'
     - 'lib/language_operator/dsl/**/*'
     - 'lib/language_operator/cli/**/*'
@@ -86,7 +78,6 @@ Metrics/ParameterLists:
 # Lint
 Lint/DuplicateMethods:
   Exclude:
-    - 'lib/language_operator/ux/base.rb'  # Base class provides the same pattern
     - 'lib/language_operator/dsl/**/*'
 
 Lint/DuplicateBranch:
@@ -125,20 +116,18 @@ Naming/AccessorMethodName:
 
 Naming/MethodParameterName:
   Exclude:
-    - 'lib/language_operator/ux/base.rb'  # Base class provides the same pattern
     - 'examples/**/*'
     - 'lib/language_operator/agent/webhook_authenticator.rb'
 
 Naming/PredicateMethod:
   Exclude:
-    - 'lib/language_operator/ux/base.rb'  # Base class provides the same pattern
     - 'lib/language_operator/agent/webhook_authenticator.rb'
+    - 'lib/language_operator/cli/wizards/**/*'  # Wizards use run method
 
 # Layout
 Layout/LineLength:
   Max: 155
   Exclude:
-    - 'lib/language_operator/ux/base.rb'  # Base class provides the same pattern
     - 'spec/**/*'
     - '*.gemspec'
     - 'lib/language_operator/agent/executor.rb'

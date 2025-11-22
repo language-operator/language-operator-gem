@@ -14,7 +14,7 @@ require_relative '../helpers/editor_helper'
 require_relative '../../config/cluster_config'
 require_relative '../../kubernetes/client'
 require_relative '../../kubernetes/resource_builder'
-require_relative '../../ux/create_model'
+require_relative '../wizards/model_wizard'
 
 module LanguageOperator
   module CLI
@@ -76,7 +76,8 @@ module LanguageOperator
           handle_command_error('create model') do
             # Launch interactive wizard if no arguments provided
             if name.nil? && options[:provider].nil? && options[:model].nil?
-              Ux::CreateModel.execute(ctx)
+              wizard = Wizards::ModelWizard.new(ctx)
+              wizard.run
               return
             end
 

@@ -16,7 +16,7 @@ require_relative '../errors/handler'
 require_relative '../../config/cluster_config'
 require_relative '../../kubernetes/client'
 require_relative '../../kubernetes/resource_builder'
-require_relative '../../ux/create_agent'
+require_relative '../wizards/agent_wizard'
 
 module LanguageOperator
   module CLI
@@ -54,7 +54,8 @@ module LanguageOperator
 
             # Activate wizard mode if --wizard flag or no description provided
             if options[:wizard] || description.nil? || description.empty?
-              description = Ux::CreateAgent.execute(ctx)
+              wizard = Wizards::AgentWizard.new
+              description = wizard.run
 
               # User cancelled wizard
               unless description
