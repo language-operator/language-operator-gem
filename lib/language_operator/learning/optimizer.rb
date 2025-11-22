@@ -25,6 +25,7 @@ module LanguageOperator
     #     # Show to user, get approval
     #     optimizer.apply(proposal) if approved
     #   end
+    # rubocop:disable Metrics/ClassLength
     class Optimizer
       # Minimum consistency score required for optimization
       DEFAULT_MIN_CONSISTENCY = 0.85
@@ -343,5 +344,6 @@ module LanguageOperator
         []
       end
     end
+    # rubocop:enable Metrics/ClassLength
   end
 end

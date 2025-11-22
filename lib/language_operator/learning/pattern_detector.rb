@@ -203,6 +203,7 @@ module LanguageOperator
       # @param sequence [Array<Symbol>] Tool sequence
       # @param task_definition [Dsl::TaskDefinition, nil] Optional task definition for schema
       # @return [String] Ruby code for task body
+      # rubocop:disable Metrics/AbcSize
       def generate_task_code(sequence:, task_definition: nil)
         # Determine the output structure from task definition
         output_keys = if task_definition&.outputs&.any?
@@ -252,6 +253,7 @@ module LanguageOperator
         # Indent and join
         lines.map { |line| "      #{line}" }.join("\n")
       end
+      # rubocop:enable Metrics/AbcSize
 
       # Generate task fragment (just the task definition)
       #

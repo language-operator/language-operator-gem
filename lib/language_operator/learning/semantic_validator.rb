@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'parser/current'
-require 'set'
 
 module LanguageOperator
   module Learning
@@ -66,6 +65,7 @@ module LanguageOperator
       private
 
       # Check that all method calls use available methods
+      # rubocop:disable Metrics/AbcSize
       def check_method_calls(node, local_vars = Set.new([:inputs]))
         violations = []
         return violations unless node.is_a?(Parser::AST::Node)
@@ -116,6 +116,7 @@ module LanguageOperator
 
         violations
       end
+      # rubocop:enable Metrics/AbcSize
 
       # Check that tool references exist in agent's MCP servers
       def check_tool_references(node)

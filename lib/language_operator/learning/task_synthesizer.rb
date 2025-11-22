@@ -26,6 +26,7 @@ module LanguageOperator
     #   if result[:is_deterministic]
     #     puts result[:code]
     #   end
+    # rubocop:disable Metrics/ClassLength
     class TaskSynthesizer
       # Template file name
       TEMPLATE_FILE = 'task_synthesis.tmpl'
@@ -342,5 +343,6 @@ module LanguageOperator
         }
       end
     end
+    # rubocop:enable Metrics/ClassLength
   end
 end

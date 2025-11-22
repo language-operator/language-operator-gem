@@ -112,6 +112,7 @@ module LanguageOperator
         # @param times [Hash] Time range
         # @param limit [Integer] Result limit
         # @return [Hash] Request body
+        # rubocop:disable Metrics/MethodLength
         def build_tool_query_request(filter_expr, times, limit)
           {
             start: (times[:start].to_f * 1000).to_i,
@@ -150,6 +151,7 @@ module LanguageOperator
             }
           }
         end
+        # rubocop:enable Metrics/MethodLength
 
         # Build SigNoz v5 query request body
         #
