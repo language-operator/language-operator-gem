@@ -1,6 +1,6 @@
 .PHONY: create code logs clean
 
-AGENT := synth-003
+AGENT := s003
 AICTL := bundle exec ../../bin/aictl agent
 TOOLS := workspace
 

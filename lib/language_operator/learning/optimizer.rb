@@ -74,6 +74,7 @@ module LanguageOperator
         neural_tasks.each do |task|
           analysis = @trace_analyzer.analyze_patterns(
             task_name: task[:name],
+            agent_name: @agent_name,
             min_executions: min_executions,
             consistency_threshold: min_consistency,
             time_range: time_range
@@ -108,10 +109,10 @@ module LanguageOperator
         task_def = find_task_definition(task_name)
         raise ArgumentError, "Task '#{task_name}' not found" unless task_def
 
-        analysis = @trace_analyzer.analyze_patterns(task_name: task_name)
+        analysis = @trace_analyzer.analyze_patterns(task_name: task_name, agent_name: @agent_name)
         raise ArgumentError, "No execution data found for task '#{task_name}'" unless analysis
 
-        traces = @trace_analyzer.query_task_traces(task_name: task_name, limit: 20)
+        traces = @trace_analyzer.query_task_traces(task_name: task_name, agent_name: @agent_name, limit: 20)
         detection_result = @pattern_detector.detect_pattern(analysis_result: analysis) unless use_synthesis
 
         return propose_via_synthesis(task_name, task_def, analysis, traces) if should_use_synthesis?(use_synthesis, detection_result)

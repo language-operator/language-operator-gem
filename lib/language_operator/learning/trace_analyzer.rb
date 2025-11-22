@@ -60,10 +60,11 @@ module LanguageOperator
       # Query task execution traces from backend
       #
       # @param task_name [String] Name of task to query
+      # @param agent_name [String, nil] Optional agent name to filter by
       # @param limit [Integer] Maximum number of traces to return
       # @param time_range [Integer, Range<Time>] Time range in seconds or explicit range
       # @return [Array<Hash>] Task execution data
-      def query_task_traces(task_name:, limit: 100, time_range: DEFAULT_TIME_RANGE)
+      def query_task_traces(task_name:, agent_name: nil, limit: 100, time_range: DEFAULT_TIME_RANGE)
         unless available?
           @logger.warn('No OTLP backend available, learning disabled')
           return []
@@ -71,8 +72,11 @@ module LanguageOperator
 
         range = normalize_time_range(time_range)
 
+        filter = { task_name: task_name }
+        filter[:agent_name] = agent_name if agent_name
+
         spans = @adapter.query_spans(
-          filter: { task_name: task_name },
+          filter: filter,
           time_range: range,
           limit: limit
         )
@@ -90,13 +94,14 @@ module LanguageOperator
       # learned and converted to a symbolic implementation.
       #
       # @param task_name [String] Name of task to analyze
+      # @param agent_name [String, nil] Optional agent name to filter by
       # @param min_executions [Integer] Minimum executions required for analysis
       # @param consistency_threshold [Float] Required consistency (0.0-1.0)
       # @param time_range [Integer, Range<Time>, nil] Time range for query (seconds or explicit range)
       # @return [Hash, nil] Analysis results or nil if insufficient data
-      def analyze_patterns(task_name:, min_executions: 10, consistency_threshold: DEFAULT_CONSISTENCY_THRESHOLD,
+      def analyze_patterns(task_name:, agent_name: nil, min_executions: 10, consistency_threshold: DEFAULT_CONSISTENCY_THRESHOLD,
                            time_range: nil)
-        executions = query_task_traces(task_name: task_name, limit: 1000, time_range: time_range || DEFAULT_TIME_RANGE)
+        executions = query_task_traces(task_name: task_name, agent_name: agent_name, limit: 1000, time_range: time_range || DEFAULT_TIME_RANGE)
 
         if executions.empty?
           @logger.info("No executions found for task '#{task_name}'")
