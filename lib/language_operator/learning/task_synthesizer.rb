@@ -59,7 +59,7 @@ module LanguageOperator
           common_pattern: common_pattern
         )
 
-        @logger.debug("Task synthesis prompt:\n#{prompt}")
+        @logger.info("Task synthesis prompt:\n#{prompt}")
 
         # Call LLM
         response = call_llm(prompt)
