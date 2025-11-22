@@ -62,7 +62,7 @@ Living document of critical insights, patterns, and gotchas for this codebase.
 
 ## Current Status
 
-**Completed (2025-11-19):**
+**Completed (2025-11-22):**
 - ✅ Issue #26: Schema generation for task/main model
 - ✅ Issue #25: AST validator updated for DSL v1
 - ✅ Issues #21-23: TaskDefinition, MainDefinition, TypeCoercion implemented
@@ -70,6 +70,7 @@ Living document of critical insights, patterns, and gotchas for this codebase.
 - ✅ Issue #32 (partial): DependencyGraph and ParallelExecutor for implicit parallelism
 - ✅ Issue #36: TraceAnalyzer for pattern detection with multi-backend support
 - ✅ Issue #37: PatternDetector for learning eligibility and code generation
+- ✅ Issue #52: Wizard consolidation - removed ux/ folder, consolidated under cli/wizards/
 
 **Test Suite Health:**
 - 135 examples, 0 failures, 2 pending (syntax error tests)
@@ -200,6 +201,37 @@ final_result = execute_task(:api_send, inputs: step2_result)
 - Generated code must include frozen_string_literal and require 'language_operator'
 - Agent names convert underscores to hyphens, append "-symbolic" suffix
 
+## CLI Architecture (Wizards)
+
+**Consolidated Structure (2025-11-22):**
+- All wizards in `lib/language_operator/cli/wizards/`
+- Common helpers in `lib/language_operator/cli/helpers/`
+- All wizards use `UxHelper` pattern (no direct `Pastel.new` or `TTY::Prompt.new`)
+
+**Key Wizards:**
+- `AgentWizard` - Interactive agent creation
+- `ModelWizard` - LLM model configuration
+- `QuickstartWizard` - First-time setup
+
+**Helper Modules:**
+- `UxHelper` - Provides `pastel`, `prompt`, `spinner`, `table`, `box`
+- `ValidationHelper` - Common input validation (URLs, K8s names, secrets)
+- `ProviderHelper` - LLM provider testing and model fetching
+
+**Pattern:**
+```ruby
+class MyWizard
+  include Helpers::UxHelper
+  include Helpers::ValidationHelper
+
+  def run
+    puts box("Welcome!")
+    name = ask_k8s_name("Name:")
+    # wizard logic
+  end
+end
+```
+
 ## Quick Wins / Common Gotchas
 
 1. **Hash Key Access:** Ruby symbols ≠ strings. Always check key types in tests.
@@ -212,3 +244,4 @@ final_result = execute_task(:api_send, inputs: step2_result)
 8. **Concurrent Ruby Futures:** Use `future.wait` + `future.rejected?` to check status, not `rescue` around `future.value`
 9. **Logger Constants:** Use `::Logger::WARN` not `Logger::WARN` to avoid namespace conflicts
 10. **WebMock Timing:** Stub HTTP calls before object initialization if constructor makes requests
+11. **Wizard Pattern:** Always use `UxHelper` for TTY components, never instantiate directly
