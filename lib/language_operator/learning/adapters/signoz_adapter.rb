@@ -135,7 +135,9 @@ module LanguageOperator
                       { name: 'serviceName' },
                       { name: 'gen_ai.operation.name' },
                       { name: 'gen_ai.tool.name' },
+                      { name: 'gen_ai.tool.call.arguments' },
                       { name: 'gen_ai.tool.call.arguments.size' },
+                      { name: 'gen_ai.tool.call.result' },
                       { name: 'gen_ai.tool.call.result.size' }
                     ],
                     order: [{ key: { name: 'timestamp' }, direction: 'asc' }],
