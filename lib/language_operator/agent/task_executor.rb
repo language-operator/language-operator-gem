@@ -391,9 +391,13 @@ module LanguageOperator
 
         # Strip thinking tags that some models add (e.g., [THINK]...[/THINK] or unclosed [THINK]...)
         # First try to strip matched pairs, then strip any remaining unclosed [THINK] content
+        logger.debug('Parsing neural response', task: task.name, response_length: response_text.length, response_start: response_text[0..100])
+
         cleaned_text = response_text.gsub(%r{\[THINK\].*?\[/THINK\]}m, '')
-                                     .gsub(%r{\[THINK\].*?(?=\{|$)}m, '')
-                                     .strip
+                                    .gsub(/\[THINK\].*?(?=\{|$)/m, '')
+                                    .strip
+
+        logger.debug('After stripping THINK tags', cleaned_length: cleaned_text.length, cleaned_start: cleaned_text[0..100])
 
         # Try to extract JSON from response
         # Look for JSON code blocks first
@@ -405,6 +409,8 @@ module LanguageOperator
                       json_object_match = cleaned_text.match(/\{.*\}/m)
                       json_object_match ? json_object_match[0] : cleaned_text
                     end
+
+        logger.debug('Extracted JSON text', json_length: json_text.length, json_start: json_text[0..100])
 
         # Parse JSON
         parsed = JSON.parse(json_text)
