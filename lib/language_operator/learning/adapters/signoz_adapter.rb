@@ -216,6 +216,9 @@ module LanguageOperator
           # Filter by task name (attribute name should NOT be quoted)
           expressions << "task.name = '#{filter[:task_name]}'" if filter[:task_name]
 
+          # Filter by agent name
+          expressions << "agent.name = '#{filter[:agent_name]}'" if filter[:agent_name]
+
           # Additional attribute filters
           if filter[:attributes].is_a?(Hash)
             filter[:attributes].each do |key, value|

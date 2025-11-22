@@ -108,7 +108,10 @@ module LanguageOperator
           params[:service] = extract_service_name(filter)
 
           # Add tag filters
-          params[:tags] = { 'task.name' => filter[:task_name] }.to_json if filter[:task_name]
+          tags = {}
+          tags['task.name'] = filter[:task_name] if filter[:task_name]
+          tags['agent.name'] = filter[:agent_name] if filter[:agent_name]
+          params[:tags] = tags.to_json unless tags.empty?
 
           uri = URI.join(@endpoint, SEARCH_PATH)
           uri.query = URI.encode_www_form(params)

@@ -76,6 +76,9 @@ module LanguageOperator
           # Filter by task name
           conditions << "span.\"task.name\" = \"#{escape_traceql_value(filter[:task_name])}\"" if filter[:task_name]
 
+          # Filter by agent name
+          conditions << "span.\"agent.name\" = \"#{escape_traceql_value(filter[:agent_name])}\"" if filter[:agent_name]
+
           # Additional attribute filters
           if filter[:attributes].is_a?(Hash)
             filter[:attributes].each do |key, value|
