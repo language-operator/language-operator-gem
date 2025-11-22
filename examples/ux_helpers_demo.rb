@@ -87,7 +87,7 @@ class UxDemo
       ['agent-test', pastel.red('stopped'), '12m', '8.1 MB']
     ]
 
-    puts table(['Name', 'Status', 'Uptime', 'Memory'], agents)
+    puts table(%w[Name Status Uptime Memory], agents)
     puts "\n"
   end
 
@@ -153,8 +153,7 @@ if __FILE__ == $PROGRAM_NAME
   demo = UxDemo.new
   demo.run
 
-  p = Pastel.new
-  puts p.bold.cyan('Demo complete!')
-  puts p.dim("Run with --interactive for prompt examples: ruby #{__FILE__} --interactive")
+  puts demo.pastel.bold.cyan('Demo complete!')
+  puts demo.pastel.dim("Run with --interactive for prompt examples: ruby #{__FILE__} --interactive")
   puts "\n"
 end
