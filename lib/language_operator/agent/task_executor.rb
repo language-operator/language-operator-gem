@@ -389,8 +389,11 @@ module LanguageOperator
                       thinking_preview: thinking_blocks.first&.[](0..500))
         end
 
-        # Strip thinking tags that some models add (e.g., [THINK]...[/THINK])
-        cleaned_text = response_text.gsub(%r{\[THINK\].*?\[/THINK\]}m, '').strip
+        # Strip thinking tags that some models add (e.g., [THINK]...[/THINK] or unclosed [THINK]...)
+        # First try to strip matched pairs, then strip any remaining unclosed [THINK] content
+        cleaned_text = response_text.gsub(%r{\[THINK\].*?\[/THINK\]}m, '')
+                                     .gsub(%r{\[THINK\].*?(?=\{|$)}m, '')
+                                     .strip
 
         # Try to extract JSON from response
         # Look for JSON code blocks first
