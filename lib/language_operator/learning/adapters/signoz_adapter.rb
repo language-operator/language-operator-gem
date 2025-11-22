@@ -186,7 +186,9 @@ module LanguageOperator
                       { name: 'task.output.count' },
                       { name: 'gen_ai.operation.name' },
                       { name: 'gen_ai.tool.name' },
+                      { name: 'gen_ai.tool.call.arguments' },
                       { name: 'gen_ai.tool.call.arguments.size' },
+                      { name: 'gen_ai.tool.call.result' },
                       { name: 'gen_ai.tool.call.result.size' }
                     ],
                     order: [
@@ -397,8 +399,8 @@ module LanguageOperator
 
         def extract_known_attributes(span_data)
           keys = %w[task.name task.input.keys task.input.count task.output.keys task.output.count
-                    gen_ai.operation.name gen_ai.tool.name gen_ai.tool.call.arguments.size
-                    gen_ai.tool.call.result.size]
+                    gen_ai.operation.name gen_ai.tool.name gen_ai.tool.call.arguments
+                    gen_ai.tool.call.arguments.size gen_ai.tool.call.result gen_ai.tool.call.result.size]
           keys.each_with_object({}) do |key, attrs|
             val = span_data[key.to_sym]
             attrs[key] = val if val
