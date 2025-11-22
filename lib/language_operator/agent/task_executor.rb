@@ -390,11 +390,11 @@ module LanguageOperator
         end
 
         # Strip thinking tags that some models add (e.g., [THINK]...[/THINK] or unclosed [THINK]...)
-        # First try to strip matched pairs, then strip any remaining unclosed [THINK] content
+        # First try to strip matched pairs, then strip unclosed [THINK] only if there's JSON after it
         logger.debug('Parsing neural response', task: task.name, response_length: response_text.length, response_start: response_text[0..100])
 
         cleaned_text = response_text.gsub(%r{\[THINK\].*?\[/THINK\]}m, '')
-                                    .gsub(/\[THINK\].*?(?=\{|$)/m, '')
+                                    .gsub(/\[THINK\].*?(?=\{)/m, '')
                                     .strip
 
         logger.debug('After stripping THINK tags', cleaned_length: cleaned_text.length, cleaned_start: cleaned_text[0..100])
