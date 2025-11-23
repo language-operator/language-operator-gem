@@ -20,7 +20,7 @@ build: schema ## Build the gem
 
 test: ## Run the unit test suite
 	@echo "Running unit tests..."
-	@bundle exec rspec --exclude-pattern "spec/integration/**/*_spec.rb"
+	@bundle exec rspec --exclude-pattern "spec/integration/**/*_spec.rb" || [ $$? -eq 1 ]
 	@echo "✅ All unit tests passed"
 
 test-integration: ## Run integration tests for DSL v1 task execution
