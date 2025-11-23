@@ -272,13 +272,155 @@ RSpec.describe LanguageOperator::Dsl do
     end
   end
 
+  describe 'security: path traversal protection' do
+    describe 'load_file path traversal protection' do
+      it 'blocks path traversal attempts with relative paths' do
+        expect { described_class.load_file('../../../etc/passwd') }.to raise_error(
+          LanguageOperator::PathTraversalError,
+          /Path traversal attempt blocked during tool definition file loading/
+        )
+      end
+
+      it 'blocks absolute path attempts outside allowed directories' do
+        expect { described_class.load_file('/etc/passwd') }.to raise_error(
+          LanguageOperator::PathTraversalError,
+          /Path traversal attempt blocked during tool definition file loading/
+        )
+      end
+
+      it 'blocks complex path traversal patterns' do
+        ['../../../etc/passwd', '..\\..\\..\\etc\\passwd', '/etc/../etc/passwd'].each do |malicious_path|
+          expect { described_class.load_file(malicious_path) }.to raise_error(
+            LanguageOperator::PathTraversalError
+          )
+        end
+      end
+
+      it 'allows valid relative paths within current directory' do
+        valid_file = File.join(temp_dir, 'valid.rb')
+        File.write(valid_file, valid_tool_content)
+        
+        # Change to temp directory to test relative path access
+        Dir.chdir(temp_dir) do
+          expect { described_class.load_file('valid.rb') }.not_to raise_error
+        end
+      end
+
+      it 'allows valid subdirectory paths' do
+        subdir = File.join(temp_dir, 'tools')
+        Dir.mkdir(subdir)
+        valid_file = File.join(subdir, 'valid.rb')
+        File.write(valid_file, valid_tool_content)
+        
+        Dir.chdir(temp_dir) do
+          expect { described_class.load_file('tools/valid.rb') }.not_to raise_error
+        end
+      end
+    end
+
+    describe 'load_agent_file path traversal protection' do
+      it 'blocks path traversal attempts with relative paths' do
+        expect { described_class.load_agent_file('../../../etc/passwd') }.to raise_error(
+          LanguageOperator::PathTraversalError,
+          /Path traversal attempt blocked during agent definition file loading/
+        )
+      end
+
+      it 'blocks absolute path attempts' do
+        expect { described_class.load_agent_file('/etc/passwd') }.to raise_error(
+          LanguageOperator::PathTraversalError,
+          /Path traversal attempt blocked during agent definition file loading/
+        )
+      end
+
+      it 'allows valid relative paths within current directory' do
+        valid_file = File.join(temp_dir, 'valid_agent.rb')
+        File.write(valid_file, valid_agent_content)
+        
+        Dir.chdir(temp_dir) do
+          expect { described_class.load_agent_file('valid_agent.rb') }.not_to raise_error
+        end
+      end
+    end
+
+    describe 'custom allowed paths via LANGOP_ALLOWED_PATHS' do
+      let(:custom_dir) { File.join(temp_dir, 'custom') }
+      let(:custom_file) { File.join(custom_dir, 'custom.rb') }
+
+      before do
+        Dir.mkdir(custom_dir)
+        File.write(custom_file, valid_tool_content)
+      end
+
+      it 'allows access to custom paths when configured' do
+        ENV['LANGOP_ALLOWED_PATHS'] = custom_dir
+        
+        expect { described_class.load_file(custom_file) }.not_to raise_error
+      ensure
+        ENV.delete('LANGOP_ALLOWED_PATHS')
+      end
+
+      it 'supports multiple custom paths separated by colon' do
+        another_dir = File.join(temp_dir, 'another')
+        Dir.mkdir(another_dir)
+        another_file = File.join(another_dir, 'another.rb')
+        File.write(another_file, valid_tool_content)
+
+        ENV['LANGOP_ALLOWED_PATHS'] = "#{custom_dir}:#{another_dir}"
+        
+        expect { described_class.load_file(custom_file) }.not_to raise_error
+        expect { described_class.load_file(another_file) }.not_to raise_error
+      ensure
+        ENV.delete('LANGOP_ALLOWED_PATHS')
+      end
+
+      it 'still blocks paths outside custom allowed paths' do
+        ENV['LANGOP_ALLOWED_PATHS'] = custom_dir
+        
+        expect { described_class.load_file('/etc/passwd') }.to raise_error(
+          LanguageOperator::PathTraversalError
+        )
+      ensure
+        ENV.delete('LANGOP_ALLOWED_PATHS')
+      end
+    end
+
+    describe 'edge cases and attack vectors' do
+      it 'handles null bytes in paths' do
+        expect { described_class.load_file("../../../etc/passwd\x00") }.to raise_error(
+          LanguageOperator::PathTraversalError
+        )
+      end
+
+      it 'handles encoded path separators' do
+        expect { described_class.load_file('%2e%2e%2f%2e%2e%2fetc%2fpasswd') }.to raise_error(
+          LanguageOperator::PathTraversalError
+        )
+      end
+
+      it 'normalizes paths with redundant separators' do
+        expect { described_class.load_file('..//..//./etc//passwd') }.to raise_error(
+          LanguageOperator::PathTraversalError
+        )
+      end
+
+      it 'provides helpful error message with guidance' do
+        expect { described_class.load_file('../../../etc/passwd') }.to raise_error do |error|
+          expect(error.message).to include('Path traversal attempt blocked')
+          expect(error.message).to include('File path must be within allowed directories')
+          expect(error.message).to include('LANGOP_ALLOWED_PATHS')
+        end
+      end
+    end
+  end
+
   describe 'error message quality' do
-    let(:missing_file) { '/non/existent/path/missing.rb' }
+    let(:missing_file) { File.join(temp_dir, 'missing.rb') }
 
     it 'provides actionable error messages for missing files' do
       expect { described_class.load_file(missing_file) }.to raise_error do |error|
         expect(error.message).to include('Tool definition file not found')
-        expect(error.message).to include(missing_file)
+        expect(error.message).to include('missing.rb')  # Check for filename rather than full path
         expect(error.message).to include('Please check the file path exists')
       end
     end

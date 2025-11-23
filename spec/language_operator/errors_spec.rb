@@ -187,6 +187,23 @@ RSpec.describe LanguageOperator::Errors do
     end
   end
 
+  describe '.path_traversal_blocked' do
+    it 'returns a formatted security error message' do
+      message = described_class.path_traversal_blocked
+      
+      expect(message).to include('Path traversal attempt blocked')
+      expect(message).to include('File path must be within allowed directories')
+      expect(message).to include('LANGOP_ALLOWED_PATHS')
+    end
+
+    it 'accepts custom context' do
+      message = described_class.path_traversal_blocked('agent file loading')
+      
+      expect(message).to include('Path traversal attempt blocked during agent file loading')
+      expect(message).to include('File path must be within allowed directories')
+    end
+  end
+
   describe 'consistency' do
     it 'all methods return strings starting with "Error: "' do
       expect(described_class.not_found('Type', 'id')).to start_with('Error: ')
@@ -199,6 +216,7 @@ RSpec.describe LanguageOperator::Errors do
       expect(described_class.file_not_found('/path')).to start_with('Error: ')
       expect(described_class.file_permission_denied('/path')).to start_with('Error: ')
       expect(described_class.file_syntax_error('/path', 'error')).to start_with('Error: ')
+      expect(described_class.path_traversal_blocked).to start_with('Error: ')
     end
 
     it 'all methods return non-empty strings' do
@@ -212,6 +230,7 @@ RSpec.describe LanguageOperator::Errors do
       expect(described_class.file_not_found('/path')).not_to be_empty
       expect(described_class.file_permission_denied('/path')).not_to be_empty
       expect(described_class.file_syntax_error('/path', 'error')).not_to be_empty
+      expect(described_class.path_traversal_blocked).not_to be_empty
     end
   end
 end
@@ -256,6 +275,42 @@ RSpec.describe 'LanguageOperator custom exceptions' do
   describe 'LanguageOperator::FileSyntaxError' do
     it 'inherits from FileLoadError' do
       expect(LanguageOperator::FileSyntaxError.new).to be_a(LanguageOperator::FileLoadError)
+    end
+  end
+
+  describe 'LanguageOperator::SecurityError' do
+    it 'inherits from LanguageOperator::Error' do
+      expect(LanguageOperator::SecurityError.new).to be_a(LanguageOperator::Error)
+    end
+  end
+
+  describe 'LanguageOperator::PathTraversalError' do
+    it 'inherits from SecurityError' do
+      expect(LanguageOperator::PathTraversalError.new).to be_a(LanguageOperator::SecurityError)
+    end
+
+    it 'can be caught as SecurityError' do
+      exception_caught = false
+      
+      begin
+        raise LanguageOperator::PathTraversalError, 'test'
+      rescue LanguageOperator::SecurityError
+        exception_caught = true
+      end
+      
+      expect(exception_caught).to be(true)
+    end
+
+    it 'can be caught as base LanguageOperator::Error' do
+      exception_caught = false
+      
+      begin
+        raise LanguageOperator::PathTraversalError, 'test'
+      rescue LanguageOperator::Error
+        exception_caught = true
+      end
+      
+      expect(exception_caught).to be(true)
     end
   end
 end

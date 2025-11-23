@@ -9,6 +9,10 @@ module LanguageOperator
   class FileNotFoundError < FileLoadError; end
   class FilePermissionError < FileLoadError; end
   class FileSyntaxError < FileLoadError; end
+  
+  # Security related errors
+  class SecurityError < Error; end
+  class PathTraversalError < SecurityError; end
 
   # Standardized error formatting module for consistent error messages across tools
   module Errors
@@ -92,6 +96,15 @@ module LanguageOperator
     def self.file_syntax_error(file_path, original_error, context = "file")
       "Error: Syntax error in #{context} '#{file_path}': #{original_error}. " \
       "Please check the file for valid Ruby syntax."
+    end
+
+    # Path traversal security error
+    # @param context [String] Context about what operation was attempted
+    # @return [String] Formatted error message
+    def self.path_traversal_blocked(context = "file operation")
+      "Error: Path traversal attempt blocked during #{context}. " \
+      "File path must be within allowed directories. " \
+      "Use relative paths or configure LANGOP_ALLOWED_PATHS if needed."
     end
   end
 end

@@ -153,22 +153,24 @@ ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional
 
 **Issue Prioritization (by functional dependency):**
 
-**P0 - Blocks Core Functionality:**
-1. #53 - Unhandled file access errors in Dsl.load_file and load_agent_file methods
+**P0 - Security Vulnerabilities (READY):**
+1. #48 - Path traversal in Dsl.load_file (🔴 READY - blocks safe file loading)
+2. #50 - Request body consumed without rewind (🔴 READY - breaks webhook handling)  
+3. #58 - TypeError in WebhookAuthenticator with malformed credentials (🔴 READY - security crash)
 
-**P1 - Security Vulnerabilities:**
-3. #48 - Path traversal in Dsl.load_file
-4. #50 - Request body consumed without rewind
+**P1 - Core Functionality Errors:**
+4. #53 - Unhandled file access errors in Dsl.load_file and load_agent_file methods (depends on #48)
+5. #55 - Agent list command shows 'implementation pending' instead of listing agents
 
 **P2 - UX/Config Issues:**
-5. #47 - Silent type conversion failures
-6. #49 - CLI exits on invalid selection
+6. #47 - Silent type conversion failures
+7. #49 - CLI exits on invalid selection
 
 **P3 - Enhancements:**
-7. #51 - Include complete MCP tool schemas
-8. #39 - Update examples to task/main
-9. #40 - Performance optimization
-10. #41 - Comprehensive test suite
+8. #51 - Include complete MCP tool schemas
+9. #39 - Update examples to task/main
+10. #40 - Performance optimization
+11. #41 - Comprehensive test suite
 
 **Recently Completed:**
 - ✅ #46 - Unsafe YAML.load_file security vulnerability (commit 89c58f6)
@@ -176,3 +178,4 @@ ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional
 - ✅ #52 - CLI wizard consolidation under cli/wizards/
 - ✅ #44 - NoMethodError for missing mcp_servers (commit 0161788)
 - ✅ #54 - Confusing error message when AGENT_MODE is unset or empty (commit ffa97a4)
+- ✅ #56/#57 - Closed as duplicates of #47 (silent type conversion failures)
