@@ -114,9 +114,40 @@ module LanguageOperator
               return
             end
 
+            # Cache clients by kubeconfig:context to prevent resource leaks
+            clients_cache = {}
+
             # Build table data
             table_data = clusters.map do |cluster|
-              k8s = Helpers::ClusterValidator.kubernetes_client(cluster[:name])
+              begin
+                # Get cluster config for cache key and reuse clients
+                cluster_config = Config::ClusterConfig.get_cluster(cluster[:name])
+                cache_key = "#{cluster_config[:kubeconfig]}:#{cluster_config[:context]}"
+
+                # Reuse existing client or create new one
+                k8s = clients_cache[cache_key] ||= begin
+                  # Validate kubeconfig exists before creating client
+                  Helpers::ClusterValidator.validate_kubeconfig!(cluster_config)
+                  require_relative '../../kubernetes/client'
+                  Kubernetes::Client.new(
+                    kubeconfig: cluster_config[:kubeconfig],
+                    context: cluster_config[:context]
+                  )
+                end
+              rescue StandardError
+                # Handle cluster config or client creation errors
+                name_display = cluster[:name]
+                name_display += ' *' if cluster[:name] == current
+
+                next {
+                  name: name_display,
+                  namespace: cluster[:namespace],
+                  agents: '?',
+                  tools: '?',
+                  models: '?',
+                  status: 'Config Error'
+                }
+              end
 
               # Get cluster stats
               agents = k8s.list_resources(RESOURCE_AGENT, namespace: cluster[:namespace])
