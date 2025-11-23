@@ -151,32 +151,31 @@ ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional
 
 ## Current Priorities (2025-11-23)
 
-**P0 - Critical Blockers (READY):**
-1. #50 - Request body consumed without rewind (🔴 READY - breaks webhook handling)
+**P0 - Critical Blockers:**
+No critical blockers remaining.
 
-**P1 - High Priority:**
-1. #69 - Thread-safety issue with shared Executor in WebServer
-2. #60 - Silent conversion of invalid env vars in Agent::Executor safety config
+**P1 - Resource/Performance Issues:**
+1. #61 - Resource leak in cluster list with multiple K8s clients (likely duplicate of #62/#67)
 
-**P2 - Resource/Performance Issues:**
-1. #62 - Memory leak and connection pool exhaustion in cluster list
-2. #61 - Resource leak in cluster list with multiple K8s clients  
-3. #67 - Multiple K8s client instantiation without cleanup
-4. #59 - Insufficient error handling in K8s current_namespace
-
-**P3 - UX/Config Issues:**
+**P2 - UX/Config Issues:**
 1. #66 - Dead code and unreachable return statement in QuickstartWizard
 2. #47 - Silent type conversion failures
 3. #49 - CLI exits on invalid selection
-4. #55 - Agent list command shows 'implementation pending'
 
-**P4 - Enhancements:**
+**P3 - Enhancements:**
 1. #51 - Include complete MCP tool schemas
 2. #39 - Update examples to task/main
 3. #40 - Performance optimization
 4. #41 - Comprehensive test suite
 
 **Recently Completed:**
+- ✅ #55 - Agent list command shows 'implementation pending' (commit bd63f66 - fixed incomplete refactoring by wiring up list() method to existing helper functions, added ClusterContext import, comprehensive test coverage, manual testing confirms table output works correctly)
+- ✅ #59 - Insufficient error handling in K8s current_namespace (commit dcced47 - improved error handling to catch SystemCallError/IOError, added comprehensive tests, prevents agent startup crashes in edge-case Kubernetes deployments)
+- ✅ #62 - Memory leak and connection pool exhaustion in cluster list (closed as already fixed in commit df302d9)
+- ✅ #67 - Multiple K8s client instantiation without cleanup (commit df302d9 - critical resource leak fix, implemented client caching with kubeconfig:context keys, added comprehensive tests for client reuse behavior, eliminates resource leaks in cluster list command)
+- ✅ #60 - Silent conversion of invalid env vars in Agent::Executor safety config (commit a485351 - security critical, replaced silent to_f/to_i with proper Float()/Integer() validation, added comprehensive tests)
+- ✅ #69 - Thread-safety issue with shared Executor in WebServer (commit 9cc1838 - critical thread safety fix, eliminated shared executor instance to prevent race conditions)
+- ✅ #50 - Request body consumed without rewind (commit 8c8913d - critical webhook security fix, added request.body.rewind for proper HMAC authentication)
 - ✅ #68 - Critical sandbox bypass vulnerability in SafeExecutor (commit 6f65156 - security critical, replaced dangerous const_missing fallback with explicit allowlist)
 - ✅ #65 - Command injection vulnerability in model test curl (closed as duplicate, already fixed in commit 84b056b)
 - ✅ #64 - Command injection vulnerability in model test curl (commit 84b056b - security critical, replaced dangerous echo+pipe with secure tempfile approach)
