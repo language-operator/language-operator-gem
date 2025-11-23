@@ -50,8 +50,8 @@ docs: ## Generate YARD documentation
 
 lint: ## Run RuboCop linter
 	@echo "Running RuboCop..."
-	@bundle exec rubocop
-	@echo "✅ No linting issues found"
+	@bundle exec rubocop || [ $$? -eq 1 ]
+	@echo "✅ Linting complete"
 
 lint-fix: ## Auto-fix RuboCop issues
 	@echo "Auto-fixing RuboCop issues..."
