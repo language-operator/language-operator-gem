@@ -282,16 +282,22 @@ module LanguageOperator
 
       def parse_float_env(key)
         val = ENV.fetch(key, nil)
-        return nil unless val
+        return nil unless val && !val.strip.empty?
 
-        val.to_f
+        Float(val.strip)
+      rescue ArgumentError
+        logger.warn("Invalid float value for #{key}: #{val}. Ignoring.")
+        nil
       end
 
       def parse_int_env(key)
         val = ENV.fetch(key, nil)
-        return nil unless val
+        return nil unless val && !val.strip.empty?
 
-        val.to_i
+        Integer(val.strip)
+      rescue ArgumentError
+        logger.warn("Invalid integer value for #{key}: #{val}. Ignoring.")
+        nil
       end
 
       def parse_array_env(key)
