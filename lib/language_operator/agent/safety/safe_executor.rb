@@ -119,20 +119,28 @@ module LanguageOperator
 
           # Provide access to safe constants from the context
           def const_missing(name)
-            # Allow access to HTTP and Shell helper classes
-            if name == :HTTP
-              return ::LanguageOperator::Dsl::HTTP
-            elsif name == :Shell
-              return ::LanguageOperator::Dsl::Shell
+            # Define allowed constants explicitly (security-by-default)
+            # This allowlist must be kept in sync with ASTValidator safe constants
+            case name
+            when :HTTP
+              ::LanguageOperator::Dsl::HTTP
+            when :Shell
+              ::LanguageOperator::Dsl::Shell
+            when :String, :Array, :Hash, :Integer, :Float, :Numeric, :Symbol
+              # Allow safe Ruby built-in types
+              ::Object.const_get(name)
+            when :Time, :Date
+              # Allow safe time/date types
+              ::Object.const_get(name)
+            when :TrueClass, :FalseClass, :NilClass
+              # Allow boolean and nil types
+              ::Object.const_get(name)
+            else
+              # Security-by-default: explicitly deny access to any other constants
+              # This prevents sandbox bypass through const_missing fallback
+              ::Kernel.raise ::LanguageOperator::Agent::Safety::SafeExecutor::SecurityError,
+                             "Access to constant '#{name}' is not allowed in sandbox (security restriction)"
             end
-
-            # Ruby type constants are now injected at eval time (see SafeExecutor#eval)
-            # but keep this as fallback for dynamic constant access
-
-            # Otherwise delegate to the context's module
-            @__context__.class.const_get(name)
-          rescue ::NameError
-            ::Kernel.raise ::NameError, "uninitialized constant #{name}"
           end
 
           private
