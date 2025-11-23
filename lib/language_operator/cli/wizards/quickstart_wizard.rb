@@ -118,13 +118,6 @@ module LanguageOperator
 
             { name: name, namespace: namespace, kubeconfig: kubeconfig_path, context: context, k8s: k8s }
           end
-
-          {
-            name: name,
-            namespace: (kubeconfig_path && K8s::Config.load_file(kubeconfig_path).context(context).namespace) || 'default',
-            kubeconfig: kubeconfig_path,
-            context: context
-          }
         rescue StandardError => e
           puts
           Formatters::ProgressFormatter.error("Failed to connect: #{e.message}")
