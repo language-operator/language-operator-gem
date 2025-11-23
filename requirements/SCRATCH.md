@@ -152,8 +152,7 @@ ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional
 ## Current Priorities (2025-11-23)
 
 **P0 - Critical Blockers (READY):**
-1. #63 - Syntax error in dsl.rb prevents gem loading (🔴 READY - gem completely broken)
-2. #50 - Request body consumed without rewind (🔴 READY - breaks webhook handling)
+1. #50 - Request body consumed without rewind (🔴 READY - breaks webhook handling)
 
 **P1 - High Priority:**
 1. #69 - Thread-safety issue with shared Executor in WebServer
@@ -181,6 +180,7 @@ ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional
 - ✅ #68 - Critical sandbox bypass vulnerability in SafeExecutor (commit 6f65156 - security critical, replaced dangerous const_missing fallback with explicit allowlist)
 - ✅ #65 - Command injection vulnerability in model test curl (closed as duplicate, already fixed in commit 84b056b)
 - ✅ #64 - Command injection vulnerability in model test curl (commit 84b056b - security critical, replaced dangerous echo+pipe with secure tempfile approach)
+- ✅ #63 - Syntax error in dsl.rb prevents gem loading (closed as not reproducible, CI validation prevents such issues)
 - ✅ #58 - TypeError in WebhookAuthenticator with malformed credentials
 - ✅ #46 - Unsafe YAML.load_file security vulnerability
 - ✅ #45 - NoMethodError in Scheduler (.cron accessor bug)
