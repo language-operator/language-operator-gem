@@ -24,7 +24,7 @@ module LanguageOperator
               def test(name)
                 handle_command_error('test model') do
                   # 1. Get model resource
-                  model = get_resource_or_exit('LanguageModel', name)
+                  model = get_resource_or_exit(RESOURCE_MODEL, name)
                   model_name = model.dig('spec', 'modelName')
                   model.dig('spec', 'provider')
 

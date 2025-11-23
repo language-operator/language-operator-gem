@@ -53,7 +53,7 @@ module LanguageOperator
                   ctx = Helpers::ClusterContext.from_options(options)
 
                   # Get agent to verify it exists
-                  get_resource_or_exit('LanguageAgent', name)
+                  get_resource_or_exit(RESOURCE_AGENT, name)
 
                   # Get agent code/definition
                   agent_definition = load_agent_definition(ctx, name)

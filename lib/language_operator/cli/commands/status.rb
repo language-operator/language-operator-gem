@@ -1,19 +1,13 @@
 # frozen_string_literal: true
 
-require_relative '../base_command'
-require_relative '../formatters/progress_formatter'
-require_relative '../formatters/table_formatter'
-require_relative '../formatters/status_formatter'
-require_relative '../helpers/pastel_helper'
-require_relative '../../config/cluster_config'
-require_relative '../../kubernetes/client'
-require_relative '../helpers/cluster_validator'
+require_relative '../command_loader'
 
 module LanguageOperator
   module CLI
     module Commands
       # System status and overview command
       class Status < BaseCommand
+        include Constants
         include Helpers::UxHelper
 
         desc 'overview', 'Show system status and overview'
@@ -49,7 +43,7 @@ module LanguageOperator
               end
 
               # Agent statistics
-              agents = k8s.list_resources('LanguageAgent', namespace: cluster_config[:namespace])
+              agents = k8s.list_resources(RESOURCE_AGENT, namespace: cluster_config[:namespace])
               agent_stats = categorize_by_status(agents)
 
               puts
@@ -72,7 +66,7 @@ module LanguageOperator
               end
 
               # Model statistics
-              models = k8s.list_resources('LanguageModel', namespace: cluster_config[:namespace])
+              models = k8s.list_resources(RESOURCE_MODEL, namespace: cluster_config[:namespace])
               puts
               puts "Models (#{models.count} total):"
               if models.any?

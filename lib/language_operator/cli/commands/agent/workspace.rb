@@ -30,7 +30,7 @@ module LanguageOperator
                   ctx = Helpers::ClusterContext.from_options(options)
 
                   # Get agent to verify it exists
-                  agent = get_resource_or_exit('LanguageAgent', name)
+                  agent = get_resource_or_exit(RESOURCE_AGENT, name)
 
                   # Check if workspace is enabled
                   workspace_enabled = agent.dig('spec', 'workspace', 'enabled')

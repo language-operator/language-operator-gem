@@ -1,16 +1,7 @@
 # frozen_string_literal: true
 
 require 'yaml'
-require_relative '../../base_command'
-require_relative '../../formatters/progress_formatter'
-require_relative '../../formatters/table_formatter'
-require_relative '../../helpers/cluster_validator'
-require_relative '../../helpers/user_prompts'
-require_relative '../../helpers/resource_dependency_checker'
-require_relative '../../helpers/editor_helper'
-require_relative '../../../config/cluster_config'
-require_relative '../../../kubernetes/client'
-require_relative '../../../kubernetes/resource_builder'
+require_relative '../../command_loader'
 require_relative '../../wizards/model_wizard'
 require_relative 'test'
 
@@ -20,6 +11,7 @@ module LanguageOperator
       module Model
         # Model management commands
         class Base < BaseCommand
+          include Constants
           include Helpers::ClusterValidator
           include Test
 
@@ -27,7 +19,7 @@ module LanguageOperator
           option :cluster, type: :string, desc: 'Override current cluster context'
           def list
             handle_command_error('list models') do
-              models = list_resources_or_empty('LanguageModel') do
+              models = list_resources_or_empty(RESOURCE_MODEL) do
                 puts
                 puts 'Models define LLM configurations for agents.'
                 puts
@@ -106,7 +98,7 @@ module LanguageOperator
 
               # Check if model already exists
               begin
-                ctx.client.get_resource('LanguageModel', name, ctx.namespace)
+                ctx.client.get_resource(RESOURCE_MODEL, name, ctx.namespace)
                 Formatters::ProgressFormatter.error("Model '#{name}' already exists in cluster '#{ctx.name}'")
                 exit 1
               rescue K8s::Error::NotFound
@@ -133,11 +125,11 @@ module LanguageOperator
           option :cluster, type: :string, desc: 'Override current cluster context'
           def inspect(name)
             handle_command_error('inspect model') do
-              model = get_resource_or_exit('LanguageModel', name)
+              model = get_resource_or_exit(RESOURCE_MODEL, name)
 
               puts
               highlighted_box(
-                title: 'LanguageModel',
+                title: RESOURCE_MODEL,
                 rows: {
                   'Name' => pastel.white.bold(name),
                   'Namespace' => ctx.namespace,
@@ -151,7 +143,7 @@ module LanguageOperator
               puts
 
               # Get agents using this model
-              agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
+              agents = ctx.client.list_resources(RESOURCE_AGENT, namespace: ctx.namespace)
               agents_using = Helpers::ResourceDependencyChecker.agents_using_model(agents, name)
               agent_names = agents_using.map { |agent| agent.dig('metadata', 'name') }
 
@@ -176,7 +168,7 @@ module LanguageOperator
           option :force, type: :boolean, default: false, desc: 'Skip confirmation'
           def delete(name)
             handle_command_error('delete model') do
-              get_resource_or_exit('LanguageModel', name)
+              get_resource_or_exit(RESOURCE_MODEL, name)
 
               # Check dependencies and get confirmation
               return unless check_dependencies_and_confirm('model', name, force: options[:force])
@@ -186,7 +178,7 @@ module LanguageOperator
 
               # Delete model
               Formatters::ProgressFormatter.with_spinner("Deleting model '#{name}'") do
-                ctx.client.delete_resource('LanguageModel', name, ctx.namespace)
+                ctx.client.delete_resource(RESOURCE_MODEL, name, ctx.namespace)
               end
 
               Formatters::ProgressFormatter.success("Model '#{name}' deleted successfully")
@@ -197,7 +189,7 @@ module LanguageOperator
           option :cluster, type: :string, desc: 'Override current cluster context'
           def edit(name)
             handle_command_error('edit model') do
-              model = get_resource_or_exit('LanguageModel', name)
+              model = get_resource_or_exit(RESOURCE_MODEL, name)
 
               # Edit model YAML in user's editor
               edited_yaml = Helpers::EditorHelper.edit_content(

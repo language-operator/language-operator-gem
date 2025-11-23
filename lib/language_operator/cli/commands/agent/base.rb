@@ -1,21 +1,7 @@
 # frozen_string_literal: true
 
 require 'thor'
-require_relative '../../base_command'
-require_relative '../../formatters/progress_formatter'
-require_relative '../../formatters/table_formatter'
-require_relative '../../formatters/value_formatter'
-require_relative '../../formatters/log_formatter'
-require_relative '../../formatters/status_formatter'
-require_relative '../../helpers/cluster_validator'
-require_relative '../../helpers/cluster_context'
-require_relative '../../helpers/user_prompts'
-require_relative '../../helpers/editor_helper'
-require_relative '../../helpers/pastel_helper'
-require_relative '../../errors/handler'
-require_relative '../../../config/cluster_config'
-require_relative '../../../kubernetes/client'
-require_relative '../../../kubernetes/resource_builder'
+require_relative '../../command_loader'
 require_relative '../../wizards/agent_wizard'
 
 # Include all agent subcommand modules
@@ -38,6 +24,7 @@ module LanguageOperator
       module Agent
         # Base agent command class
         class Base < BaseCommand
+          include Constants
           include CLI::Helpers::ClusterValidator
           include CLI::Helpers::UxHelper
           include Agent::Helpers::CodeParser
@@ -112,12 +99,12 @@ module LanguageOperator
 
           def handle_agent_not_found(name, ctx)
             # Get available agents for fuzzy matching
-            agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
+            agents = ctx.client.list_resources(RESOURCE_AGENT, namespace: ctx.namespace)
             available_names = agents.map { |a| a.dig('metadata', 'name') }
 
-            error = K8s::Error::NotFound.new(404, 'Not Found', 'LanguageAgent')
+            error = K8s::Error::NotFound.new(404, 'Not Found', RESOURCE_AGENT)
             Errors::Handler.handle_not_found(error,
-                                             resource_type: 'LanguageAgent',
+                                             resource_type: RESOURCE_AGENT,
                                              resource_name: name,
                                              cluster: ctx.name,
                                              available_resources: available_names)
@@ -264,7 +251,7 @@ module LanguageOperator
 
             Formatters::ProgressFormatter.info("Agents in cluster '#{cluster}'")
 
-            agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
+            agents = ctx.client.list_resources(RESOURCE_AGENT, namespace: ctx.namespace)
 
             table_data = agents.map do |agent|
               {
@@ -301,7 +288,7 @@ module LanguageOperator
             clusters.each do |cluster|
               ctx = Helpers::ClusterContext.from_options(cluster: cluster[:name])
 
-              agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
+              agents = ctx.client.list_resources(RESOURCE_AGENT, namespace: ctx.namespace)
 
               agents.each do |agent|
                 all_agents << {

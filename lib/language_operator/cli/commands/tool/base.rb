@@ -2,15 +2,7 @@
 
 require 'yaml'
 require 'json'
-require_relative '../../base_command'
-require_relative '../../formatters/progress_formatter'
-require_relative '../../formatters/table_formatter'
-require_relative '../../helpers/cluster_validator'
-require_relative '../../helpers/user_prompts'
-require_relative '../../helpers/resource_dependency_checker'
-require_relative '../../../config/cluster_config'
-require_relative '../../../config/tool_registry'
-require_relative '../../../kubernetes/client'
+require_relative '../../command_loader'
 
 # Include all tool subcommand modules
 require_relative 'install'
@@ -23,6 +15,7 @@ module LanguageOperator
       module Tool
         # Base tool command class
         class Base < BaseCommand
+          include Constants
           include CLI::Helpers::ClusterValidator
 
           # Include all subcommand modules
@@ -34,7 +27,7 @@ module LanguageOperator
           option :cluster, type: :string, desc: 'Override current cluster context'
           def list
             handle_command_error('list tools') do
-              tools = list_resources_or_empty('LanguageTool') do
+              tools = list_resources_or_empty(RESOURCE_TOOL) do
                 puts
                 puts 'Tools provide MCP server capabilities for agents.'
                 puts
@@ -45,7 +38,7 @@ module LanguageOperator
               return if tools.empty?
 
               # Get agents to count usage
-              agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
+              agents = ctx.client.list_resources(RESOURCE_AGENT, namespace: ctx.namespace)
 
               table_data = tools.map do |tool|
                 name = tool.dig('metadata', 'name')
@@ -80,12 +73,12 @@ module LanguageOperator
           option :cluster, type: :string, desc: 'Override current cluster context'
           def inspect(name)
             handle_command_error('inspect tool') do
-              tool = get_resource_or_exit('LanguageTool', name)
+              tool = get_resource_or_exit(RESOURCE_TOOL, name)
 
               # Main tool information
               puts
               highlighted_box(
-                title: 'LanguageTool',
+                title: RESOURCE_TOOL,
                 rows: {
                   'Name' => pastel.white.bold(name),
                   'Namespace' => ctx.namespace,
@@ -185,7 +178,7 @@ module LanguageOperator
               end
 
               # Get agents using this tool
-              agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
+              agents = ctx.client.list_resources(RESOURCE_AGENT, namespace: ctx.namespace)
               agents_using = agents.select do |agent|
                 tools = agent.dig('spec', 'tools') || []
                 tools.include?(name)
@@ -212,7 +205,7 @@ module LanguageOperator
           option :force, type: :boolean, default: false, desc: 'Skip confirmation'
           def delete(name)
             handle_command_error('delete tool') do
-              tool = get_resource_or_exit('LanguageTool', name)
+              get_resource_or_exit(RESOURCE_TOOL, name)
 
               # Check dependencies and get confirmation
               return unless check_dependencies_and_confirm('tool', name, force: options[:force])
@@ -222,7 +215,7 @@ module LanguageOperator
 
               # Delete tool
               Formatters::ProgressFormatter.with_spinner("Deleting tool '#{name}'") do
-                ctx.client.delete_resource('LanguageTool', name, ctx.namespace)
+                ctx.client.delete_resource(RESOURCE_TOOL, name, ctx.namespace)
               end
 
               Formatters::ProgressFormatter.success("Tool '#{name}' deleted successfully")

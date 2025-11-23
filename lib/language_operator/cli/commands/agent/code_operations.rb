@@ -61,7 +61,7 @@ module LanguageOperator
                   ctx = Helpers::ClusterContext.from_options(options)
 
                   # Get current agent
-                  agent = get_resource_or_exit('LanguageAgent', name)
+                  agent = get_resource_or_exit(RESOURCE_AGENT, name)
 
                   current_instructions = agent.dig('spec', 'instructions')
 

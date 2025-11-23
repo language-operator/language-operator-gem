@@ -1,21 +1,7 @@
 # frozen_string_literal: true
 
 require 'thor'
-require_relative '../base_command'
-require_relative '../formatters/progress_formatter'
-require_relative '../formatters/table_formatter'
-require_relative '../formatters/value_formatter'
-require_relative '../formatters/log_formatter'
-require_relative '../formatters/status_formatter'
-require_relative '../helpers/cluster_validator'
-require_relative '../helpers/cluster_context'
-require_relative '../helpers/user_prompts'
-require_relative '../helpers/editor_helper'
-require_relative '../helpers/pastel_helper'
-require_relative '../errors/handler'
-require_relative '../../config/cluster_config'
-require_relative '../../kubernetes/client'
-require_relative '../../kubernetes/resource_builder'
+require_relative '../command_loader'
 require_relative '../wizards/agent_wizard'
 
 module LanguageOperator
@@ -23,6 +9,7 @@ module LanguageOperator
     module Commands
       # Agent management commands
       class Agent < BaseCommand
+        include Constants
         include Helpers::ClusterValidator
         include Helpers::UxHelper
 
@@ -87,7 +74,7 @@ module LanguageOperator
             # Get models: use specified models, or default to all available models in cluster
             models = options[:models]
             if models.nil? || models.empty?
-              available_models = ctx.client.list_resources('LanguageModel', namespace: ctx.namespace)
+              available_models = ctx.client.list_resources(RESOURCE_MODEL, namespace: ctx.namespace)
               models = available_models.map { |m| m.dig('metadata', 'name') }
 
               Errors::Handler.handle_no_models_available(cluster: ctx.name) if models.empty?
@@ -122,7 +109,7 @@ module LanguageOperator
             exit 1 unless synthesis_result[:success]
 
             # Fetch the updated agent to get complete details
-            agent = ctx.client.get_resource('LanguageAgent', agent_name, ctx.namespace)
+            agent = ctx.client.get_resource(RESOURCE_AGENT, agent_name, ctx.namespace)
 
             # Display enhanced success output
             display_agent_created(agent, ctx.name, description, synthesis_result)
@@ -150,7 +137,7 @@ module LanguageOperator
             ctx = Helpers::ClusterContext.from_options(options)
 
             begin
-              agent = ctx.client.get_resource('LanguageAgent', name, ctx.namespace)
+              agent = ctx.client.get_resource(RESOURCE_AGENT, name, ctx.namespace)
             rescue K8s::Error::NotFound
               handle_agent_not_found(name, ctx)
               return
@@ -160,7 +147,7 @@ module LanguageOperator
             puts
             status = agent.dig('status', 'phase') || 'Unknown'
             highlighted_box(
-              title: 'LanguageAgent',
+              title: RESOURCE_AGENT,
               rows: {
                 'Name' => pastel.white.bold(name),
                 'Namespace' => ctx.namespace,
@@ -279,7 +266,7 @@ module LanguageOperator
             ctx = Helpers::ClusterContext.from_options(options)
 
             # Get agent to verify it exists
-            get_resource_or_exit('LanguageAgent', name)
+            get_resource_or_exit(RESOURCE_AGENT, name)
 
             # Confirm deletion
             return unless confirm_deletion_with_force('agent', name, ctx.name, force: options[:force])
@@ -287,7 +274,7 @@ module LanguageOperator
             # Delete the agent
             puts
             Formatters::ProgressFormatter.with_spinner("Deleting agent '#{name}'") do
-              ctx.client.delete_resource('LanguageAgent', name, ctx.namespace)
+              ctx.client.delete_resource(RESOURCE_AGENT, name, ctx.namespace)
             end
           end
         end
@@ -310,7 +297,7 @@ module LanguageOperator
             ctx = Helpers::ClusterContext.from_options(options)
 
             # Get agent to determine the pod name
-            agent = get_resource_or_exit('LanguageAgent', name)
+            agent = get_resource_or_exit(RESOURCE_AGENT, name)
 
             mode = agent.dig('spec', 'mode') || 'autonomous'
 
@@ -415,7 +402,7 @@ module LanguageOperator
             ctx = Helpers::ClusterContext.from_options(options)
 
             # Get current agent
-            agent = get_resource_or_exit('LanguageAgent', name)
+            agent = get_resource_or_exit(RESOURCE_AGENT, name)
 
             current_instructions = agent.dig('spec', 'instructions')
 
@@ -455,7 +442,7 @@ module LanguageOperator
             ctx = Helpers::ClusterContext.from_options(options)
 
             # Get agent
-            agent = get_resource_or_exit('LanguageAgent', name)
+            agent = get_resource_or_exit(RESOURCE_AGENT, name)
 
             mode = agent.dig('spec', 'mode') || 'autonomous'
             unless mode == 'scheduled'
@@ -493,7 +480,7 @@ module LanguageOperator
             ctx = Helpers::ClusterContext.from_options(options)
 
             # Get agent
-            agent = get_resource_or_exit('LanguageAgent', name)
+            agent = get_resource_or_exit(RESOURCE_AGENT, name)
 
             mode = agent.dig('spec', 'mode') || 'autonomous'
             unless mode == 'scheduled'
@@ -565,7 +552,7 @@ module LanguageOperator
             ctx = Helpers::ClusterContext.from_options(options)
 
             # Get agent to verify it exists
-            get_resource_or_exit('LanguageAgent', name)
+            get_resource_or_exit(RESOURCE_AGENT, name)
 
             # Get agent code/definition
             agent_definition = load_agent_definition(ctx, name)
@@ -867,7 +854,7 @@ module LanguageOperator
             ctx = Helpers::ClusterContext.from_options(options)
 
             # Get agent to verify it exists
-            agent = get_resource_or_exit('LanguageAgent', name)
+            agent = get_resource_or_exit(RESOURCE_AGENT, name)
 
             # Check if workspace is enabled
             workspace_enabled = agent.dig('spec', 'workspace', 'enabled')
@@ -931,7 +918,7 @@ module LanguageOperator
           # Get model resource to extract model ID
           # Always use port-forwarding to deployment (LiteLLM proxy for cost controls)
           begin
-            model = ctx.client.get_resource('LanguageModel', selected_model, ctx.namespace)
+            model = ctx.client.get_resource(RESOURCE_MODEL, selected_model, ctx.namespace)
             model_id = model.dig('spec', 'modelName')
             return nil unless model_id
 
@@ -952,7 +939,7 @@ module LanguageOperator
         # @param ctx [ClusterContext] Cluster context
         # @return [String, nil] Model name or nil
         def select_synthesis_model(ctx)
-          models = ctx.client.list_resources('LanguageModel', namespace: ctx.namespace)
+          models = ctx.client.list_resources(RESOURCE_MODEL, namespace: ctx.namespace)
           return nil if models.empty?
 
           models.first.dig('metadata', 'name')
@@ -1073,18 +1060,18 @@ module LanguageOperator
 
         def handle_agent_not_found(name, ctx)
           # Get available agents for fuzzy matching
-          agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
+          agents = ctx.client.list_resources(RESOURCE_AGENT, namespace: ctx.namespace)
           available_names = agents.map { |a| a.dig('metadata', 'name') }
 
-          error = K8s::Error::NotFound.new(404, 'Not Found', 'LanguageAgent')
+          error = K8s::Error::NotFound.new(404, 'Not Found', RESOURCE_AGENT)
           Errors::Handler.handle_not_found(error,
-                                           resource_type: 'LanguageAgent',
+                                           resource_type: RESOURCE_AGENT,
                                            resource_name: name,
                                            cluster: ctx.name,
                                            available_resources: available_names)
         end
 
-        def display_agent_created(agent, cluster, _description, synthesis_result)
+        def display_agent_created(agent, _cluster, _description, _synthesis_result)
           agent_name = agent.dig('metadata', 'name')
 
           puts
@@ -1223,7 +1210,7 @@ module LanguageOperator
           start_time = Time.now
           synthesis_data = {}
 
-          result = Formatters::ProgressFormatter.with_spinner('Synthesizing code from instructions') do
+          Formatters::ProgressFormatter.with_spinner('Synthesizing code from instructions') do
             synthesis_result = nil
             loop do
               status = check_synthesis_status(k8s, agent_name, namespace, synthesis_data, start_time)
@@ -1258,12 +1245,10 @@ module LanguageOperator
             Formatters::ProgressFormatter.warn("Could not watch synthesis: #{e.message}")
             return { success: true } # Continue anyway
           end
-
-          result
         end
 
         def check_synthesis_status(k8s, agent_name, namespace, synthesis_data, start_time)
-          agent = k8s.get_resource('LanguageAgent', agent_name, namespace)
+          agent = k8s.get_resource(RESOURCE_AGENT, agent_name, namespace)
           conditions = agent.dig('status', 'conditions') || []
           synthesis_status = agent.dig('status', 'synthesis')
 
@@ -1295,7 +1280,7 @@ module LanguageOperator
 
           Formatters::ProgressFormatter.info("Agents in cluster '#{cluster}'")
 
-          agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
+          agents = ctx.client.list_resources(RESOURCE_AGENT, namespace: ctx.namespace)
 
           table_data = agents.map do |agent|
             {
@@ -1332,7 +1317,7 @@ module LanguageOperator
           clusters.each do |cluster|
             ctx = Helpers::ClusterContext.from_options(cluster: cluster[:name])
 
-            agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
+            agents = ctx.client.list_resources(RESOURCE_AGENT, namespace: ctx.namespace)
 
             agents.each do |agent|
               all_agents << {

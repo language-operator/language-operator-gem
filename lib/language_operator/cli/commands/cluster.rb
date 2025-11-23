@@ -1,20 +1,14 @@
 # frozen_string_literal: true
 
 require 'yaml'
-require_relative '../base_command'
-require_relative '../formatters/progress_formatter'
-require_relative '../formatters/table_formatter'
-require_relative '../helpers/cluster_validator'
-require_relative '../helpers/user_prompts'
-require_relative '../../config/cluster_config'
-require_relative '../../kubernetes/client'
-require_relative '../../kubernetes/resource_builder'
+require_relative '../command_loader'
 
 module LanguageOperator
   module CLI
     module Commands
       # Cluster management commands
       class Cluster < BaseCommand
+        include Constants
         include Helpers::UxHelper
 
         desc 'create NAME', 'Create a new language cluster'
@@ -125,9 +119,9 @@ module LanguageOperator
               k8s = Helpers::ClusterValidator.kubernetes_client(cluster[:name])
 
               # Get cluster stats
-              agents = k8s.list_resources('LanguageAgent', namespace: cluster[:namespace])
-              tools = k8s.list_resources('LanguageTool', namespace: cluster[:namespace])
-              models = k8s.list_resources('LanguageModel', namespace: cluster[:namespace])
+              agents = k8s.list_resources(RESOURCE_AGENT, namespace: cluster[:namespace])
+              tools = k8s.list_resources(RESOURCE_TOOL, namespace: cluster[:namespace])
+              models = k8s.list_resources(RESOURCE_MODEL, namespace: cluster[:namespace])
 
               # Get cluster status
               cluster_resource = k8s.get_resource('LanguageCluster', cluster[:name], cluster[:namespace])
@@ -315,7 +309,7 @@ module LanguageOperator
               puts
 
               # Get agents
-              agents = k8s.list_resources('LanguageAgent', namespace: cluster[:namespace])
+              agents = k8s.list_resources(RESOURCE_AGENT, namespace: cluster[:namespace])
               agent_items = agents.map do |agent|
                 { name: agent.dig('metadata', 'name'), status: agent.dig('status', 'phase') || 'Unknown' }
               end
@@ -323,7 +317,7 @@ module LanguageOperator
               puts
 
               # Get tools
-              tools = k8s.list_resources('LanguageTool', namespace: cluster[:namespace])
+              tools = k8s.list_resources(RESOURCE_TOOL, namespace: cluster[:namespace])
               tool_items = tools.map do |tool|
                 { name: tool.dig('metadata', 'name') }
               end
@@ -331,7 +325,7 @@ module LanguageOperator
               puts
 
               # Get models
-              models = k8s.list_resources('LanguageModel', namespace: cluster[:namespace])
+              models = k8s.list_resources(RESOURCE_MODEL, namespace: cluster[:namespace])
               model_items = models.map do |model|
                 provider = model.dig('spec', 'provider')
                 model_name = model.dig('spec', 'modelName')

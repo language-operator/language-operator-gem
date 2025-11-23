@@ -15,7 +15,7 @@ module LanguageOperator
                   ctx = Helpers::ClusterContext.from_options(options)
 
                   # Get agent
-                  agent = get_resource_or_exit('LanguageAgent', name)
+                  agent = get_resource_or_exit(RESOURCE_AGENT, name)
 
                   mode = agent.dig('spec', 'mode') || 'autonomous'
                   unless mode == 'scheduled'
@@ -53,7 +53,7 @@ module LanguageOperator
                   ctx = Helpers::ClusterContext.from_options(options)
 
                   # Get agent
-                  agent = get_resource_or_exit('LanguageAgent', name)
+                  agent = get_resource_or_exit(RESOURCE_AGENT, name)
 
                   mode = agent.dig('spec', 'mode') || 'autonomous'
                   unless mode == 'scheduled'

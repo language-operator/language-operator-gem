@@ -1,23 +1,14 @@
 # frozen_string_literal: true
 
 require 'yaml'
-require_relative '../base_command'
-require_relative '../formatters/progress_formatter'
-require_relative '../formatters/table_formatter'
-require_relative '../helpers/cluster_validator'
-require_relative '../helpers/user_prompts'
-require_relative '../helpers/resource_dependency_checker'
-require_relative '../helpers/editor_helper'
-require_relative '../helpers/pastel_helper'
-require_relative '../../config/cluster_config'
-require_relative '../../kubernetes/client'
-require_relative '../../kubernetes/resource_builder'
+require_relative '../command_loader'
 
 module LanguageOperator
   module CLI
     module Commands
       # Persona management commands
       class Persona < BaseCommand
+        include Constants
         include Helpers::ClusterValidator
         include Helpers::UxHelper
 
@@ -25,7 +16,7 @@ module LanguageOperator
         option :cluster, type: :string, desc: 'Override current cluster context'
         def list
           handle_command_error('list personas') do
-            personas = list_resources_or_empty('LanguagePersona') do
+            personas = list_resources_or_empty(RESOURCE_PERSONA) do
               puts
               puts 'Personas define the personality and capabilities of agents.'
               puts
@@ -36,7 +27,7 @@ module LanguageOperator
             return if personas.empty?
 
             # Get agents to count usage
-            agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
+            agents = ctx.client.list_resources(RESOURCE_AGENT, namespace: ctx.namespace)
 
             table_data = personas.map do |persona|
               name = persona.dig('metadata', 'name')
@@ -58,7 +49,7 @@ module LanguageOperator
         option :cluster, type: :string, desc: 'Override current cluster context'
         def show(name)
           handle_command_error('show persona') do
-            persona = get_resource_or_exit('LanguagePersona', name)
+            persona = get_resource_or_exit(RESOURCE_PERSONA, name)
 
             puts
             puts "Persona: #{pastel.cyan.bold(name)}"
@@ -123,7 +114,7 @@ module LanguageOperator
           handle_command_error('create persona') do
             # Check if persona already exists
             begin
-              ctx.client.get_resource('LanguagePersona', name, ctx.namespace)
+              ctx.client.get_resource(RESOURCE_PERSONA, name, ctx.namespace)
               Formatters::ProgressFormatter.error("Persona '#{name}' already exists in cluster '#{ctx.name}'")
               puts
               puts 'Use a different name or delete the existing persona first:'
@@ -136,7 +127,7 @@ module LanguageOperator
             # If --from flag provided, copy from existing persona
             base_persona = nil
             if options[:from]
-              base_persona = get_resource_or_exit('LanguagePersona', options[:from],
+              base_persona = get_resource_or_exit(RESOURCE_PERSONA, options[:from],
                                                   error_message: "Source persona '#{options[:from]}' not found")
               Formatters::ProgressFormatter.info("Copying from persona '#{options[:from]}'")
               puts
@@ -245,7 +236,7 @@ module LanguageOperator
         def edit(name)
           handle_command_error('edit persona') do
             # Get current persona
-            persona = get_resource_or_exit('LanguagePersona', name)
+            persona = get_resource_or_exit(RESOURCE_PERSONA, name)
 
             # Open in editor
             original_yaml = YAML.dump(persona)
@@ -279,7 +270,7 @@ module LanguageOperator
             Formatters::ProgressFormatter.success("Persona '#{name}' updated successfully")
 
             # Check for agents using this persona
-            agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
+            agents = ctx.client.list_resources(RESOURCE_AGENT, namespace: ctx.namespace)
             agents_using = Helpers::ResourceDependencyChecker.agents_using_persona(agents, name)
 
             if agents_using.any?
@@ -298,7 +289,7 @@ module LanguageOperator
         def delete(name)
           handle_command_error('delete persona') do
             # Get persona
-            persona = get_resource_or_exit('LanguagePersona', name)
+            get_resource_or_exit(RESOURCE_PERSONA, name)
 
             # Check dependencies and get confirmation
             return unless check_dependencies_and_confirm('persona', name, force: options[:force])
@@ -308,7 +299,7 @@ module LanguageOperator
 
             # Delete persona
             Formatters::ProgressFormatter.with_spinner("Deleting persona '#{name}'") do
-              ctx.client.delete_resource('LanguagePersona', name, ctx.namespace)
+              ctx.client.delete_resource(RESOURCE_PERSONA, name, ctx.namespace)
             end
 
             Formatters::ProgressFormatter.success("Persona '#{name}' deleted successfully")

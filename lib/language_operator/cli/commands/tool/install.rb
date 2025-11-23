@@ -97,7 +97,7 @@ module LanguageOperator
 
                   # Check if already exists
                   begin
-                    ctx.client.get_resource('LanguageTool', tool_name, ctx.namespace)
+                    ctx.client.get_resource(RESOURCE_TOOL, tool_name, ctx.namespace)
                     Formatters::ProgressFormatter.warn("Tool '#{tool_name}' already exists in cluster '#{ctx.name}'")
                     puts
                     return unless Helpers::UserPrompts.confirm('Do you want to update it?')
@@ -126,7 +126,7 @@ module LanguageOperator
               option :cluster, type: :string, desc: 'Override current cluster context'
               def auth(tool_name)
                 handle_command_error('configure auth') do
-                  tool = get_resource_or_exit('LanguageTool', tool_name,
+                  tool = get_resource_or_exit(RESOURCE_TOOL, tool_name,
                                               error_message: "Tool '#{tool_name}' not found. Install it first with: aictl tool install #{tool_name}")
 
                   puts "Configure authentication for tool '#{tool_name}'"

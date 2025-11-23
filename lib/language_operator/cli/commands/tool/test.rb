@@ -14,7 +14,7 @@ module LanguageOperator
               option :cluster, type: :string, desc: 'Override current cluster context'
               def test(tool_name)
                 handle_command_error('test tool') do
-                  tool = get_resource_or_exit('LanguageTool', tool_name)
+                  tool = get_resource_or_exit(RESOURCE_TOOL, tool_name)
 
                   puts "Testing tool '#{tool_name}' in cluster '#{ctx.name}'"
                   puts
