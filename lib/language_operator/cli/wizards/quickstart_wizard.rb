@@ -39,27 +39,10 @@ module LanguageOperator
         private
 
         def show_welcome
-          puts
-          puts box(<<~MSG.chomp, title: 'Welcome to Language Operator! 🎉')
-            Let's get you set up (takes ~5 minutes)
-
-            This wizard will help you:
-              1. Connect to your Kubernetes cluster
-              2. Configure a language model
-              3. Create your first autonomous agent
-          MSG
-          puts
-          puts pastel.dim('Press Enter to begin...')
-          $stdin.gets
+          logo(title: 'cluster setup quick start')
         end
 
         def setup_cluster
-          puts
-          puts '─' * 50
-          puts pastel.cyan('Step 1/3: Connect to Kubernetes')
-          puts '─' * 50
-          puts
-
           # Check if user has kubectl configured
           has_kubectl = prompt.yes?('Do you have kubectl configured?')
 

@@ -132,11 +132,56 @@ module LanguageOperator
           TTY::Box.frame(message, **options)
         end
 
-        def logo(title: nil)
+        def logo(title: nil, sparkle: false)
           puts
-          puts "#{pastel.bold.green('LANGUAGE OPERATOR')} v#{pastel.bold(LanguageOperator::VERSION)}"
-          puts pastel.dim("#{pastel.bold('↪')} #{title}")
+
+          if sparkle
+            animate_sparkle_logo
+          else
+            puts "#{pastel.bold.green('LANGUAGE OPERATOR')} v#{pastel.bold(LanguageOperator::VERSION)}"
+          end
+
+          puts pastel.dim("#{pastel.bold('↪')} #{title}") if title
           puts
+        end
+
+        private
+
+        def animate_sparkle_logo
+          text = 'LANGUAGE OPERATOR'
+          frames = 8
+          duration = 0.05 # seconds per frame
+
+          # Move cursor up to overwrite the same line
+          print "\e[?25l" # Hide cursor
+
+          frames.times do |frame|
+            # Build the colored string
+            colored_text = text.chars.map.with_index do |char, idx|
+              # Calculate distance from the wave position
+              wave_position = (text.length.to_f / frames) * frame
+              distance = (idx - wave_position).abs
+
+              # Create a gradient effect based on distance
+              if distance < 2
+                pastel.bold.bright_green(char) # Bright sparkle
+              elsif distance < 4
+                pastel.bold.green(char) # Medium green
+              else
+                pastel.green(char) # Base green
+              end
+            end.join
+
+            # Print the frame
+            print "\r#{colored_text} v#{pastel.bold(LanguageOperator::VERSION)}"
+            $stdout.flush
+            sleep duration
+          end
+
+          # Final state - full bright
+          print "\r#{pastel.bold.bright_green(text)} v#{pastel.bold(LanguageOperator::VERSION)}"
+          puts
+          print "\e[?25h" # Show cursor
         end
 
         # Creates a highlighted box with a colored title bar and content rows

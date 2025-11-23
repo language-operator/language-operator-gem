@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'language_operator/cli/commands/system'
+require 'language_operator/cli/commands/system/base'
 require 'json'
 require 'yaml'
 
-RSpec.describe LanguageOperator::CLI::Commands::System do
+RSpec.describe LanguageOperator::CLI::Commands::System::Base do
   let(:command) { described_class.new }
 
   describe '#schema' do

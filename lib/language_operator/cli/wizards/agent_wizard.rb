@@ -40,9 +40,7 @@ module LanguageOperator
         private
 
         def show_welcome
-          puts
-          puts box("Let's create your agent! 🤖")
-          puts
+          logo(title: "create an agent")
         end
 
         def ask_task_description

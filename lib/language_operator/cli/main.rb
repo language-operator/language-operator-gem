@@ -4,15 +4,16 @@ require 'thor'
 require 'fileutils'
 require_relative 'commands/cluster'
 require_relative 'commands/use'
-require_relative 'commands/agent'
+require_relative 'commands/agent/base'
 require_relative 'commands/status'
 require_relative 'commands/persona'
-require_relative 'commands/tool'
-require_relative 'commands/model'
+require_relative 'commands/tool/base'
+require_relative 'commands/model/base'
 require_relative 'commands/quickstart'
 require_relative 'commands/install'
-require_relative 'commands/system'
+require_relative 'commands/system/base'
 require_relative 'formatters/progress_formatter'
+require_relative 'helpers/ux_helper'
 require_relative '../config/cluster_config'
 require_relative '../kubernetes/client'
 
@@ -22,6 +23,8 @@ module LanguageOperator
     #
     # Provides commands for creating, running, and managing language-operator resources.
     class Main < Thor
+      include Helpers::UxHelper
+
       def self.exit_on_failure?
         true
       end
@@ -33,11 +36,11 @@ module LanguageOperator
 
       desc 'version', 'Show aictl and operator version'
       def version
-        puts "aictl v#{LanguageOperator::VERSION}"
-        puts
-
-        # Try to get operator version from current cluster
+        # Check operator installation status first
         current_cluster = Config::ClusterConfig.current_cluster
+        operator_version = nil
+        operator_installed = false
+
         if current_cluster
           cluster_config = Config::ClusterConfig.get_cluster(current_cluster)
           begin
@@ -47,52 +50,46 @@ module LanguageOperator
             )
 
             if k8s.operator_installed?
+              operator_installed = true
               operator_version = k8s.operator_version || 'unknown'
-              puts "Operator: v#{operator_version}"
-              puts "Cluster:  #{current_cluster}"
-
-              # Check compatibility (simple version check)
-              # In the future, this could be more sophisticated
-              puts
-              Formatters::ProgressFormatter.success('Versions are compatible')
-            else
-              Formatters::ProgressFormatter.warn("Operator not installed in cluster '#{current_cluster}'")
             end
-          rescue StandardError => e
-            Formatters::ProgressFormatter.error("Could not connect to cluster: #{e.message}")
+          rescue StandardError
+            # Silently handle connection errors - we'll show appropriate message below
           end
+        end
+
+        # Show sparkly logo with appropriate subtitle
+        if operator_installed
+          logo(sparkle: true, title: "kubernetes language-operator detected (v#{operator_version})")
         else
-          puts 'No cluster selected'
-          puts
-          puts 'Select a cluster to check operator version:'
-          puts '  aictl use <cluster>'
+          logo(sparkle: true, title: 'kubernetes language-operator not found')
         end
       end
 
-      desc 'cluster SUBCOMMAND ...ARGS', 'Manage language clusters'
+      desc 'cluster SUBCOMMAND ...ARGS', 'Manage clusters'
       subcommand 'cluster', Commands::Cluster
 
-      desc 'use CLUSTER', 'Switch to a different cluster context'
+      desc 'use CLUSTER', 'Switch to a different cluster'
       def use(cluster_name)
         Commands::Use.new.switch(cluster_name)
       end
 
-      desc 'agent SUBCOMMAND ...ARGS', 'Manage autonomous agents'
-      subcommand 'agent', Commands::Agent
+      desc 'agent SUBCOMMAND ...ARGS', 'Manage agents'
+      subcommand 'agent', Commands::Agent::Base
 
-      desc 'persona SUBCOMMAND ...ARGS', 'Manage agent personas'
+      desc 'persona SUBCOMMAND ...ARGS', 'Manage personas'
       subcommand 'persona', Commands::Persona
 
-      desc 'tool SUBCOMMAND ...ARGS', 'Manage MCP tools'
-      subcommand 'tool', Commands::Tool
+      desc 'tool SUBCOMMAND ...ARGS', 'Manage tools'
+      subcommand 'tool', Commands::Tool::Base
 
-      desc 'model SUBCOMMAND ...ARGS', 'Manage language models'
-      subcommand 'model', Commands::Model
+      desc 'model SUBCOMMAND ...ARGS', 'Manage models'
+      subcommand 'model', Commands::Model::Base
 
-      desc 'system SUBCOMMAND ...ARGS', 'System commands for schema and metadata'
-      subcommand 'system', Commands::System
+      desc 'system SUBCOMMAND ...ARGS', 'System utilities'
+      subcommand 'system', Commands::System::Base
 
-      desc 'quickstart', 'Interactive setup wizard for first-time users'
+      desc 'quickstart', 'Wizard for first-time users'
       def quickstart
         Commands::Quickstart.new.invoke(:start)
       end

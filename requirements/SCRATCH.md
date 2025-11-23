@@ -2,19 +2,16 @@
 
 Living document of critical insights, patterns, and gotchas for this codebase.
 
-## DSL Architecture (v1 - Current)
+## DSL Architecture (v1)
 
-**Core Model:** Task/Main (imperative, replacing declarative workflow/step)
+**Core Model:** Task/Main (imperative) - replaces v0 workflow/step (declarative, deprecated)
 
 **Key Components:**
-- `TaskDefinition`: Organic functions with stable contracts (inputs/outputs), evolving implementations (neural→symbolic)
-- `MainDefinition`: Imperative entry point using Ruby control flow + `execute_task()`
+- `TaskDefinition`: Stable contracts (inputs/outputs), evolving implementations (neural→symbolic)
+- `MainDefinition`: Imperative entry point with Ruby control flow + `execute_task()`
 - `TypeSchema`: 7-type system (string, integer, number, boolean, array, hash, any)
 
-**Migration Strategy:**
-- DSL v0 (workflow/step) marked deprecated but fully functional
-- Both models supported in schema generation for backward compatibility
-- Deprecation clearly noted in descriptions, safe methods updated
+**Backward Compatibility:** v0 (workflow/step) remains functional, marked deprecated
 
 ## Testing Patterns
 
@@ -30,10 +27,7 @@ Living document of critical insights, patterns, and gotchas for this codebase.
 
 ## Schema Generation
 
-**JSON Schema Patterns:**
-- `patternProperties` for flexible parameter validation without enumeration
-- Regex patterns as keys validate both names and types dynamically
-- Always include `examples` for complex schemas (aids understanding)
+**Key Pattern:** `patternProperties` with regex keys for dynamic type validation without enumeration
 
 ## Security (AST Validator)
 
@@ -52,36 +46,24 @@ Living document of critical insights, patterns, and gotchas for this codebase.
 
 | File | Purpose | Complexity |
 |------|---------|------------|
-| `lib/language_operator/dsl/schema.rb` | JSON Schema generation (DSL→schema) | High (1100+ lines) |
-| `lib/language_operator/dsl/task_definition.rb` | Task contract+validation | Medium (316 lines) |
-| `lib/language_operator/dsl/main_definition.rb` | Main block execution | Low (115 lines) |
-| `lib/language_operator/agent/task_executor.rb` | Neural/symbolic task execution | Medium (233 lines) |
-| `lib/language_operator/agent/safety/ast_validator.rb` | Code security validation | High |
-| `spec/language_operator/dsl/schema_spec.rb` | Schema test coverage (186 tests) | High |
-| `spec/language_operator/agent/task_executor_spec.rb` | Task executor tests (19 tests) | Medium |
+| `dsl/schema.rb` | JSON Schema generation (DSL→schema) | High (1100+ lines) |
+| `dsl/task_definition.rb` | Task contract + validation | Medium |
+| `dsl/main_definition.rb` | Main block execution | Low |
+| `agent/task_executor.rb` | Neural/symbolic task execution | Medium |
+| `agent/safety/ast_validator.rb` | Code security validation | High |
+| `agent/learning/trace_analyzer.rb` | OTLP query adapter | Medium |
+| `agent/learning/pattern_detector.rb` | Pattern→code generation | Medium |
 
 ## Current Status
 
-**Completed (2025-11-22):**
-- ✅ Issue #26: Schema generation for task/main model
-- ✅ Issue #25: AST validator updated for DSL v1
-- ✅ Issues #21-23: TaskDefinition, MainDefinition, TypeCoercion implemented
-- ✅ Issue #28: TaskExecutor for task execution runtime
-- ✅ Issue #32 (partial): DependencyGraph and ParallelExecutor for implicit parallelism
-- ✅ Issue #36: TraceAnalyzer for pattern detection with multi-backend support
-- ✅ Issue #37: PatternDetector for learning eligibility and code generation
-- ✅ Issue #52: Wizard consolidation - removed ux/ folder, consolidated under cli/wizards/
+**Completed:**
+- ✅ DSL v1 (task/main model): Schema, AST validator, core definitions
+- ✅ Task execution runtime: Neural & symbolic modes
+- ✅ Parallel execution infrastructure: DependencyGraph & ParallelExecutor (not yet integrated)
+- ✅ Learning system: TraceAnalyzer & PatternDetector with multi-backend support
+- ✅ CLI consolidation: All wizards under cli/wizards/ with UxHelper pattern
 
-**Test Suite Health:**
-- 135 examples, 0 failures, 2 pending (syntax error tests)
-- 186 schema-specific tests, all passing
-- 19 TaskExecutor tests, all passing
-- 20 DependencyGraph tests, all passing
-- 11 ParallelExecutor tests, all passing
-- 39 TraceAnalyzer tests, all passing
-- 31 PatternDetector tests, all passing
-- Total learning tests: 70/70 passing
-- RuboCop clean
+**Test Suite:** All passing, RuboCop clean
 
 ## Task Execution (DSL v1)
 
@@ -106,131 +88,48 @@ Living document of critical insights, patterns, and gotchas for this codebase.
 
 ## Parallel Execution (DSL v1)
 
-**Architecture:**
-- DependencyGraph: AST-based analysis extracts task dependencies from main block
-- ParallelExecutor: Level-based execution using Concurrent::FixedThreadPool
-- Default pool size: 4 threads (configurable)
+**Infrastructure:** DependencyGraph (AST-based) + ParallelExecutor (thread pool-based)
 
-**How It Works:**
-1. Parse main block code to extract `execute_task` calls
-2. Build dependency graph based on variable flow (which tasks use outputs from which other tasks)
-3. Assign execution levels via topological sort
-4. Execute each level in parallel (all tasks in level run concurrently)
-5. Wait for level completion before starting next level
-
-**Performance:**
-- Measured 2x speedup for I/O-bound parallel tasks
-- Thread pool handles > pool size tasks gracefully
-- Fail-fast error handling (collects all errors, raises RuntimeError)
-
-**Current Status (2025-11-14):**
-- ✅ DependencyGraph: Complete and tested (20 tests)
-- ✅ ParallelExecutor: Complete and tested (11 tests)
-- ⚠️  Integration: Partial - blocked on variable-to-result mapping
-
-**Blocking Issue:**
-The fundamental challenge is mapping variable names from code to task results:
+**Implementation Status:** Complete but not integrated - blocked on variable-to-result mapping challenge:
 ```ruby
-# User code:
 s1 = execute_task(:fetch1)
 merged = execute_task(:merge, inputs: { s1: s1 })
-
-# ParallelExecutor passes: { fetch1: {...} }
-# But merge expects: { s1: {...} }
+# ParallelExecutor passes { fetch1: {...} } but merge expects { s1: {...} }
 ```
 
-**Solution Options:**
-1. Enhanced AST analysis (complex, 2-3 days)
-2. Naming convention: var name = task name (simple, 1 day)
-3. Explicit dependency DSL (medium, 1-2 days)
-4. Defer to follow-up issue (pragmatic, 0 days)
+**Performance:** 2x speedup for I/O-bound parallel tasks in tests
 
-**Recommendation:** Option 4 - defer integration, ship infrastructure
+## Learning System
 
-## Learning System (Phase 4)
-
-**Architecture (2025-11-19):**
-- `TraceAnalyzer`: Query OTLP backends for task execution traces
+**Architecture:**
+- `TraceAnalyzer`: Query OTLP backends (SigNoz/Jaeger/Tempo) for task execution traces
 - `PatternDetector`: Convert deterministic patterns to symbolic Ruby code
-- Adapter Pattern: Pluggable backend support (SigNoz, Jaeger, Tempo)
-- Pattern Detection: Analyze tool call sequences for consistency
-- Code Generation: Tool sequences → chained execute_task calls
+- Auto-detection chain: signoz → jaeger → tempo → graceful degradation
 
-**Backend Support:**
-1. **SigNoz** (Primary): ClickHouse-backed, POST /api/v5/query_range, AND/OR filters
-2. **Jaeger**: HTTP /api/traces with tags filter (gRPC planned for future)
-3. **Tempo**: GET /api/search with TraceQL syntax
+**Pattern Detection:**
+- Threshold: 85% consistency, 10+ executions required
+- Groups by input signature (serialized, sorted)
+- Generates chained execute_task calls from tool sequences
+- Validates via ASTValidator before returning code
 
-**Auto-Detection Chain:** signoz → jaeger → tempo → no learning (graceful degradation)
-
-**Pattern Consistency Algorithm:**
-- Groups executions by input signature (serialized inputs)
-- For each group: finds most common tool call sequence
-- Calculates weighted average consistency across all input signatures
-- Threshold: 0.85 (85% consistency required for learning)
-
-**Configuration:**
+**Config:**
 ```ruby
 ENV['OTEL_QUERY_ENDPOINT'] = 'https://example.signoz.io'
 ENV['OTEL_QUERY_API_KEY'] = 'api-key'  # SigNoz only
-ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional explicit selection
+ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional
 ```
 
-**Pattern Detector Algorithm:**
-1. Pre-flight checks: consistency >= 0.85, executions >= 10, pattern exists
-2. Parse pattern: "db_fetch → cache_get" → [:db_fetch, :cache_get]
-3. Generate code: Chained execute_task calls with variable passing
-4. Validate: ASTValidator ensures no dangerous methods
-5. Return: Complete Ruby DSL v1 agent definition
+**Key Details:**
+- WebMock stubs needed before TraceAnalyzer init (auto-detection happens in constructor)
+- Input normalization: `.sort.to_h.to_s` - different values = different signatures
+- Required span attributes: `task.name`, `task.input.*`, `task.output.*`, `gen_ai.tool.name`
 
-**Code Generation Example:**
-```ruby
-# Input: "db_fetch → cache_get → api_send"
-# Output:
-step1_result = execute_task(:db_fetch, inputs: inputs)
-step2_result = execute_task(:cache_get, inputs: step1_result)
-final_result = execute_task(:api_send, inputs: step2_result)
-{ result: final_result }
-```
+## CLI Architecture
 
-**Key Learnings:**
-- WebMock stubs must be set up BEFORE TraceAnalyzer initialization (auto-detection)
-- Input normalization uses `.sort.to_h.to_s` - different values = different signatures
-- All adapters normalize to common span format: `{span_id, trace_id, name, timestamp, duration_ms, attributes}`
-- TaskTracer already emits required attributes: `task.name`, `task.input.*`, `task.output.*`, `gen_ai.tool.name`
-- Generated code must include frozen_string_literal and require 'language_operator'
-- Agent names convert underscores to hyphens, append "-symbolic" suffix
-
-## CLI Architecture (Wizards)
-
-**Consolidated Structure (2025-11-22):**
-- All wizards in `lib/language_operator/cli/wizards/`
-- Common helpers in `lib/language_operator/cli/helpers/`
-- All wizards use `UxHelper` pattern (no direct `Pastel.new` or `TTY::Prompt.new`)
-
-**Key Wizards:**
-- `AgentWizard` - Interactive agent creation
-- `ModelWizard` - LLM model configuration
-- `QuickstartWizard` - First-time setup
-
-**Helper Modules:**
-- `UxHelper` - Provides `pastel`, `prompt`, `spinner`, `table`, `box`
-- `ValidationHelper` - Common input validation (URLs, K8s names, secrets)
-- `ProviderHelper` - LLM provider testing and model fetching
-
-**Pattern:**
-```ruby
-class MyWizard
-  include Helpers::UxHelper
-  include Helpers::ValidationHelper
-
-  def run
-    puts box("Welcome!")
-    name = ask_k8s_name("Name:")
-    # wizard logic
-  end
-end
-```
+**Structure:**
+- Wizards: `cli/wizards/` (AgentWizard, ModelWizard, QuickstartWizard)
+- Helpers: `cli/helpers/` (UxHelper, ValidationHelper, ProviderHelper)
+- Pattern: All wizards `include UxHelper` (provides `pastel`, `prompt`, `spinner`, `table`, `box`)
 
 ## Quick Wins / Common Gotchas
 

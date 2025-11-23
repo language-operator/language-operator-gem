@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'language_operator/cli/commands/system'
+require 'language_operator/cli/commands/system/base'
 
-RSpec.describe LanguageOperator::CLI::Commands::System do
+RSpec.describe LanguageOperator::CLI::Commands::System::Base do
   describe '#synthesize' do
     let(:command) { described_class.new }
 
