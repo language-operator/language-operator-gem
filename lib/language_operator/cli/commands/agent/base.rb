@@ -64,9 +64,9 @@ module LanguageOperator
           option :workspace, type: :boolean, default: true, desc: 'Enable workspace for state persistence'
           option :dry_run, type: :boolean, default: false, desc: 'Preview what would be created without applying'
           option :wizard, type: :boolean, default: false, desc: 'Use interactive wizard mode'
-          def create(description = nil)
+          def create(_description = nil)
             # TODO: Extract full implementation from original agent.rb
-            puts "Agent create command - implementation pending"
+            puts 'Agent create command - implementation pending'
           end
 
           desc 'list', 'List all agents in current cluster'
@@ -74,22 +74,22 @@ module LanguageOperator
           option :all_clusters, type: :boolean, default: false, desc: 'Show agents across all clusters'
           def list
             # TODO: Extract full implementation from original agent.rb
-            puts "Agent list command - implementation pending"
+            puts 'Agent list command - implementation pending'
           end
 
           desc 'inspect NAME', 'Show detailed agent information'
           option :cluster, type: :string, desc: 'Override current cluster context'
-          def inspect(name)
+          def inspect(_name)
             # TODO: Extract full implementation from original agent.rb
-            puts "Agent inspect command - implementation pending"
+            puts 'Agent inspect command - implementation pending'
           end
 
           desc 'delete NAME', 'Delete an agent'
           option :cluster, type: :string, desc: 'Override current cluster context'
           option :force, type: :boolean, default: false, desc: 'Skip confirmation'
-          def delete(name)
+          def delete(_name)
             # TODO: Extract full implementation from original agent.rb
-            puts "Agent delete command - implementation pending"
+            puts 'Agent delete command - implementation pending'
           end
 
           private
@@ -110,14 +110,14 @@ module LanguageOperator
                                              available_resources: available_names)
           end
 
-          def display_agent_created(agent, cluster, _description, synthesis_result)
+          def display_agent_created(agent, _cluster, _description, _synthesis_result)
             agent_name = agent.dig('metadata', 'name')
 
             puts
             puts 'Next steps:'
-            puts "#{pastel.dim("aictl agent logs #{agent_name} -f")}"
-            puts "#{pastel.dim("aictl agent code #{agent_name}")}"
-            puts "#{pastel.dim("aictl agent inspect #{agent_name}")}"
+            puts pastel.dim("aictl agent logs #{agent_name} -f")
+            puts pastel.dim("aictl agent code #{agent_name}")
+            puts pastel.dim("aictl agent inspect #{agent_name}")
             puts
           end
 

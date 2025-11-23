@@ -40,7 +40,7 @@ module LanguageOperator
         private
 
         def show_welcome
-          logo(title: "create an agent")
+          logo(title: 'create an agent')
         end
 
         def ask_task_description

@@ -20,7 +20,7 @@ module LanguageOperator
               start_time = Time.now
               synthesis_data = {}
 
-              result = Formatters::ProgressFormatter.with_spinner('Synthesizing code from instructions') do
+              Formatters::ProgressFormatter.with_spinner('Synthesizing code from instructions') do
                 synthesis_result = nil
                 loop do
                   status = check_synthesis_status(k8s, agent_name, namespace, synthesis_data, start_time)
@@ -55,8 +55,6 @@ module LanguageOperator
                 Formatters::ProgressFormatter.warn("Could not watch synthesis: #{e.message}")
                 return { success: true } # Continue anyway
               end
-
-              result
             end
 
             # Check synthesis status for a specific agent

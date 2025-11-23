@@ -299,7 +299,11 @@ module LanguageOperator
         def list_box(title:, items:, empty_message: 'none', style: :simple, bullet: '•')
           # Convert K8s::Resource or hash-like objects to plain Hash/Array
           # Only call to_h if it's not already an Array (Arrays respond to to_h but it behaves differently)
-          items_normalized = items.is_a?(Array) ? items : (items.respond_to?(:to_h) ? items.to_h : items)
+          items_normalized = if items.is_a?(Array)
+                               items
+                             else
+                               (items.respond_to?(:to_h) ? items.to_h : items)
+                             end
 
           # Convert items to array if it's a hash (for key_value style)
           items_array = items_normalized.is_a?(Hash) ? items_normalized.to_a : items_normalized

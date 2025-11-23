@@ -1076,9 +1076,9 @@ module LanguageOperator
 
           puts
           puts 'Next steps:'
-          puts "#{pastel.dim("aictl agent logs #{agent_name} -f")}"
-          puts "#{pastel.dim("aictl agent code #{agent_name}")}"
-          puts "#{pastel.dim("aictl agent inspect #{agent_name}")}"
+          puts pastel.dim("aictl agent logs #{agent_name} -f")
+          puts pastel.dim("aictl agent code #{agent_name}")
+          puts pastel.dim("aictl agent inspect #{agent_name}")
           puts
         end
 

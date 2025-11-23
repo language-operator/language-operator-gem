@@ -144,3 +144,32 @@ ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional
 9. **Logger Constants:** Use `::Logger::WARN` not `Logger::WARN` to avoid namespace conflicts
 10. **WebMock Timing:** Stub HTTP calls before object initialization if constructor makes requests
 11. **Wizard Pattern:** Always use `UxHelper` for TTY components, never instantiate directly
+
+## Current Priorities (2025-11-23)
+
+**Issue Prioritization (by functional dependency):**
+
+**P0 - Blocks Core Functionality:**
+1. #45 (READY) - NoMethodError in Scheduler: breaks ALL scheduled agents
+2. #46 - Unsafe YAML.load_file: security + Ruby 3.1+ compatibility crash
+3. #44 - NoMethodError for missing mcp_servers: crashes minimal configs
+
+**P1 - Security Vulnerabilities:**
+4. #48 - Path traversal in Dsl.load_file
+5. #50 - Request body consumed without rewind
+
+**P2 - UX/Config Issues:**
+6. #47 - Silent type conversion failures
+7. #49 - CLI exits on invalid selection
+
+**P3 - Enhancements:**
+8. #51 - Include complete MCP tool schemas
+9. #39 - Update examples to task/main
+10. #40 - Performance optimization
+11. #41 - Comprehensive test suite
+
+**Rationale for #45 Priority:**
+- P0 blocker making scheduled agents completely unusable
+- Simple fix (remove `.cron` accessor or change AgentDefinition storage)
+- No dependencies on other issues
+- Enables testing/validation of scheduled agent functionality

@@ -203,7 +203,7 @@ module LanguageOperator
         option :force, type: :boolean, default: false, desc: 'Skip confirmation'
         def delete(name)
           handle_command_error('delete tool') do
-            tool = get_resource_or_exit('LanguageTool', name)
+            get_resource_or_exit('LanguageTool', name)
 
             # Check dependencies and get confirmation
             return unless check_dependencies_and_confirm('tool', name, force: options[:force])
