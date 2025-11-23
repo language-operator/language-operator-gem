@@ -154,13 +154,11 @@ ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional
 **Issue Prioritization (by functional dependency):**
 
 **P0 - Security Vulnerabilities (READY):**
-1. #48 - Path traversal in Dsl.load_file (🔴 READY - blocks safe file loading)
-2. #50 - Request body consumed without rewind (🔴 READY - breaks webhook handling)  
-3. #58 - TypeError in WebhookAuthenticator with malformed credentials (🔴 READY - security crash)
+1. #50 - Request body consumed without rewind (🔴 READY - breaks webhook handling)  
+2. #58 - TypeError in WebhookAuthenticator with malformed credentials (🔴 READY - security crash)
 
 **P1 - Core Functionality Errors:**
-4. #53 - Unhandled file access errors in Dsl.load_file and load_agent_file methods (depends on #48)
-5. #55 - Agent list command shows 'implementation pending' instead of listing agents
+3. #55 - Agent list command shows 'implementation pending' instead of listing agents
 
 **P2 - UX/Config Issues:**
 6. #47 - Silent type conversion failures
@@ -179,3 +177,5 @@ ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional
 - ✅ #44 - NoMethodError for missing mcp_servers (commit 0161788)
 - ✅ #54 - Confusing error message when AGENT_MODE is unset or empty (commit ffa97a4)
 - ✅ #56/#57 - Closed as duplicates of #47 (silent type conversion failures)
+- ✅ #48 - Path traversal vulnerability in Dsl.load_file methods (commit 2191a2d)
+- ✅ #53 - Unhandled file access errors in Dsl.load_file methods (commit 5c9001d)
