@@ -45,7 +45,11 @@ module LanguageOperator
         nil
       end
 
-      # Get the current namespace from the context
+      # Get the current namespace from the context.
+      # Returns the namespace from service account (in-cluster) or kubeconfig context.
+      # Gracefully handles all filesystem errors and returns nil on failure.
+      #
+      # @return [String, nil] the current namespace, or nil if unable to determine
       def current_namespace
         if @in_cluster
           # In-cluster: read from service account namespace
@@ -56,7 +60,7 @@ module LanguageOperator
           context_obj = config.context(context_name)
           context_obj&.namespace
         end
-      rescue Errno::ENOENT
+      rescue SystemCallError, IOError
         nil
       end
 
