@@ -26,7 +26,6 @@ module LanguageOperator
         @agent = agent
         @port = port || ENV.fetch('PORT', '8080').to_i
         @routes = {}
-        @executor = Executor.new(agent)
         @mcp_server = nil
         @mcp_transport = nil
 
@@ -307,8 +306,9 @@ module LanguageOperator
       # @param context [Hash] Request context
       # @return [Hash] Response data
       def handle_webhook(context)
-        # Execute agent with webhook context
-        result = @executor.execute_with_context(
+        # Create fresh executor per request to avoid shared state
+        executor = Executor.new(@agent)
+        result = executor.execute_with_context(
           instruction: 'Process incoming webhook request',
           context: context
         )

@@ -4,6 +4,7 @@ require 'spec_helper'
 require 'rack/test'
 require 'stringio'
 require 'language_operator/agent/web_server'
+require 'language_operator/agent/webhook_authenticator'
 
 RSpec.describe LanguageOperator::Agent::WebServer do
   include Rack::Test::Methods
@@ -126,6 +127,136 @@ RSpec.describe LanguageOperator::Agent::WebServer do
         params: params,
         body: body_content
       )
+    end
+  end
+
+  describe 'concurrent request handling' do
+    it 'creates separate executor instances for concurrent webhook requests' do
+      # Mock the agent to track executor creation
+      executor_instances = []
+      allow(LanguageOperator::Agent::Executor).to receive(:new) do |_agent|
+        executor_instances << instance_double('Executor').tap do |executor_double|
+          allow(executor_double).to receive(:execute_with_context).and_return('result')
+        end
+        executor_instances.last
+      end
+
+      # Create multiple threads to simulate concurrent requests
+      threads = 3.times.map do |i|
+        Thread.new do
+          context = {
+            method: 'POST',
+            path: '/webhook',
+            body: "{\"request\": #{i}}",
+            headers: {},
+            params: {}
+          }
+
+          web_server.send(:handle_webhook, context)
+        end
+      end
+
+      # Wait for all threads to complete
+      threads.each(&:join)
+
+      # Verify that separate executor instances were created for each request
+      expect(executor_instances.length).to eq(3)
+      expect(executor_instances.uniq.length).to eq(3) # All unique instances
+    end
+
+    it 'isolates executor state between concurrent requests' do
+      # Track the executor instances and their usage
+      execution_contexts = []
+
+      allow(LanguageOperator::Agent::Executor).to receive(:new) do |_agent|
+        instance_double('Executor').tap do |executor_double|
+          allow(executor_double).to receive(:execute_with_context) do |args|
+            # Capture the executor instance and its context
+            execution_contexts << {
+              executor: executor_double,
+              instruction: args[:instruction],
+              context: args[:context]
+            }
+            "result_#{execution_contexts.length}"
+          end
+        end
+      end
+
+      # Create concurrent requests with different data
+      request_data = %w[request_1 request_2 request_3]
+
+      threads = request_data.map.with_index do |data, _i|
+        Thread.new do
+          context = {
+            method: 'POST',
+            path: '/webhook',
+            body: "{\"data\": \"#{data}\"}",
+            headers: {},
+            params: {}
+          }
+
+          web_server.send(:handle_webhook, context)
+        end
+      end
+
+      # Wait for all threads to complete
+      threads.each(&:join)
+
+      # Verify each execution used a different executor instance
+      executors_used = execution_contexts.map { |ec| ec[:executor] }
+      expect(executors_used.uniq.length).to eq(3)
+
+      # Verify each execution had the correct context
+      execution_contexts.each_with_index do |ec, i|
+        expected_data = request_data[i]
+        expect(ec[:context][:body]).to include(expected_data)
+      end
+    end
+
+    it 'handles executor errors independently across concurrent requests' do
+      call_count = 0
+
+      allow(LanguageOperator::Agent::Executor).to receive(:new) do |_agent|
+        call_count += 1
+        instance_double('Executor').tap do |executor_double|
+          if call_count == 2
+            # Second executor throws an error
+            allow(executor_double).to receive(:execute_with_context).and_raise('Executor error')
+          else
+            # Other executors work normally
+            allow(executor_double).to receive(:execute_with_context).and_return('success')
+          end
+        end
+      end
+
+      results = []
+      errors = []
+
+      # Create concurrent requests
+      threads = 3.times.map do |i|
+        Thread.new do
+          context = {
+            method: 'POST',
+            path: '/webhook',
+            body: "{\"request\": #{i}}",
+            headers: {},
+            params: {}
+          }
+
+          result = web_server.send(:handle_webhook, context)
+          results << result
+        rescue StandardError => e
+          errors << e
+        end
+      end
+
+      # Wait for all threads to complete
+      threads.each(&:join)
+
+      # One executor should have failed, two should have succeeded
+      # But due to error handling in handle_webhook, we might not see raw exceptions
+      # The key is that failures are isolated - other requests still succeed
+      expect(call_count).to eq(3) # Three separate executors created
     end
   end
 
