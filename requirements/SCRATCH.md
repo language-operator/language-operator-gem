@@ -151,39 +151,42 @@ ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional
 
 ## Current Priorities (2025-11-23)
 
-**Issue Prioritization (by functional dependency):**
-
 **P0 - Critical Blockers (READY):**
 1. #63 - Syntax error in dsl.rb prevents gem loading (🔴 READY - gem completely broken)
-2. #64 - Command injection vulnerability in model test curl (🔴 READY - security critical)
+2. #50 - Request body consumed without rewind (🔴 READY - breaks webhook handling)
 
-**P1 - Security Vulnerabilities:**
-3. #50 - Request body consumed without rewind (breaks webhook handling)  
-4. #60 - Silent conversion of invalid env vars in Agent::Executor safety config
+**P1 - High Priority:**
+1. #69 - Thread-safety issue with shared Executor in WebServer
+2. #60 - Silent conversion of invalid env vars in Agent::Executor safety config
 
-**P2 - Performance/Resource Issues:**
-6. #62 - Memory leak and connection pool exhaustion in cluster list
-7. #61 - Resource leak in cluster list with multiple K8s clients
-8. #59 - Insufficient error handling in K8s current_namespace
+**P2 - Resource/Performance Issues:**
+1. #62 - Memory leak and connection pool exhaustion in cluster list
+2. #61 - Resource leak in cluster list with multiple K8s clients  
+3. #67 - Multiple K8s client instantiation without cleanup
+4. #59 - Insufficient error handling in K8s current_namespace
 
 **P3 - UX/Config Issues:**
-9. #47 - Silent type conversion failures
-10. #49 - CLI exits on invalid selection
-11. #55 - Agent list command shows 'implementation pending'
+1. #66 - Dead code and unreachable return statement in QuickstartWizard
+2. #47 - Silent type conversion failures
+3. #49 - CLI exits on invalid selection
+4. #55 - Agent list command shows 'implementation pending'
 
 **P4 - Enhancements:**
-12. #51 - Include complete MCP tool schemas
-13. #39 - Update examples to task/main
-14. #40 - Performance optimization
-15. #41 - Comprehensive test suite
+1. #51 - Include complete MCP tool schemas
+2. #39 - Update examples to task/main
+3. #40 - Performance optimization
+4. #41 - Comprehensive test suite
 
 **Recently Completed:**
-- ✅ #58 - TypeError in WebhookAuthenticator with malformed credentials (commit 5f46d7f - false positive, added comprehensive test coverage)
-- ✅ #46 - Unsafe YAML.load_file security vulnerability (commit 89c58f6)
-- ✅ #45 - NoMethodError in Scheduler (fixed .cron accessor bug)
+- ✅ #68 - Critical sandbox bypass vulnerability in SafeExecutor (commit 6f65156 - security critical, replaced dangerous const_missing fallback with explicit allowlist)
+- ✅ #65 - Command injection vulnerability in model test curl (closed as duplicate, already fixed in commit 84b056b)
+- ✅ #64 - Command injection vulnerability in model test curl (commit 84b056b - security critical, replaced dangerous echo+pipe with secure tempfile approach)
+- ✅ #58 - TypeError in WebhookAuthenticator with malformed credentials
+- ✅ #46 - Unsafe YAML.load_file security vulnerability
+- ✅ #45 - NoMethodError in Scheduler (.cron accessor bug)
 - ✅ #52 - CLI wizard consolidation under cli/wizards/
-- ✅ #44 - NoMethodError for missing mcp_servers (commit 0161788)
-- ✅ #54 - Confusing error message when AGENT_MODE is unset or empty (commit ffa97a4)
-- ✅ #56/#57 - Closed as duplicates of #47 (silent type conversion failures)
-- ✅ #48 - Path traversal vulnerability in Dsl.load_file methods (commit 2191a2d)
-- ✅ #53 - Unhandled file access errors in Dsl.load_file methods (commit 5c9001d)
+- ✅ #44 - NoMethodError for missing mcp_servers
+- ✅ #54 - Confusing error message when AGENT_MODE is unset or empty
+- ✅ #56/#57 - Closed as duplicates of #47
+- ✅ #48 - Path traversal vulnerability in Dsl.load_file methods
+- ✅ #53 - Unhandled file access errors in Dsl.load_file methods
