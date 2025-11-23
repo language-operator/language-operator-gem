@@ -235,9 +235,11 @@ module LanguageOperator
       # @param request [Rack::Request] The request
       # @return [Hash] Request context
       def build_request_context(request)
-        # Read body, handling nil case
+        # Read body, handling nil case and rewinding for subsequent reads
         body_content = if request.body
-                         request.body.read
+                         content = request.body.read
+                         request.body.rewind # Reset for subsequent reads by middleware/handlers
+                         content
                        else
                          ''
                        end
