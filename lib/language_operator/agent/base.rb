@@ -38,7 +38,7 @@ module LanguageOperator
         logger.info "OpenTelemetry #{otel_enabled ? 'enabled' : 'disabled'}"
 
         @workspace_path = ENV.fetch('WORKSPACE_PATH', '/workspace')
-        @mode = ENV.fetch('AGENT_MODE', 'autonomous')
+        @mode = agent_mode_with_default
         @executor = nil
       end
 
@@ -133,6 +133,16 @@ module LanguageOperator
         logger.info('OpenTelemetry spans flushed to OTLP endpoint')
       rescue StandardError => e
         logger.warn("Failed to flush telemetry: #{e.message}")
+      end
+
+      # Get AGENT_MODE with fallback to default, handling empty/whitespace values
+      #
+      # @return [String] The agent mode to use
+      def agent_mode_with_default
+        mode = ENV.fetch('AGENT_MODE', nil)
+        return 'autonomous' if mode.nil? || mode.strip.empty?
+
+        mode
       end
     end
   end

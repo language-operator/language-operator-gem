@@ -33,6 +33,12 @@ module LanguageOperator
 
       mode_string = mode_string.to_s.downcase.strip
 
+      # Handle empty/whitespace mode strings with specific error message
+      if mode_string.empty?
+        raise ArgumentError, 'AGENT_MODE environment variable is required but is unset or empty. ' \
+                             "Please set AGENT_MODE to one of: #{ALL_MODE_ALIASES.join(', ')}"
+      end
+
       EXECUTION_MODES.each do |primary, aliases|
         return primary.to_s if aliases.include?(mode_string)
       end

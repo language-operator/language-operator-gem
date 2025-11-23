@@ -154,23 +154,25 @@ ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional
 **Issue Prioritization (by functional dependency):**
 
 **P0 - Blocks Core Functionality:**
-1. #44 - NoMethodError for missing mcp_servers: crashes minimal configs
+1. #54 - Confusing error message when AGENT_MODE is unset or empty [READY] 🔥
+2. #53 - Unhandled file access errors in Dsl.load_file and load_agent_file methods
 
 **P1 - Security Vulnerabilities:**
-2. #48 - Path traversal in Dsl.load_file
-3. #50 - Request body consumed without rewind
+3. #48 - Path traversal in Dsl.load_file
+4. #50 - Request body consumed without rewind
 
 **P2 - UX/Config Issues:**
-4. #47 - Silent type conversion failures
-5. #49 - CLI exits on invalid selection
+5. #47 - Silent type conversion failures
+6. #49 - CLI exits on invalid selection
 
 **P3 - Enhancements:**
-6. #51 - Include complete MCP tool schemas
-7. #39 - Update examples to task/main
-8. #40 - Performance optimization
-9. #41 - Comprehensive test suite
+7. #51 - Include complete MCP tool schemas
+8. #39 - Update examples to task/main
+9. #40 - Performance optimization
+10. #41 - Comprehensive test suite
 
 **Recently Completed:**
 - ✅ #46 - Unsafe YAML.load_file security vulnerability (commit 89c58f6)
 - ✅ #45 - NoMethodError in Scheduler (fixed .cron accessor bug)
 - ✅ #52 - CLI wizard consolidation under cli/wizards/
+- ✅ #44 - NoMethodError for missing mcp_servers (resolved in recent fixes)
