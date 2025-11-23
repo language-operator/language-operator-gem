@@ -17,6 +17,7 @@ require_relative 'helpers/cluster_llm_client'
 require_relative 'helpers/code_parser'
 require_relative 'helpers/synthesis_watcher'
 require_relative 'helpers/optimization_helper'
+require_relative '../../helpers/cluster_context'
 
 module LanguageOperator
   module CLI
@@ -73,8 +74,12 @@ module LanguageOperator
           option :cluster, type: :string, desc: 'Override current cluster context'
           option :all_clusters, type: :boolean, default: false, desc: 'Show agents across all clusters'
           def list
-            # TODO: Extract full implementation from original agent.rb
-            puts 'Agent list command - implementation pending'
+            if options[:all_clusters]
+              list_all_clusters
+            else
+              cluster = options[:cluster]
+              list_cluster_agents(cluster)
+            end
           end
 
           desc 'inspect NAME', 'Show detailed agent information'
@@ -247,7 +252,7 @@ module LanguageOperator
           end
 
           def list_cluster_agents(cluster)
-            ctx = Helpers::ClusterContext.from_options(cluster: cluster)
+            ctx = CLI::Helpers::ClusterContext.from_options({ cluster: cluster })
 
             Formatters::ProgressFormatter.info("Agents in cluster '#{cluster}'")
 
@@ -286,7 +291,7 @@ module LanguageOperator
             all_agents = []
 
             clusters.each do |cluster|
-              ctx = Helpers::ClusterContext.from_options(cluster: cluster[:name])
+              ctx = CLI::Helpers::ClusterContext.from_options({ cluster: cluster[:name] })
 
               agents = ctx.client.list_resources(RESOURCE_AGENT, namespace: ctx.namespace)
 
