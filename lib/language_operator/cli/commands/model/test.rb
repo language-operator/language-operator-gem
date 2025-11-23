@@ -3,6 +3,7 @@
 require 'json'
 require 'English'
 require 'shellwords'
+require 'tempfile'
 
 module LanguageOperator
   module CLI
@@ -100,13 +101,24 @@ module LanguageOperator
                                             max_tokens: 10
                                           })
 
-                  # Build the curl command using echo to pipe JSON
-                  # This avoids shell escaping issues with -d flag
-                  curl_command = "echo '#{payload}' | curl -s -X POST http://localhost:4000/v1/chat/completions " \
-                                 "-H 'Content-Type: application/json' -d @- --max-time #{timeout}"
+                  # Create temporary file to avoid command injection
+                  temp_file = nil
+                  begin
+                    temp_file = Tempfile.new(['model_test_payload', '.json'])
+                    temp_file.write(payload)
+                    temp_file.close
 
-                  # Execute the curl command inside the pod
-                  result = execute_in_pod(pod_name, curl_command)
+                    # Build secure curl command using temp file
+                    # This eliminates shell injection vulnerability
+                    curl_command = 'curl -s -X POST http://localhost:4000/v1/chat/completions ' \
+                                   "-H 'Content-Type: application/json' -d @#{temp_file.path} --max-time #{timeout.to_i}"
+
+                    # Execute the curl command inside the pod
+                    result = execute_in_pod(pod_name, curl_command)
+                  ensure
+                    # Clean up temporary file
+                    temp_file&.unlink
+                  end
 
                   # Parse the response
                   response = JSON.parse(result)
