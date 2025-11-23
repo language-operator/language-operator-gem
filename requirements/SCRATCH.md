@@ -2,6 +2,10 @@
 
 Living document of critical insights, patterns, and gotchas for this codebase.
 
+## Project
+
+This is the Gem component of language-operator, an operator for Kubernetes that orchestrates agentic workloads.  Language clusters are manipulated by the `aictl` command, which you can run from source via `bundle exec bin/aictl`.
+
 ## DSL Architecture (v1)
 
 **Core Model:** Task/Main (imperative) - replaces v0 workflow/step (declarative, deprecated)
@@ -150,26 +154,23 @@ ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional
 **Issue Prioritization (by functional dependency):**
 
 **P0 - Blocks Core Functionality:**
-1. #45 (READY) - NoMethodError in Scheduler: breaks ALL scheduled agents
-2. #46 - Unsafe YAML.load_file: security + Ruby 3.1+ compatibility crash
-3. #44 - NoMethodError for missing mcp_servers: crashes minimal configs
+1. #44 - NoMethodError for missing mcp_servers: crashes minimal configs
 
 **P1 - Security Vulnerabilities:**
-4. #48 - Path traversal in Dsl.load_file
-5. #50 - Request body consumed without rewind
+2. #48 - Path traversal in Dsl.load_file
+3. #50 - Request body consumed without rewind
 
 **P2 - UX/Config Issues:**
-6. #47 - Silent type conversion failures
-7. #49 - CLI exits on invalid selection
+4. #47 - Silent type conversion failures
+5. #49 - CLI exits on invalid selection
 
 **P3 - Enhancements:**
-8. #51 - Include complete MCP tool schemas
-9. #39 - Update examples to task/main
-10. #40 - Performance optimization
-11. #41 - Comprehensive test suite
+6. #51 - Include complete MCP tool schemas
+7. #39 - Update examples to task/main
+8. #40 - Performance optimization
+9. #41 - Comprehensive test suite
 
-**Rationale for #45 Priority:**
-- P0 blocker making scheduled agents completely unusable
-- Simple fix (remove `.cron` accessor or change AgentDefinition storage)
-- No dependencies on other issues
-- Enables testing/validation of scheduled agent functionality
+**Recently Completed:**
+- ✅ #46 - Unsafe YAML.load_file security vulnerability (commit 89c58f6)
+- ✅ #45 - NoMethodError in Scheduler (fixed .cron accessor bug)
+- ✅ #52 - CLI wizard consolidation under cli/wizards/

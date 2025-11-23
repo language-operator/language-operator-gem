@@ -24,7 +24,10 @@ module LanguageOperator
       # @return [Hash] Configuration hash
       # @raise [Errno::ENOENT] If file doesn't exist
       def self.load(path)
-        YAML.safe_load_file(path, permitted_classes: [Symbol], aliases: true)
+        config = YAML.safe_load_file(path, permitted_classes: [Symbol], aliases: true)
+        # Normalize structure to ensure defaults
+        config['mcp_servers'] ||= []
+        config
       end
 
       # Load configuration from environment variables
