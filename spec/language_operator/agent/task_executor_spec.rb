@@ -81,9 +81,10 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
         nested_task = LanguageOperator::Dsl::TaskDefinition.new(:nested).tap do |t|
           t.inputs({})
           t.outputs({ sum: 'number' })
-          t.execute do |_inputs, context|
-            # Call another task via context
-            result = context.execute_task(:calculate_total, inputs: { items: [10, 20, 30] })
+          t.execute do |_inputs|
+            # Call another task via self (the task executor context)
+            # When context is provided, instance_exec makes it available as self
+            result = execute_task(:calculate_total, inputs: { items: [10, 20, 30] })
             { sum: result[:total] }
           end
         end
