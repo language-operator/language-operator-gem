@@ -2,11 +2,18 @@
 
 require 'openssl'
 require 'base64'
+require_relative '../logger'
 
 module LanguageOperator
   module Agent
     # Executes webhook authentication checks
     class WebhookAuthenticator
+      @logger = LanguageOperator::Logger.new(component: 'WebhookAuth')
+
+      class << self
+        attr_reader :logger
+      end
+
       # Authenticate a webhook request
       #
       # @param authentication [LanguageOperator::Dsl::WebhookAuthentication] Authentication definition
@@ -88,19 +95,46 @@ module LanguageOperator
         expected_password = config[:password]
 
         auth_header = get_header(context, 'Authorization')
-        return false unless auth_header
+        unless auth_header
+          logger.debug('Basic auth failed: missing Authorization header')
+          return false
+        end
 
         # Extract credentials from "Basic <base64>"
         match = auth_header.match(/^Basic\s+(.+)$/i)
-        return false unless match
+        unless match
+          logger.debug('Basic auth failed: invalid Authorization header format')
+          return false
+        end
 
         begin
           credentials = Base64.decode64(match[1])
           username, password = credentials.split(':', 2)
 
-          secure_compare(username, expected_username) &&
-            secure_compare(password, expected_password)
-        rescue StandardError
+          # Log debugging info for malformed credentials (no colon)
+          if password.nil?
+            logger.debug('Basic auth failed: malformed credentials (no colon separator)',
+                         credentials_length: credentials.length,
+                         contains_colon: credentials.include?(':'))
+            return false
+          end
+
+          username_valid = secure_compare(username, expected_username)
+          password_valid = secure_compare(password, expected_password)
+
+          success = username_valid && password_valid
+
+          unless success
+            logger.debug('Basic auth failed: credential mismatch',
+                         username_valid: username_valid,
+                         password_valid: password_valid)
+          end
+
+          success
+        rescue StandardError => e
+          logger.debug('Basic auth failed: exception during processing',
+                       error: e.class.name,
+                       message: e.message)
           false
         end
       end
