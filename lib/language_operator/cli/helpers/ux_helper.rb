@@ -131,6 +131,189 @@ module LanguageOperator
 
           TTY::Box.frame(message, **options)
         end
+
+        def logo(title: nil)
+          puts
+          puts "#{pastel.bold.green('LANGUAGE OPERATOR')} v#{pastel.bold(LanguageOperator::VERSION)}"
+          puts pastel.dim("#{pastel.bold('↪')} #{title}")
+          puts
+        end
+
+        # Creates a highlighted box with a colored title bar and content rows
+        #
+        # @param title [String] The title for the box
+        # @param rows [Hash] Content rows where key is the label and value is the content
+        # @param title_char [String] Character to use for the title bar (default: '❚')
+        # @param color [Symbol] Color for the title and character (default: :yellow)
+        # @return [String] The formatted box output
+        # @example Simple usage
+        #   highlighted_box(
+        #     title: 'Model Details',
+        #     rows: {
+        #       'Name' => 'gpt-4',
+        #       'Provider' => 'OpenAI',
+        #       'Status' => 'active'
+        #     }
+        #   )
+        #   # Output:
+        #   # ❚ Model Details:
+        #   # ❚ Name:     gpt-4
+        #   # ❚ Provider: OpenAI
+        #   # ❚ Status:   active
+        #
+        # @example With custom color
+        #   highlighted_box(
+        #     title: 'Error Details',
+        #     rows: { 'Code' => '500', 'Message' => 'Server error' },
+        #     color: :red
+        #   )
+        def highlighted_box(title:, rows:, title_char: '❚', color: :yellow)
+          output = []
+          output << pastel.bold.public_send(color, "#{title_char} #{title}")
+
+          # Find max label width for alignment
+          max_label_width = rows.keys.map(&:length).max || 0
+
+          rows.each do |label, value|
+            next if value.nil? || (value.respond_to?(:empty?) && value.empty?)
+
+            padded_label = label.ljust(max_label_width)
+            output << "#{pastel.dim.public_send(color, title_char)} #{padded_label}: #{value}"
+          end
+
+          puts output.join("\n")
+        end
+
+        # Displays a formatted list with various styles
+        #
+        # @param title [String] The title/header for the list
+        # @param items [Array, Hash] The items to display
+        # @param empty_message [String] Message to show when list is empty (default: '(none)')
+        # @param style [Symbol] Display style (:simple, :detailed, :conditions, :key_value)
+        # @param bullet [String] Bullet character for list items (default: '-')
+        # @return [void]
+        # @example Simple list
+        #   list_box(
+        #     title: 'Models',
+        #     items: ['gpt-4', 'claude-3']
+        #   )
+        #   # Output:
+        #   # Models (2):
+        #   #   - gpt-4
+        #   #   - claude-3
+        #
+        # @example Simple list with custom bullet
+        #   list_box(
+        #     title: 'Models',
+        #     items: ['gpt-4', 'claude-3'],
+        #     bullet: '•'
+        #   )
+        #   # Output:
+        #   # Models (2):
+        #   #   • gpt-4
+        #   #   • claude-3
+        #
+        # @example Detailed list with metadata
+        #   list_box(
+        #     title: 'Agents',
+        #     items: [
+        #       { name: 'bash', status: 'Running' },
+        #       { name: 'web', status: 'Stopped' }
+        #     ],
+        #     style: :detailed
+        #   )
+        #   # Output:
+        #   # Agents (2):
+        #   #   - bash (Running)
+        #   #   - web (Stopped)
+        #
+        # @example Conditions list
+        #   list_box(
+        #     title: 'Conditions',
+        #     items: [
+        #       { type: 'Ready', status: 'True', message: 'Agent is ready' },
+        #       { type: 'Validated', status: 'False', message: 'Validation failed' }
+        #     ],
+        #     style: :conditions
+        #   )
+        #   # Output:
+        #   # Conditions (2):
+        #   #   ✓ Ready: Agent is ready
+        #   #   ✗ Validated: Validation failed
+        #
+        # @example Key-value pairs
+        #   list_box(
+        #     title: 'Labels',
+        #     items: { 'app' => 'web', 'env' => 'prod' },
+        #     style: :key_value
+        #   )
+        #   # Output:
+        #   # Labels:
+        #   #   app: web
+        #   #   env: prod
+        def list_box(title:, items:, empty_message: 'none', style: :simple, bullet: '•')
+          # Convert K8s::Resource or hash-like objects to plain Hash/Array
+          # Only call to_h if it's not already an Array (Arrays respond to to_h but it behaves differently)
+          items_normalized = items.is_a?(Array) ? items : (items.respond_to?(:to_h) ? items.to_h : items)
+
+          # Convert items to array if it's a hash (for key_value style)
+          items_array = items_normalized.is_a?(Hash) ? items_normalized.to_a : items_normalized
+          count = items_array.length
+
+          # Print title with count
+          puts "#{pastel.white.bold(title)} #{pastel.dim("(#{count})")}"
+
+          # Handle empty lists
+          if items_array.empty?
+            puts pastel.dim(empty_message)
+            return
+          end
+
+          # Render based on style
+          case style
+          when :simple
+            items_array.each do |item|
+              puts "#{bullet} #{item}"
+            end
+          when :detailed
+            items_array.each do |item|
+              name = item[:name] || item['name']
+              meta = item[:meta] || item['meta'] || item[:status] || item['status']
+              if meta
+                puts "#{bullet} #{name} (#{meta})"
+              else
+                puts "#{bullet} #{name}"
+              end
+            end
+          when :conditions
+            items_array.each do |condition|
+              status = condition[:status] || condition['status']
+              type = condition[:type] || condition['type']
+              message = condition[:message] || condition['message'] || condition[:reason] || condition['reason']
+              icon = status == 'True' ? pastel.green('✓') : pastel.red('✗')
+              puts "#{icon} #{type}: #{message}"
+            end
+          when :key_value
+            items_array.each do |key, value|
+              puts "#{key}: #{value}"
+            end
+          end
+        end
+
+        # Confirm deletion with user in a clean, simple format
+        #
+        # @param resource_type [String] Type of resource being deleted (e.g., 'agent', 'model')
+        # @param name [String] Resource name
+        # @param cluster [String] Cluster name
+        # @return [Boolean] True if user confirms, false otherwise
+        # @example
+        #   confirm_deletion('agent', 'bash', 'production')
+        #   # Output: Are you sure you want to delete agent bash from cluster production? (y/N)
+        def confirm_deletion(resource_type, name, cluster)
+          message = "Are you sure you want to delete #{resource_type} #{pastel.red.bold(name)} " \
+                    "from cluster #{pastel.red.bold(cluster)}?"
+          prompt.yes?(message)
+        end
       end
     end
   end

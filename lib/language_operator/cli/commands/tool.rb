@@ -73,39 +73,42 @@ module LanguageOperator
           handle_command_error('inspect tool') do
             tool = get_resource_or_exit('LanguageTool', name)
 
-            puts "Tool: #{name}"
-            puts "  Cluster:   #{ctx.name}"
-            puts "  Namespace: #{ctx.namespace}"
+            # Main tool information
             puts
-
-            # Status
-            status = tool.dig('status', 'phase') || 'Unknown'
-            puts "Status: #{status}"
-            puts
-
-            # Spec details
-            puts 'Configuration:'
-            puts "  Type:            #{tool.dig('spec', 'type') || 'mcp'}"
-            puts "  Image:           #{tool.dig('spec', 'image')}"
-            puts "  Deployment Mode: #{tool.dig('spec', 'deploymentMode') || 'sidecar'}"
-            puts "  Port:            #{tool.dig('spec', 'port') || 8080}"
-            puts "  Replicas:        #{tool.dig('spec', 'replicas') || 1}"
+            highlighted_box(
+              title: 'LanguageTool',
+              rows: {
+                'Name' => pastel.white.bold(name),
+                'Namespace' => ctx.namespace,
+                'Cluster' => ctx.name,
+                'Status' => tool.dig('status', 'phase') || 'Unknown',
+                'Type' => tool.dig('spec', 'type') || 'mcp',
+                'Image' => tool.dig('spec', 'image'),
+                'Deployment Mode' => tool.dig('spec', 'deploymentMode') || 'sidecar',
+                'Port' => tool.dig('spec', 'port') || 8080,
+                'Replicas' => tool.dig('spec', 'replicas') || 1
+              }
+            )
             puts
 
             # Resources
             resources = tool.dig('spec', 'resources')
             if resources
-              puts 'Resources:'
-              if resources['requests']
-                puts '  Requests:'
-                puts "    CPU:    #{resources['requests']['cpu']}"
-                puts "    Memory: #{resources['requests']['memory']}"
-              end
-              if resources['limits']
-                puts '  Limits:'
-                puts "    CPU:    #{resources['limits']['cpu']}"
-                puts "    Memory: #{resources['limits']['memory']}"
-              end
+              resource_rows = {}
+              requests = resources['requests'] || {}
+              limits = resources['limits'] || {}
+
+              # CPU
+              cpu_request = requests['cpu']
+              cpu_limit = limits['cpu']
+              resource_rows['CPU'] = [cpu_request, cpu_limit].compact.join(' / ') if cpu_request || cpu_limit
+
+              # Memory
+              memory_request = requests['memory']
+              memory_limit = limits['memory']
+              resource_rows['Memory'] = [memory_request, memory_limit].compact.join(' / ') if memory_request || memory_limit
+
+              highlighted_box(title: 'Resources (Request/Limit)', rows: resource_rows, color: :cyan) unless resource_rows.empty?
               puts
             end
 
@@ -178,26 +181,20 @@ module LanguageOperator
               tools = agent.dig('spec', 'tools') || []
               tools.include?(name)
             end
+            agent_names = agents_using.map { |agent| agent.dig('metadata', 'name') }
 
-            if agents_using.any?
-              puts "Agents using this tool (#{agents_using.count}):"
-              agents_using.each do |agent|
-                puts "  - #{agent.dig('metadata', 'name')}"
-              end
-            else
-              puts 'No agents using this tool'
-            end
+            list_box(
+              title: 'Agents using this tool',
+              items: agent_names
+            )
 
             puts
-            puts 'Labels:'
             labels = tool.dig('metadata', 'labels') || {}
-            if labels.empty?
-              puts '  (none)'
-            else
-              labels.each do |key, value|
-                puts "  #{key}: #{value}"
-              end
-            end
+            list_box(
+              title: 'Labels',
+              items: labels,
+              style: :key_value
+            )
           end
         end
 
@@ -212,21 +209,14 @@ module LanguageOperator
             return unless check_dependencies_and_confirm('tool', name, force: options[:force])
 
             # Confirm deletion unless --force
-            if confirm_deletion(
-              'tool', name, ctx.name,
-              details: {
-                'Type' => tool.dig('spec', 'type'),
-                'Status' => tool.dig('status', 'phase')
-              },
-              force: options[:force]
-            )
-              # Delete tool
-              Formatters::ProgressFormatter.with_spinner("Deleting tool '#{name}'") do
-                ctx.client.delete_resource('LanguageTool', name, ctx.namespace)
-              end
+            return unless confirm_deletion_with_force('tool', name, ctx.name, force: options[:force])
 
-              Formatters::ProgressFormatter.success("Tool '#{name}' deleted successfully")
+            # Delete tool
+            Formatters::ProgressFormatter.with_spinner("Deleting tool '#{name}'") do
+              ctx.client.delete_resource('LanguageTool', name, ctx.namespace)
             end
+
+            Formatters::ProgressFormatter.success("Tool '#{name}' deleted successfully")
           end
         end
 

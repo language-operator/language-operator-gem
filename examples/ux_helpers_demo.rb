@@ -20,6 +20,8 @@ class UxDemo
     demo_spinner
     demo_table
     demo_box
+    demo_highlighted_box
+    demo_list_box
     demo_prompt if ARGV.include?('--interactive')
   end
 
@@ -125,8 +127,143 @@ class UxDemo
     puts "\n"
   end
 
+  def demo_highlighted_box
+    puts pastel.bold('5. Highlighted Boxes')
+    puts pastel.dim('-' * 40)
+    puts "\n"
+
+    # Model details
+    highlighted_box(
+      title: 'LanguageModel Details',
+      rows: {
+        'Name' => 'gpt-4-turbo',
+        'Provider' => 'OpenAI',
+        'Model' => 'gpt-4-turbo-preview',
+        'Cluster' => 'production'
+      }
+    )
+    puts "\n"
+
+    # Agent configuration with nil values (skipped)
+    highlighted_box(
+      title: 'Agent Configuration',
+      rows: {
+        'Name' => 'web-scraper',
+        'Mode' => 'scheduled',
+        'Schedule' => '0 */6 * * *',
+        'Endpoint' => nil, # This will be skipped
+        'Replicas' => '3',
+        'Status' => pastel.green('Running')
+      }
+    )
+    puts "\n"
+
+    # Resource summary with custom character
+    highlighted_box(
+      title: 'Resource Summary',
+      rows: {
+        'Created' => '5 agents',
+        'Updated' => '2 models',
+        'Deleted' => '0 personas'
+      },
+      title_char: '▶'
+    )
+    puts "\n"
+
+    # Deployment status
+    highlighted_box(
+      title: 'Deployment Status',
+      rows: {
+        'Cluster' => 'production-us-west',
+        'Namespace' => 'language-operator',
+        'Available' => pastel.green('12/12'),
+        'Ready' => pastel.green('12/12'),
+        'Up-to-date' => pastel.green('12/12')
+      }
+    )
+    puts "\n"
+
+    # Custom colors
+    highlighted_box(
+      title: 'Success',
+      rows: {
+        'Operation' => 'Model created',
+        'Status' => 'Completed'
+      },
+      color: :green
+    )
+    puts "\n"
+
+    highlighted_box(
+      title: 'Error',
+      rows: {
+        'Code' => '500',
+        'Message' => 'Connection failed'
+      },
+      color: :red
+    )
+    puts "\n"
+  end
+
+  def demo_list_box
+    puts pastel.bold('6. List Boxes')
+    puts pastel.dim('-' * 40)
+    puts "\n"
+
+    # Simple list
+    list_box(
+      title: 'Models',
+      items: ['gpt-4-turbo', 'claude-3-opus', 'llama-3-70b']
+    )
+    puts "\n"
+
+    # Detailed list
+    list_box(
+      title: 'Agents',
+      items: [
+        { name: 'bash-agent', status: pastel.green('Running') },
+        { name: 'web-scraper', status: pastel.yellow('Pending') },
+        { name: 'data-processor', status: pastel.red('Stopped') }
+      ],
+      style: :detailed
+    )
+    puts "\n"
+
+    # Conditions style
+    list_box(
+      title: 'Conditions',
+      items: [
+        { type: 'Ready', status: 'True', message: 'Agent is ready' },
+        { type: 'Synthesized', status: 'True', message: 'Code synthesized successfully' },
+        { type: 'Validated', status: 'False', message: 'Validation pending' }
+      ],
+      style: :conditions
+    )
+    puts "\n"
+
+    # Key-value pairs
+    list_box(
+      title: 'Labels',
+      items: {
+        'app' => 'language-operator',
+        'env' => 'production',
+        'version' => 'v1.0.0'
+      },
+      style: :key_value
+    )
+    puts "\n"
+
+    # Empty list
+    list_box(
+      title: 'Personas',
+      items: [],
+      empty_message: 'No personas configured'
+    )
+    puts "\n"
+  end
+
   def demo_prompt
-    puts pastel.bold('5. Interactive Prompts')
+    puts pastel.bold('7. Interactive Prompts')
     puts pastel.dim('-' * 40)
 
     name = prompt.ask('What is your name?')
@@ -140,7 +277,7 @@ class UxDemo
 
     choice = prompt.select(
       'Which helper is your favorite?',
-      %w[pastel prompt spinner table box]
+      %w[pastel prompt spinner table box highlighted_box list_box]
     )
     puts "  You selected: #{pastel.bold(choice)}"
 

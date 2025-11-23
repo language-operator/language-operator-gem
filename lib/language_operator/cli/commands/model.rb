@@ -135,38 +135,39 @@ module LanguageOperator
           handle_command_error('inspect model') do
             model = get_resource_or_exit('LanguageModel', name)
 
-            puts "Model: #{name}"
-            puts "  Cluster:   #{ctx.name}"
-            puts "  Namespace: #{ctx.namespace}"
-            puts "  Provider:  #{model.dig('spec', 'provider')}"
-            puts "  Model:     #{model.dig('spec', 'modelName')}"
-            puts "  Endpoint:  #{model.dig('spec', 'endpoint')}" if model.dig('spec', 'endpoint')
-            puts "  Status:    #{model.dig('status', 'phase') || 'Unknown'}"
+            puts
+            highlighted_box(
+              title: 'LanguageModel',
+              rows: {
+                'Name' => pastel.white.bold(name),
+                'Namespace' => ctx.namespace,
+                'Cluster' => ctx.name,
+                'Status' => model.dig('status', 'phase') || 'Unknown',
+                'Provider' => model.dig('spec', 'provider'),
+                'Model' => model.dig('spec', 'modelName'),
+                'Endpoint' => model.dig('spec', 'endpoint')
+              }
+            )
             puts
 
             # Get agents using this model
             agents = ctx.client.list_resources('LanguageAgent', namespace: ctx.namespace)
             agents_using = Helpers::ResourceDependencyChecker.agents_using_model(agents, name)
+            agent_names = agents_using.map { |agent| agent.dig('metadata', 'name') }
 
-            if agents_using.any?
-              puts "Agents using this model (#{agents_using.count}):"
-              agents_using.each do |agent|
-                puts "  - #{agent.dig('metadata', 'name')}"
-              end
-            else
-              puts 'No agents using this model'
-            end
+            list_box(
+              title: 'Agents using this model',
+              items: agent_names,
+              empty_message: 'No agents using this model'
+            )
 
             puts
-            puts 'Labels:'
             labels = model.dig('metadata', 'labels') || {}
-            if labels.empty?
-              puts '  (none)'
-            else
-              labels.each do |key, value|
-                puts "  #{key}: #{value}"
-              end
-            end
+            list_box(
+              title: 'Labels',
+              items: labels,
+              style: :key_value
+            )
           end
         end
 
@@ -181,22 +182,14 @@ module LanguageOperator
             return unless check_dependencies_and_confirm('model', name, force: options[:force])
 
             # Confirm deletion unless --force
-            if confirm_deletion(
-              'model', name, ctx.name,
-              details: {
-                'Provider' => model.dig('spec', 'provider'),
-                'Model' => model.dig('spec', 'modelName'),
-                'Status' => model.dig('status', 'phase')
-              },
-              force: options[:force]
-            )
-              # Delete model
-              Formatters::ProgressFormatter.with_spinner("Deleting model '#{name}'") do
-                ctx.client.delete_resource('LanguageModel', name, ctx.namespace)
-              end
+            return unless confirm_deletion_with_force('model', name, ctx.name, force: options[:force])
 
-              Formatters::ProgressFormatter.success("Model '#{name}' deleted successfully")
+            # Delete model
+            Formatters::ProgressFormatter.with_spinner("Deleting model '#{name}'") do
+              ctx.client.delete_resource('LanguageModel', name, ctx.namespace)
             end
+
+            Formatters::ProgressFormatter.success("Model '#{name}' deleted successfully")
           end
         end
 

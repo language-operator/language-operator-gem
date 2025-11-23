@@ -64,21 +64,16 @@ module LanguageOperator
           exit 1
         end
 
-        # Confirm resource deletion with user
+        # Confirm resource deletion with user (delegates to UxHelper)
         # @param resource_type [String] Type of resource being deleted
         # @param name [String] Resource name
         # @param cluster [String] Cluster name
-        # @param details [Hash] Additional details to display
         # @param force [Boolean] Skip confirmation if true
         # @return [Boolean] True if deletion should proceed
-        def confirm_deletion(resource_type, name, cluster, details: {}, force: false)
+        def confirm_deletion_with_force(resource_type, name, cluster, force: false)
           return true if force
 
-          puts "This will delete #{resource_type} '#{name}' from cluster '#{cluster}':"
-          details.each { |key, value| puts "  #{key}: #{value}" }
-          puts
-
-          Helpers::UserPrompts.confirm('Are you sure?')
+          confirm_deletion(resource_type, name, cluster)
         end
 
         # Check if resource has dependencies and confirm deletion

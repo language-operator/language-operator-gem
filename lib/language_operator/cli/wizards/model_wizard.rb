@@ -36,27 +36,22 @@ module LanguageOperator
           show_welcome
 
           # Step 1: Provider selection
-          show_step(1, 5, 'Provider')
           provider_info = select_provider
           return false unless provider_info
 
           # Step 2: Get credentials
-          show_step(2, 5, 'Credentials')
           credentials = get_credentials(provider_info)
           return false unless credentials
 
           # Step 3: Test connection
-          show_step(3, 5, 'Test Connection')
           test_result = test_connection(provider_info, credentials)
           return false unless test_result[:success]
 
           # Step 4: Select model
-          show_step(4, 5, 'Model')
           model_id = select_model(provider_info, credentials)
           return false unless model_id
 
           # Step 5: Get display name
-          show_step(5, 5, 'Display Name')
           model_name = get_model_name(model_id)
           return false unless model_name
 
@@ -73,17 +68,7 @@ module LanguageOperator
         private
 
         def show_welcome
-          puts
-          puts box("Add a model to cluster '#{ctx.name}'", border: :light)
-          puts
-        end
-
-        def show_step(current, total, title)
-          puts
-          puts '─' * 50
-          puts pastel.cyan("Step #{current}/#{total}: #{title}")
-          puts '─' * 50
-          puts
+          logo(title: "add a model to cluster '#{ctx.name}'")
         end
 
         def select_provider
@@ -139,6 +124,7 @@ module LanguageOperator
         end
 
         def test_connection(provider_info, credentials)
+          puts
           test_result = Formatters::ProgressFormatter.with_spinner('Testing connection') do
             test_provider_connection(
               provider_info[:provider],
@@ -160,7 +146,7 @@ module LanguageOperator
             return { success: false }
           end
 
-          Formatters::ProgressFormatter.success('Connection successful')
+          puts
           { success: true }
         end
 
@@ -212,6 +198,7 @@ module LanguageOperator
             # Expected - model doesn't exist yet
           end
 
+          puts
           Formatters::ProgressFormatter.with_spinner("Creating model '#{model_name}'") do
             # Create API key secret if provided
             if credentials[:api_key]
@@ -259,18 +246,23 @@ module LanguageOperator
 
         def show_success(model_name, model_id, provider_info)
           puts
-          puts pastel.yellow.bold('Model Details:')
-          puts "  Name:     #{model_name}"
-          puts "  Provider: #{provider_info[:display_name]}"
-          puts "  Model:    #{model_id}"
-          puts "  Endpoint: #{provider_info[:endpoint]}" if provider_info[:endpoint]
-          puts "  Cluster:  #{ctx.name}"
+          highlighted_box(
+            title: 'LanguageModel Details',
+            rows: {
+              'Name' => model_name,
+              'Provider' => provider_info[:display_name],
+              'Model' => model_id,
+              'Endpoint' => provider_info[:endpoint],
+              'Cluster' => ctx.name
+            }
+          )
           puts
-          puts pastel.bold('Next steps:')
-          puts '  1. Use this model in an agent:'
-          puts "     #{pastel.dim("aictl agent create --model #{model_name}")}"
-          puts '  2. View model details:'
-          puts "     #{pastel.dim("aictl model inspect #{model_name}")}"
+          puts 'Next steps:'
+          puts
+          puts '1. Use this model in an agent:'
+          puts "   #{pastel.dim("aictl agent create --model #{model_name}")}"
+          puts '2. View model details:'
+          puts "   #{pastel.dim("aictl model inspect #{model_name}")}"
           puts
         end
       end

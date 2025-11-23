@@ -304,21 +304,14 @@ module LanguageOperator
             return unless check_dependencies_and_confirm('persona', name, force: options[:force])
 
             # Confirm deletion unless --force
-            if confirm_deletion(
-              'persona', name, ctx.name,
-              details: {
-                'Tone' => persona.dig('spec', 'tone'),
-                'Description' => persona.dig('spec', 'description')
-              },
-              force: options[:force]
-            )
-              # Delete persona
-              Formatters::ProgressFormatter.with_spinner("Deleting persona '#{name}'") do
-                ctx.client.delete_resource('LanguagePersona', name, ctx.namespace)
-              end
+            return unless confirm_deletion_with_force('persona', name, ctx.name, force: options[:force])
 
-              Formatters::ProgressFormatter.success("Persona '#{name}' deleted successfully")
+            # Delete persona
+            Formatters::ProgressFormatter.with_spinner("Deleting persona '#{name}'") do
+              ctx.client.delete_resource('LanguagePersona', name, ctx.namespace)
             end
+
+            Formatters::ProgressFormatter.success("Persona '#{name}' deleted successfully")
           end
         end
       end

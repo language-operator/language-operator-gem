@@ -31,6 +31,7 @@ Metrics/MethodLength:
     - 'spec/**/*'
     - 'lib/language_operator/dsl/**/*'
     - 'lib/language_operator/cli/**/*'
+    - 'examples/**/*'
     - 'lib/language_operator/client/**/*'
     - 'lib/language_operator/agent/**/*'
 
@@ -51,6 +52,7 @@ Metrics/ClassLength:
     - 'lib/language_operator/agent/**/*'
     - 'lib/language_operator/kubernetes/**/*'
     - 'lib/language_operator/dsl/**/*'
+    - 'examples/**/*'
 
 Metrics/ModuleLength:
   Max: 150

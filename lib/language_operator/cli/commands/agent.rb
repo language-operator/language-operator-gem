@@ -156,80 +156,115 @@ module LanguageOperator
               return
             end
 
-            puts "Agent: #{name}"
-            puts "  Cluster:   #{ctx.name}"
-            puts "  Namespace: #{ctx.namespace}"
+            # Main agent information
             puts
-
-            # Status
             status = agent.dig('status', 'phase') || 'Unknown'
-            puts "Status: #{format_status(status)}"
+            highlighted_box(
+              title: 'LanguageAgent',
+              rows: {
+                'Name' => pastel.white.bold(name),
+                'Namespace' => ctx.namespace,
+                'Cluster' => ctx.name,
+                'Status' => format_status(status),
+                'Mode' => agent.dig('spec', 'mode') || 'autonomous',
+                'Schedule' => agent.dig('spec', 'schedule'),
+                'Persona' => agent.dig('spec', 'persona') || '(auto-selected)'
+              }
+            )
             puts
-
-            # Spec details
-            puts 'Configuration:'
-            puts "  Mode:         #{agent.dig('spec', 'mode') || 'autonomous'}"
-            puts "  Schedule:     #{agent.dig('spec', 'schedule') || 'N/A'}" if agent.dig('spec', 'schedule')
-            puts "  Persona:      #{agent.dig('spec', 'persona') || '(auto-selected)'}"
-            puts
-
-            # Instructions
-            instructions = agent.dig('spec', 'instructions')
-            if instructions
-              puts 'Instructions:'
-              puts "  #{instructions}"
-              puts
-            end
-
-            # Tools
-            tools = agent.dig('spec', 'tools') || []
-            if tools.any?
-              puts "Tools (#{tools.length}):"
-              tools.each { |tool| puts "  - #{tool}" }
-              puts
-            end
-
-            # Models
-            model_refs = agent.dig('spec', 'modelRefs') || []
-            if model_refs.any?
-              puts "Models (#{model_refs.length}):"
-              model_refs.each { |ref| puts "  - #{ref['name']}" }
-              puts
-            end
-
-            # Synthesis info
-            synthesis = agent.dig('status', 'synthesis')
-            if synthesis
-              puts 'Synthesis:'
-              puts "  Status:       #{synthesis['status']}"
-              puts "  Model:        #{synthesis['model']}" if synthesis['model']
-              puts "  Completed:    #{synthesis['completedAt']}" if synthesis['completedAt']
-              puts "  Duration:     #{synthesis['duration']}" if synthesis['duration']
-              puts "  Token Count:  #{synthesis['tokenCount']}" if synthesis['tokenCount']
-              puts
-            end
 
             # Execution stats
             execution_count = agent.dig('status', 'executionCount') || 0
             last_execution = agent.dig('status', 'lastExecution')
             next_run = agent.dig('status', 'nextRun')
 
-            puts 'Execution:'
-            puts "  Total Runs:   #{execution_count}"
-            puts "  Last Run:     #{last_execution || 'Never'}"
-            puts "  Next Run:     #{next_run || 'N/A'}" if agent.dig('spec', 'schedule')
+            exec_rows = {
+              'Total Runs' => execution_count,
+              'Last Run' => last_execution || 'Never'
+            }
+            exec_rows['Next Run'] = next_run || 'N/A' if agent.dig('spec', 'schedule')
+
+            highlighted_box(title: 'Executions', rows: exec_rows, color: :blue)
             puts
+
+            # Resources
+            resources = agent.dig('spec', 'resources')
+            if resources
+              resource_rows = {}
+              requests = resources['requests'] || {}
+              limits = resources['limits'] || {}
+
+              # CPU
+              cpu_request = requests['cpu']
+              cpu_limit = limits['cpu']
+              resource_rows['CPU'] = [cpu_request, cpu_limit].compact.join(' / ') if cpu_request || cpu_limit
+
+              # Memory
+              memory_request = requests['memory']
+              memory_limit = limits['memory']
+              resource_rows['Memory'] = [memory_request, memory_limit].compact.join(' / ') if memory_request || memory_limit
+
+              highlighted_box(title: 'Resources (Request/Limit)', rows: resource_rows, color: :cyan) unless resource_rows.empty?
+              puts
+            end
+
+            # Instructions
+            instructions = agent.dig('spec', 'instructions')
+            if instructions
+              puts pastel.white.bold('Instructions')
+              puts instructions
+              puts
+            end
+
+            # Tools
+            tools = agent.dig('spec', 'tools') || []
+            unless tools.empty?
+              list_box(title: 'Tools', items: tools)
+              puts
+            end
+
+            # Models
+            model_refs = agent.dig('spec', 'modelRefs') || []
+            unless model_refs.empty?
+              model_names = model_refs.map { |ref| ref['name'] }
+              list_box(title: 'Models', items: model_names)
+              puts
+            end
+
+            # Synthesis info
+            synthesis = agent.dig('status', 'synthesis')
+            if synthesis
+              highlighted_box(
+                title: 'Synthesis',
+                rows: {
+                  'Status' => synthesis['status'],
+                  'Model' => synthesis['model'],
+                  'Completed' => synthesis['completedAt'],
+                  'Duration' => synthesis['duration'],
+                  'Token Count' => synthesis['tokenCount']
+                }
+              )
+              puts
+            end
 
             # Conditions
             conditions = agent.dig('status', 'conditions') || []
-            if conditions.any?
-              puts "Conditions (#{conditions.length}):"
-              conditions.each do |condition|
-                status_icon = condition['status'] == 'True' ? '✓' : '✗'
-                puts "  #{status_icon} #{condition['type']}: #{condition['message'] || condition['reason']}"
-              end
+            unless conditions.empty?
+              list_box(
+                title: 'Conditions',
+                items: conditions,
+                style: :conditions
+              )
               puts
             end
+
+            # Labels
+            labels = agent.dig('metadata', 'labels') || {}
+            list_box(
+              title: 'Labels',
+              items: labels,
+              style: :key_value
+            )
 
             # Recent events (if available)
             # This would require querying events, which we can add later
@@ -243,22 +278,17 @@ module LanguageOperator
           handle_command_error('delete agent') do
             ctx = Helpers::ClusterContext.from_options(options)
 
-            # Get agent to show details before deletion
-            agent = get_resource_or_exit('LanguageAgent', name)
+            # Get agent to verify it exists
+            get_resource_or_exit('LanguageAgent', name)
 
             # Confirm deletion
-            details = {
-              'Instructions' => agent.dig('spec', 'instructions'),
-              'Mode' => agent.dig('spec', 'mode') || 'autonomous'
-            }
-            return unless confirm_deletion('agent', name, ctx.name, details: details, force: options[:force])
+            return unless confirm_deletion_with_force('agent', name, ctx.name, force: options[:force])
 
             # Delete the agent
+            puts
             Formatters::ProgressFormatter.with_spinner("Deleting agent '#{name}'") do
               ctx.client.delete_resource('LanguageAgent', name, ctx.namespace)
             end
-
-            Formatters::ProgressFormatter.success("Agent '#{name}' deleted successfully")
           end
         end
 
@@ -1055,89 +1085,13 @@ module LanguageOperator
         end
 
         def display_agent_created(agent, cluster, _description, synthesis_result)
-          require_relative '../formatters/code_formatter'
           agent_name = agent.dig('metadata', 'name')
 
           puts
-          Formatters::ProgressFormatter.success("Agent '#{agent_name}' created and deployed!")
-          puts
-
-          # Get synthesized code if available
-          begin
-            ctx = Helpers::ClusterContext.from_options(cluster: cluster)
-            configmap_name = "#{agent_name}-code"
-            configmap = ctx.client.get_resource('ConfigMap', configmap_name, ctx.namespace)
-            code_content = configmap.dig('data', 'agent.rb')
-
-            if code_content
-              # Display code preview (first 20 lines)
-              Formatters::CodeFormatter.display_ruby_code(
-                code_content,
-                title: 'Synthesized Code Preview:',
-                max_lines: 20
-              )
-              puts
-            end
-          rescue StandardError
-            # Code not available yet, skip preview
-          end
-
-          # Display agent configuration
-          puts pastel.cyan('Agent Configuration:')
-          puts "  Name:         #{agent_name}"
-          puts "  Cluster:      #{cluster}"
-
-          # Schedule information
-          schedule = agent.dig('spec', 'schedule')
-          mode = agent.dig('spec', 'mode') || 'autonomous'
-          if schedule
-            human_schedule = parse_schedule(schedule)
-            puts "  Schedule:     #{human_schedule} (#{schedule})"
-
-            # Calculate next run
-            next_run = agent.dig('status', 'nextRun')
-            if next_run
-              begin
-                next_run_time = Time.parse(next_run)
-                time_until = format_time_until(next_run_time)
-                puts "  Next run:     #{next_run} (#{time_until})"
-              rescue StandardError
-                puts "  Next run:     #{next_run}"
-              end
-            end
-          else
-            puts "  Mode:         #{mode}"
-          end
-
-          # Persona
-          persona = agent.dig('spec', 'persona')
-          puts "  Persona:      #{persona || '(auto-selected)'}"
-
-          # Tools
-          tools = agent.dig('spec', 'tools') || []
-          puts "  Tools:        #{tools.join(', ')}" if tools.any?
-
-          # Models
-          model_refs = agent.dig('spec', 'modelRefs') || []
-          if model_refs.any?
-            model_names = model_refs.map { |ref| ref['name'] }
-            puts "  Models:       #{model_names.join(', ')}"
-          end
-
-          puts
-
-          # Synthesis stats
-          if synthesis_result[:duration]
-            puts pastel.dim("Synthesis completed in #{format_duration(synthesis_result[:duration])}")
-            puts pastel.dim("Model: #{synthesis_result[:model]}") if synthesis_result[:model]
-            puts
-          end
-
-          # Next steps
-          puts pastel.cyan('Next Steps:')
-          puts "  aictl agent logs #{agent_name} -f     # Follow agent execution logs"
-          puts "  aictl agent code #{agent_name}        # View full synthesized code"
-          puts "  aictl agent inspect #{agent_name}     # View detailed agent status"
+          puts 'Next steps:'
+          puts "#{pastel.dim("aictl agent logs #{agent_name} -f")}"
+          puts "#{pastel.dim("aictl agent code #{agent_name}")}"
+          puts "#{pastel.dim("aictl agent inspect #{agent_name}")}"
           puts
         end
 
@@ -1270,9 +1224,13 @@ module LanguageOperator
           synthesis_data = {}
 
           result = Formatters::ProgressFormatter.with_spinner('Synthesizing code from instructions') do
+            synthesis_result = nil
             loop do
               status = check_synthesis_status(k8s, agent_name, namespace, synthesis_data, start_time)
-              return status if status
+              if status
+                synthesis_result = status
+                break
+              end
 
               # Timeout check
               if elapsed >= max_wait
@@ -1280,12 +1238,14 @@ module LanguageOperator
                 puts
                 puts 'Check synthesis status with:'
                 puts "  aictl agent inspect #{agent_name}"
-                return { success: true, timeout: true }
+                synthesis_result = { success: true, timeout: true }
+                break
               end
 
               sleep interval
               elapsed += interval
             end
+            synthesis_result
           rescue K8s::Error::NotFound
             # Agent not found yet, keep waiting
             sleep interval
@@ -1297,14 +1257,6 @@ module LanguageOperator
           rescue StandardError => e
             Formatters::ProgressFormatter.warn("Could not watch synthesis: #{e.message}")
             return { success: true } # Continue anyway
-          end
-
-          # Show synthesis details after spinner completes
-          if result[:success] && !result[:timeout]
-            duration = result[:duration]
-            Formatters::ProgressFormatter.success("Code synthesis completed in #{format_duration(duration)}")
-            puts "  Model: #{synthesis_data[:model]}" if synthesis_data[:model]
-            puts "  Tokens: #{synthesis_data[:token_count]}" if synthesis_data[:token_count]
           end
 
           result

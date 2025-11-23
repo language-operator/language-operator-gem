@@ -291,12 +291,6 @@ module LanguageOperator
 
             cluster = Config::ClusterConfig.get_cluster(name)
 
-            puts "Cluster: #{name}"
-            puts "  Namespace: #{cluster[:namespace]}"
-            puts "  Context:   #{cluster[:context] || 'default'}"
-            puts "  Created:   #{cluster[:created]}"
-            puts
-
             # Get detailed cluster info
             begin
               k8s = Helpers::ClusterValidator.kubernetes_client(name)
@@ -305,44 +299,53 @@ module LanguageOperator
               cluster_resource = k8s.get_resource('LanguageCluster', name, cluster[:namespace])
               status = cluster_resource.dig('status', 'phase') || 'Unknown'
 
-              puts "Status: #{status}"
+              # Main cluster information
+              puts
+              highlighted_box(
+                title: 'LanguageCluster',
+                rows: {
+                  'Name' => pastel.white.bold(name),
+                  'Namespace' => cluster[:namespace],
+                  'Cluster' => name,
+                  'Context' => cluster[:context] || 'default',
+                  'Status' => status,
+                  'Created' => cluster[:created]
+                }
+              )
               puts
 
               # Get agents
               agents = k8s.list_resources('LanguageAgent', namespace: cluster[:namespace])
-              puts "Agents: #{agents.count}"
-              agents.each do |agent|
-                agent_status = agent.dig('status', 'phase') || 'Unknown'
-                puts "  - #{agent.dig('metadata', 'name')} (#{agent_status})"
+              agent_items = agents.map do |agent|
+                { name: agent.dig('metadata', 'name'), status: agent.dig('status', 'phase') || 'Unknown' }
               end
+              list_box(title: 'Agents', items: agent_items, style: :detailed)
               puts
 
               # Get tools
               tools = k8s.list_resources('LanguageTool', namespace: cluster[:namespace])
-              puts "Tools: #{tools.count}"
-              tools.each do |tool|
-                tool_type = tool.dig('spec', 'type')
-                puts "  - #{tool.dig('metadata', 'name')} (#{tool_type})"
+              tool_items = tools.map do |tool|
+                { name: tool.dig('metadata', 'name') }
               end
+              list_box(title: 'Tools', items: tool_items, style: :detailed)
               puts
 
               # Get models
               models = k8s.list_resources('LanguageModel', namespace: cluster[:namespace])
-              puts "Models: #{models.count}"
-              models.each do |model|
+              model_items = models.map do |model|
                 provider = model.dig('spec', 'provider')
                 model_name = model.dig('spec', 'modelName')
-                puts "  - #{model.dig('metadata', 'name')} (#{provider}/#{model_name})"
+                { name: model.dig('metadata', 'name'), meta: "#{provider}/#{model_name}" }
               end
+              list_box(title: 'Models', items: model_items, style: :detailed)
               puts
 
               # Get personas
               personas = k8s.list_resources('LanguagePersona', namespace: cluster[:namespace])
-              puts "Personas: #{personas.count}"
-              personas.each do |persona|
-                tone = persona.dig('spec', 'tone')
-                puts "  - #{persona.dig('metadata', 'name')} (#{tone})"
+              persona_items = personas.map do |persona|
+                { name: persona.dig('metadata', 'name'), meta: persona.dig('spec', 'tone') }
               end
+              list_box(title: 'Personas', items: persona_items, style: :detailed)
             rescue StandardError => e
               Formatters::ProgressFormatter.error("Failed to get cluster details: #{e.message}")
               raise if ENV['DEBUG']
