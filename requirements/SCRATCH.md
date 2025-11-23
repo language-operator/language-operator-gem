@@ -153,24 +153,32 @@ ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional
 
 **Issue Prioritization (by functional dependency):**
 
-**P0 - Security Vulnerabilities (READY):**
-1. #50 - Request body consumed without rewind (🔴 READY - breaks webhook handling)  
-2. #58 - TypeError in WebhookAuthenticator with malformed credentials (🔴 READY - security crash)
+**P0 - Critical Blockers (READY):**
+1. #63 - Syntax error in dsl.rb prevents gem loading (🔴 READY - gem completely broken)
+2. #64 - Command injection vulnerability in model test curl (🔴 READY - security critical)
 
-**P1 - Core Functionality Errors:**
-3. #55 - Agent list command shows 'implementation pending' instead of listing agents
+**P1 - Security Vulnerabilities:**
+3. #50 - Request body consumed without rewind (breaks webhook handling)  
+4. #60 - Silent conversion of invalid env vars in Agent::Executor safety config
 
-**P2 - UX/Config Issues:**
-6. #47 - Silent type conversion failures
-7. #49 - CLI exits on invalid selection
+**P2 - Performance/Resource Issues:**
+6. #62 - Memory leak and connection pool exhaustion in cluster list
+7. #61 - Resource leak in cluster list with multiple K8s clients
+8. #59 - Insufficient error handling in K8s current_namespace
 
-**P3 - Enhancements:**
-8. #51 - Include complete MCP tool schemas
-9. #39 - Update examples to task/main
-10. #40 - Performance optimization
-11. #41 - Comprehensive test suite
+**P3 - UX/Config Issues:**
+9. #47 - Silent type conversion failures
+10. #49 - CLI exits on invalid selection
+11. #55 - Agent list command shows 'implementation pending'
+
+**P4 - Enhancements:**
+12. #51 - Include complete MCP tool schemas
+13. #39 - Update examples to task/main
+14. #40 - Performance optimization
+15. #41 - Comprehensive test suite
 
 **Recently Completed:**
+- ✅ #58 - TypeError in WebhookAuthenticator with malformed credentials (commit 5f46d7f - false positive, added comprehensive test coverage)
 - ✅ #46 - Unsafe YAML.load_file security vulnerability (commit 89c58f6)
 - ✅ #45 - NoMethodError in Scheduler (fixed .cron accessor bug)
 - ✅ #52 - CLI wizard consolidation under cli/wizards/
