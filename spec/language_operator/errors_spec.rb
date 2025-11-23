@@ -132,6 +132,61 @@ RSpec.describe LanguageOperator::Errors do
     end
   end
 
+  describe '.file_not_found' do
+    it 'returns a formatted error message with file path' do
+      message = described_class.file_not_found('/path/to/missing.rb')
+      
+      expect(message).to include('File not found at')
+      expect(message).to include('/path/to/missing.rb')
+      expect(message).to include('Please check the file path exists')
+    end
+
+    it 'accepts custom context' do
+      message = described_class.file_not_found('/path/to/agent.rb', 'agent definition')
+      
+      expect(message).to include('Agent definition not found at')
+      expect(message).to include('/path/to/agent.rb')
+    end
+  end
+
+  describe '.file_permission_denied' do
+    it 'returns a formatted error message with file path' do
+      message = described_class.file_permission_denied('/path/to/restricted.rb')
+      
+      expect(message).to include('Permission denied reading')
+      expect(message).to include('/path/to/restricted.rb')
+      expect(message).to include('check file permissions')
+    end
+
+    it 'accepts custom context' do
+      message = described_class.file_permission_denied('/path/to/tool.rb', 'tool definition')
+      
+      expect(message).to include('Permission denied reading tool definition')
+      expect(message).to include('/path/to/tool.rb')
+    end
+  end
+
+  describe '.file_syntax_error' do
+    it 'returns a formatted error message with file path and error' do
+      original_error = 'unexpected end-of-input'
+      message = described_class.file_syntax_error('/path/to/bad.rb', original_error)
+      
+      expect(message).to include('Syntax error in file')
+      expect(message).to include('/path/to/bad.rb')
+      expect(message).to include(original_error)
+      expect(message).to include('check the file for valid Ruby syntax')
+    end
+
+    it 'accepts custom context' do
+      original_error = 'missing end'
+      message = described_class.file_syntax_error('/path/to/agent.rb', original_error, 'agent configuration')
+      
+      expect(message).to include('Syntax error in agent configuration')
+      expect(message).to include('/path/to/agent.rb')
+      expect(message).to include(original_error)
+    end
+  end
+
   describe 'consistency' do
     it 'all methods return strings starting with "Error: "' do
       expect(described_class.not_found('Type', 'id')).to start_with('Error: ')
@@ -141,6 +196,9 @@ RSpec.describe LanguageOperator::Errors do
       expect(described_class.invalid_parameter('p', 'v', 'e')).to start_with('Error: ')
       expect(described_class.operation_failed('op', 'reason')).to start_with('Error: ')
       expect(described_class.empty_field('field')).to start_with('Error: ')
+      expect(described_class.file_not_found('/path')).to start_with('Error: ')
+      expect(described_class.file_permission_denied('/path')).to start_with('Error: ')
+      expect(described_class.file_syntax_error('/path', 'error')).to start_with('Error: ')
     end
 
     it 'all methods return non-empty strings' do
@@ -151,6 +209,53 @@ RSpec.describe LanguageOperator::Errors do
       expect(described_class.invalid_parameter('p', 'v', 'e')).not_to be_empty
       expect(described_class.operation_failed('op', 'reason')).not_to be_empty
       expect(described_class.empty_field('field')).not_to be_empty
+      expect(described_class.file_not_found('/path')).not_to be_empty
+      expect(described_class.file_permission_denied('/path')).not_to be_empty
+      expect(described_class.file_syntax_error('/path', 'error')).not_to be_empty
+    end
+  end
+end
+
+RSpec.describe 'LanguageOperator custom exceptions' do
+  describe 'LanguageOperator::Error' do
+    it 'is a StandardError' do
+      expect(LanguageOperator::Error.new).to be_a(StandardError)
+    end
+  end
+
+  describe 'LanguageOperator::FileLoadError' do
+    it 'inherits from LanguageOperator::Error' do
+      expect(LanguageOperator::FileLoadError.new).to be_a(LanguageOperator::Error)
+    end
+  end
+
+  describe 'LanguageOperator::FileNotFoundError' do
+    it 'inherits from FileLoadError' do
+      expect(LanguageOperator::FileNotFoundError.new).to be_a(LanguageOperator::FileLoadError)
+    end
+
+    it 'can be caught as FileLoadError' do
+      exception_caught = false
+      
+      begin
+        raise LanguageOperator::FileNotFoundError, 'test'
+      rescue LanguageOperator::FileLoadError
+        exception_caught = true
+      end
+      
+      expect(exception_caught).to be(true)
+    end
+  end
+
+  describe 'LanguageOperator::FilePermissionError' do
+    it 'inherits from FileLoadError' do
+      expect(LanguageOperator::FilePermissionError.new).to be_a(LanguageOperator::FileLoadError)
+    end
+  end
+
+  describe 'LanguageOperator::FileSyntaxError' do
+    it 'inherits from FileLoadError' do
+      expect(LanguageOperator::FileSyntaxError.new).to be_a(LanguageOperator::FileLoadError)
     end
   end
 end

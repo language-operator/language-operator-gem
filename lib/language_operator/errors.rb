@@ -1,6 +1,15 @@
 # frozen_string_literal: true
 
 module LanguageOperator
+  # Base exception class for all Language Operator errors
+  class Error < StandardError; end
+
+  # File loading related errors
+  class FileLoadError < Error; end
+  class FileNotFoundError < FileLoadError; end
+  class FilePermissionError < FileLoadError; end
+  class FileSyntaxError < FileLoadError; end
+
   # Standardized error formatting module for consistent error messages across tools
   module Errors
     # Resource not found error
@@ -55,6 +64,34 @@ module LanguageOperator
     # @return [String] Formatted error message
     def self.empty_field(field_name)
       "Error: #{field_name} cannot be empty"
+    end
+
+    # File not found error
+    # @param file_path [String] Path to the file that wasn't found
+    # @param context [String] Additional context about what the file is for
+    # @return [String] Formatted error message
+    def self.file_not_found(file_path, context = "file")
+      "Error: #{context.capitalize} not found at '#{file_path}'. " \
+      "Please check the file path exists and is accessible."
+    end
+
+    # File permission error
+    # @param file_path [String] Path to the file with permission issues
+    # @param context [String] Additional context about what the file is for
+    # @return [String] Formatted error message
+    def self.file_permission_denied(file_path, context = "file")
+      "Error: Permission denied reading #{context} '#{file_path}'. " \
+      "Please check file permissions or run with appropriate access rights."
+    end
+
+    # File syntax error
+    # @param file_path [String] Path to the file with syntax errors
+    # @param original_error [String] Original error message from parser
+    # @param context [String] Additional context about what the file is for
+    # @return [String] Formatted error message
+    def self.file_syntax_error(file_path, original_error, context = "file")
+      "Error: Syntax error in #{context} '#{file_path}': #{original_error}. " \
+      "Please check the file for valid Ruby syntax."
     end
   end
 end

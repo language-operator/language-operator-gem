@@ -154,8 +154,7 @@ ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional
 **Issue Prioritization (by functional dependency):**
 
 **P0 - Blocks Core Functionality:**
-1. #54 - Confusing error message when AGENT_MODE is unset or empty [READY] 🔥
-2. #53 - Unhandled file access errors in Dsl.load_file and load_agent_file methods
+1. #53 - Unhandled file access errors in Dsl.load_file and load_agent_file methods
 
 **P1 - Security Vulnerabilities:**
 3. #48 - Path traversal in Dsl.load_file
@@ -175,4 +174,5 @@ ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional
 - ✅ #46 - Unsafe YAML.load_file security vulnerability (commit 89c58f6)
 - ✅ #45 - NoMethodError in Scheduler (fixed .cron accessor bug)
 - ✅ #52 - CLI wizard consolidation under cli/wizards/
-- ✅ #44 - NoMethodError for missing mcp_servers (resolved in recent fixes)
+- ✅ #44 - NoMethodError for missing mcp_servers (commit 0161788)
+- ✅ #54 - Confusing error message when AGENT_MODE is unset or empty (commit ffa97a4)

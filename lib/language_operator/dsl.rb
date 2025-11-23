@@ -98,16 +98,41 @@ module LanguageOperator
       #
       # @param file_path [String] Path to the tool definition file
       # @return [Registry] The global registry with loaded tools
+      # @raise [FileNotFoundError] When the file doesn't exist
+      # @raise [FilePermissionError] When the file can't be read due to permissions
+      # @raise [FileSyntaxError] When the file contains invalid Ruby syntax
       #
       # @example
       #   LanguageOperator::Dsl.load_file("mcp/tools.rb")
       def load_file(file_path)
-        code = File.read(file_path)
+        # Check if file exists
+        unless File.exist?(file_path)
+          raise FileNotFoundError, Errors.file_not_found(file_path, "tool definition file")
+        end
+
+        # Attempt to read the file
+        begin
+          code = File.read(file_path)
+        rescue Errno::EACCES
+          raise FilePermissionError, Errors.file_permission_denied(file_path, "tool definition file")
+        rescue Errno::EISDIR
+          raise FileNotFoundError, Errors.file_not_found(file_path, "tool definition file")
+        rescue SystemCallError => e
+          raise FileLoadError, "Error reading tool definition file '#{file_path}': #{e.message}"
+        end
+
         context = Context.new(registry)
 
         # Execute in sandbox with validation
-        executor = Agent::Safety::SafeExecutor.new(context)
-        executor.eval(code, file_path)
+        begin
+          executor = Agent::Safety::SafeExecutor.new(context)
+          executor.eval(code, file_path)
+        rescue SyntaxError => e
+          raise FileSyntaxError, Errors.file_syntax_error(file_path, e.message, "tool definition file")
+        rescue StandardError => e
+          # Re-raise with additional context for other execution errors
+          raise FileLoadError, "Error executing tool definition file '#{file_path}': #{e.message}"
+        end
 
         registry
       end
@@ -116,16 +141,41 @@ module LanguageOperator
       #
       # @param file_path [String] Path to the agent definition file
       # @return [AgentRegistry] The global agent registry
+      # @raise [FileNotFoundError] When the file doesn't exist
+      # @raise [FilePermissionError] When the file can't be read due to permissions
+      # @raise [FileSyntaxError] When the file contains invalid Ruby syntax
       #
       # @example
       #   LanguageOperator::Dsl.load_agent_file("agents/news-summarizer.rb")
       def load_agent_file(file_path)
-        code = File.read(file_path)
+        # Check if file exists
+        unless File.exist?(file_path)
+          raise FileNotFoundError, Errors.file_not_found(file_path, "agent definition file")
+        end
+
+        # Attempt to read the file
+        begin
+          code = File.read(file_path)
+        rescue Errno::EACCES
+          raise FilePermissionError, Errors.file_permission_denied(file_path, "agent definition file")
+        rescue Errno::EISDIR
+          raise FileNotFoundError, Errors.file_not_found(file_path, "agent definition file")
+        rescue SystemCallError => e
+          raise FileLoadError, "Error reading agent definition file '#{file_path}': #{e.message}"
+        end
+
         context = AgentContext.new(agent_registry)
 
         # Execute in sandbox with validation
-        executor = Agent::Safety::SafeExecutor.new(context)
-        executor.eval(code, file_path)
+        begin
+          executor = Agent::Safety::SafeExecutor.new(context)
+          executor.eval(code, file_path)
+        rescue SyntaxError => e
+          raise FileSyntaxError, Errors.file_syntax_error(file_path, e.message, "agent definition file")
+        rescue StandardError => e
+          # Re-raise with additional context for other execution errors
+          raise FileLoadError, "Error executing agent definition file '#{file_path}': #{e.message}"
+        end
 
         agent_registry
       end
