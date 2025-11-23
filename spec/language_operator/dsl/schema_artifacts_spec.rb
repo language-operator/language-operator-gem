@@ -60,11 +60,11 @@ RSpec.describe 'Schema Artifacts Generation' do
     end
 
     it 'is valid YAML' do
-      expect { YAML.load_file(openapi_path) }.not_to raise_error
+      expect { YAML.safe_load_file(openapi_path, permitted_classes: [Symbol], aliases: true) }.not_to raise_error
     end
 
     it 'contains required OpenAPI properties' do
-      openapi = YAML.load_file(openapi_path, symbolize_names: true)
+      openapi = YAML.safe_load_file(openapi_path, permitted_classes: [Symbol], aliases: true, symbolize_names: true)
 
       expect(openapi[:openapi]).to eq('3.0.3')
       expect(openapi[:info]).to be_a(Hash)
@@ -73,7 +73,7 @@ RSpec.describe 'Schema Artifacts Generation' do
     end
 
     it 'includes documented endpoints' do
-      openapi = YAML.load_file(openapi_path, symbolize_names: true)
+      openapi = YAML.safe_load_file(openapi_path, permitted_classes: [Symbol], aliases: true, symbolize_names: true)
 
       expect(openapi[:paths].keys).to include(
         :'/health',
@@ -84,7 +84,7 @@ RSpec.describe 'Schema Artifacts Generation' do
     end
 
     it 'includes component schemas' do
-      openapi = YAML.load_file(openapi_path, symbolize_names: true)
+      openapi = YAML.safe_load_file(openapi_path, permitted_classes: [Symbol], aliases: true, symbolize_names: true)
 
       expect(openapi[:components][:schemas].keys).to include(
         :ChatCompletionRequest,
@@ -96,7 +96,7 @@ RSpec.describe 'Schema Artifacts Generation' do
 
     it 'matches the output of Schema.to_openapi' do
       expected_openapi = LanguageOperator::Dsl::Schema.to_openapi
-      actual_openapi = YAML.load_file(openapi_path, symbolize_names: true)
+      actual_openapi = YAML.safe_load_file(openapi_path, permitted_classes: [Symbol], aliases: true, symbolize_names: true)
 
       # YAML serialization may change symbol keys to string keys, so we compare after converting
       expect(actual_openapi).to eq(YAML.load(YAML.dump(expected_openapi), symbolize_names: true))
@@ -148,7 +148,7 @@ RSpec.describe 'Schema Artifacts Generation' do
 
       # Verify they are valid
       expect { JSON.parse(File.read(json_schema_path)) }.not_to raise_error
-      expect { YAML.load_file(openapi_path) }.not_to raise_error
+      expect { YAML.safe_load_file(openapi_path, permitted_classes: [Symbol], aliases: true) }.not_to raise_error
     end
   end
 end

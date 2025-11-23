@@ -24,7 +24,7 @@ module LanguageOperator
       # @return [Hash] Configuration hash
       # @raise [Errno::ENOENT] If file doesn't exist
       def self.load(path)
-        YAML.load_file(path)
+        YAML.safe_load_file(path, permitted_classes: [Symbol], aliases: true)
       end
 
       # Load configuration from environment variables

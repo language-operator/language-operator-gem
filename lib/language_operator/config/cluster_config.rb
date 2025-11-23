@@ -14,7 +14,7 @@ module LanguageOperator
         def load
           return default_config unless File.exist?(CONFIG_PATH)
 
-          YAML.load_file(CONFIG_PATH) || default_config
+          YAML.safe_load_file(CONFIG_PATH, permitted_classes: [Symbol], aliases: true) || default_config
         rescue StandardError => e
           warn "Warning: Failed to load config from #{CONFIG_PATH}: #{e.message}"
           default_config
