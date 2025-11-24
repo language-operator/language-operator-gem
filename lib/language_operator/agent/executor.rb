@@ -302,9 +302,10 @@ module LanguageOperator
 
       def parse_array_env(key)
         val = ENV.fetch(key, nil)
-        return nil unless val
+        return nil unless val && !val.strip.empty?
 
-        val.split(',').map(&:strip)
+        result = val.split(',').map(&:strip).reject(&:empty?)
+        result.empty? ? nil : result
       end
 
       def estimate_tokens(text)

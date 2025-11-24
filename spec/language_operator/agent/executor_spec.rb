@@ -163,6 +163,101 @@ RSpec.describe LanguageOperator::Agent::Executor do
     end
   end
 
+  describe '#parse_array_env' do
+    # Use allocate to avoid constructor ENV calls interfering with tests
+    let(:simple_executor) { described_class.allocate }
+
+    context 'with valid array values' do
+      it 'parses comma-separated values' do
+        allow(ENV).to receive(:fetch).with('TEST_KEY', nil).and_return('one,two,three')
+        result = simple_executor.send(:parse_array_env, 'TEST_KEY')
+        expect(result).to eq(%w[one two three])
+      end
+
+      it 'trims whitespace around values' do
+        allow(ENV).to receive(:fetch).with('TEST_KEY', nil).and_return('  one ,  two  , three  ')
+        result = simple_executor.send(:parse_array_env, 'TEST_KEY')
+        expect(result).to eq(%w[one two three])
+      end
+
+      it 'handles single values' do
+        allow(ENV).to receive(:fetch).with('TEST_KEY', nil).and_return('single')
+        result = simple_executor.send(:parse_array_env, 'TEST_KEY')
+        expect(result).to eq(['single'])
+      end
+
+      it 'filters out empty strings' do
+        allow(ENV).to receive(:fetch).with('TEST_KEY', nil).and_return('one,,two, ,three')
+        result = simple_executor.send(:parse_array_env, 'TEST_KEY')
+        expect(result).to eq(%w[one two three])
+      end
+
+      it 'handles mixed content with empty elements' do
+        allow(ENV).to receive(:fetch).with('TEST_KEY', nil).and_return('  one ,  , two ,   , three  ')
+        result = simple_executor.send(:parse_array_env, 'TEST_KEY')
+        expect(result).to eq(%w[one two three])
+      end
+    end
+
+    context 'with invalid or missing values' do
+      it 'returns nil for missing environment variable' do
+        allow(ENV).to receive(:fetch).with('MISSING_KEY', nil).and_return(nil)
+        result = simple_executor.send(:parse_array_env, 'MISSING_KEY')
+        expect(result).to be_nil
+      end
+
+      it 'returns nil for empty string' do
+        allow(ENV).to receive(:fetch).with('TEST_KEY', nil).and_return('')
+        result = simple_executor.send(:parse_array_env, 'TEST_KEY')
+        expect(result).to be_nil
+      end
+
+      it 'returns nil for whitespace-only string' do
+        allow(ENV).to receive(:fetch).with('TEST_KEY', nil).and_return('   ')
+        result = simple_executor.send(:parse_array_env, 'TEST_KEY')
+        expect(result).to be_nil
+      end
+
+      it 'returns nil for string with only commas and whitespace' do
+        allow(ENV).to receive(:fetch).with('TEST_KEY', nil).and_return(' , , ')
+        result = simple_executor.send(:parse_array_env, 'TEST_KEY')
+        expect(result).to be_nil
+      end
+
+      it 'returns nil for string with only commas' do
+        allow(ENV).to receive(:fetch).with('TEST_KEY', nil).and_return(',,,')
+        result = simple_executor.send(:parse_array_env, 'TEST_KEY')
+        expect(result).to be_nil
+      end
+    end
+
+    context 'consistency with other parsing methods' do
+      it 'behaves like parse_float_env and parse_int_env for empty values' do
+        allow(ENV).to receive(:fetch).with('TEST_KEY', nil).and_return('')
+
+        float_result = simple_executor.send(:parse_float_env, 'TEST_KEY')
+        int_result = simple_executor.send(:parse_int_env, 'TEST_KEY')
+        array_result = simple_executor.send(:parse_array_env, 'TEST_KEY')
+
+        expect(float_result).to be_nil
+        expect(int_result).to be_nil
+        expect(array_result).to be_nil
+      end
+
+      it 'behaves like parse_float_env and parse_int_env for whitespace values' do
+        allow(ENV).to receive(:fetch).with('TEST_KEY', nil).and_return('   ')
+
+        float_result = simple_executor.send(:parse_float_env, 'TEST_KEY')
+        int_result = simple_executor.send(:parse_int_env, 'TEST_KEY')
+        array_result = simple_executor.send(:parse_array_env, 'TEST_KEY')
+
+        expect(float_result).to be_nil
+        expect(int_result).to be_nil
+        expect(array_result).to be_nil
+      end
+    end
+  end
+
   describe 'safety configuration integration' do
     context 'when parse methods return nil for invalid values' do
       let(:agent_definition) { double('AgentDefinition', constraints: { daily_budget: nil }) }
