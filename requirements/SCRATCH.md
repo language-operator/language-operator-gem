@@ -130,6 +130,8 @@ merged = execute_task(:merge, inputs: { s1: s1 })
 - #41 - Comprehensive test suite
 
 **Recently Completed (Major Issues):**
+- ✅ #71 - Dead code: unused expressions in PatternDetector.generate_task_fragment (2025-11-24) - Removed remnants from instruction generation experiments
+- ✅ #72 - Dead code: placeholder agent command implementations (2025-11-24) - Completed refactoring by moving real implementations to Agent::Base
 - ✅ #66, #55, #59, #62, #67 - CLI and K8s client fixes
 - ✅ #60, #69, #50, #68, #64, #46, #48 - Security vulnerabilities resolved
 - ✅ #45, #52, #44, #54, #53 - Runtime and UX improvements
