@@ -61,10 +61,10 @@ RSpec.describe LanguageOperator::Agent::WebhookAuthenticator do
       let(:headers) { { 'Authorization' => "Basic #{malformed_credentials}" } }
 
       it 'returns false without raising error' do
-        expect {
+        expect do
           result = described_class.send(:verify_basic_auth, config, context_with_headers)
           expect(result).to be false
-        }.not_to raise_error
+        end.not_to raise_error
       end
     end
 
@@ -73,10 +73,10 @@ RSpec.describe LanguageOperator::Agent::WebhookAuthenticator do
       let(:headers) { { 'Authorization' => "Basic #{empty_credentials}" } }
 
       it 'returns false without raising error' do
-        expect {
+        expect do
           result = described_class.send(:verify_basic_auth, config, context_with_headers)
           expect(result).to be false
-        }.not_to raise_error
+        end.not_to raise_error
       end
     end
 
@@ -104,10 +104,10 @@ RSpec.describe LanguageOperator::Agent::WebhookAuthenticator do
       let(:headers) { { 'Authorization' => 'Basic invalid_base64!' } }
 
       it 'returns false without raising error' do
-        expect {
+        expect do
           result = described_class.send(:verify_basic_auth, config, context_with_headers)
           expect(result).to be false
-        }.not_to raise_error
+        end.not_to raise_error
       end
     end
 

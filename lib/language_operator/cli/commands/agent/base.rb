@@ -18,6 +18,7 @@ require_relative 'helpers/code_parser'
 require_relative 'helpers/synthesis_watcher'
 require_relative 'helpers/optimization_helper'
 require_relative '../../helpers/cluster_context'
+require_relative '../../../kubernetes/resource_builder'
 
 module LanguageOperator
   module CLI
@@ -65,9 +66,86 @@ module LanguageOperator
           option :workspace, type: :boolean, default: true, desc: 'Enable workspace for state persistence'
           option :dry_run, type: :boolean, default: false, desc: 'Preview what would be created without applying'
           option :wizard, type: :boolean, default: false, desc: 'Use interactive wizard mode'
-          def create(_description = nil)
-            # TODO: Extract full implementation from original agent.rb
-            puts 'Agent create command - implementation pending'
+          def create(description = nil)
+            handle_command_error('create agent') do
+              # Read from stdin if available and no description provided
+              description = $stdin.read.strip if description.nil? && !$stdin.tty?
+
+              # Activate wizard mode if --wizard flag or no description provided
+              if options[:wizard] || description.nil? || description.empty?
+                wizard = Wizards::AgentWizard.new
+                description = wizard.run
+
+                # User cancelled wizard
+                unless description
+                  Formatters::ProgressFormatter.info('Agent creation cancelled')
+                  return
+                end
+              end
+
+              # Handle --create-cluster flag
+              if options[:create_cluster]
+                cluster_name = options[:create_cluster]
+                unless Config::ClusterConfig.cluster_exists?(cluster_name)
+                  Formatters::ProgressFormatter.info("Creating cluster '#{cluster_name}'...")
+                  # Delegate to cluster create command
+                  require_relative '../cluster'
+                  Cluster.new.invoke(:create, [cluster_name], switch: true)
+                end
+                cluster = cluster_name
+              else
+                # Validate cluster selection (this will exit if none selected)
+                cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
+              end
+
+              ctx = Helpers::ClusterContext.from_options(options.merge(cluster: cluster))
+
+              # Generate agent name from description if not provided
+              agent_name = options[:name] || generate_agent_name(description)
+
+              # Get models: use specified models, or default to all available models in cluster
+              models = options[:models]
+              if models.nil? || models.empty?
+                available_models = ctx.client.list_resources(RESOURCE_MODEL, namespace: ctx.namespace)
+                models = available_models.map { |m| m.dig('metadata', 'name') }
+
+                Errors::Handler.handle_no_models_available(cluster: ctx.name) if models.empty?
+              end
+
+              # Build LanguageAgent resource
+              agent_resource = Kubernetes::ResourceBuilder.language_agent(
+                agent_name,
+                instructions: description,
+                cluster: ctx.namespace,
+                persona: options[:persona],
+                tools: options[:tools] || [],
+                models: models,
+                workspace: options[:workspace]
+              )
+
+              # Dry-run mode: preview without applying
+              if options[:dry_run]
+                display_dry_run_preview(agent_resource, ctx.name, description)
+                return
+              end
+
+              # Apply resource to cluster
+              Formatters::ProgressFormatter.with_spinner("Creating agent '#{agent_name}'") do
+                ctx.client.apply_resource(agent_resource)
+              end
+
+              # Watch synthesis status
+              synthesis_result = watch_synthesis_status(ctx.client, agent_name, ctx.namespace)
+
+              # Exit if synthesis failed
+              exit 1 unless synthesis_result[:success]
+
+              # Fetch the updated agent to get complete details
+              agent = ctx.client.get_resource(RESOURCE_AGENT, agent_name, ctx.namespace)
+
+              # Display enhanced success output
+              display_agent_created(agent, ctx.name, description, synthesis_result)
+            end
           end
 
           desc 'list', 'List all agents in current cluster'
@@ -84,17 +162,151 @@ module LanguageOperator
 
           desc 'inspect NAME', 'Show detailed agent information'
           option :cluster, type: :string, desc: 'Override current cluster context'
-          def inspect(_name)
-            # TODO: Extract full implementation from original agent.rb
-            puts 'Agent inspect command - implementation pending'
+          def inspect(name)
+            handle_command_error('inspect agent') do
+              ctx = Helpers::ClusterContext.from_options(options)
+
+              begin
+                agent = ctx.client.get_resource(RESOURCE_AGENT, name, ctx.namespace)
+              rescue K8s::Error::NotFound
+                handle_agent_not_found(name, ctx)
+                return
+              end
+
+              # Main agent information
+              puts
+              status = agent.dig('status', 'phase') || 'Unknown'
+              highlighted_box(
+                title: RESOURCE_AGENT,
+                rows: {
+                  'Name' => pastel.white.bold(name),
+                  'Namespace' => ctx.namespace,
+                  'Cluster' => ctx.name,
+                  'Status' => format_status(status),
+                  'Mode' => agent.dig('spec', 'mode') || 'autonomous',
+                  'Schedule' => agent.dig('spec', 'schedule'),
+                  'Persona' => agent.dig('spec', 'persona') || '(auto-selected)'
+                }
+              )
+              puts
+
+              # Execution stats
+              execution_count = agent.dig('status', 'executionCount') || 0
+              last_execution = agent.dig('status', 'lastExecution')
+              next_run = agent.dig('status', 'nextRun')
+
+              exec_rows = {
+                'Total Runs' => execution_count,
+                'Last Run' => last_execution || 'Never'
+              }
+              exec_rows['Next Run'] = next_run || 'N/A' if agent.dig('spec', 'schedule')
+
+              highlighted_box(title: 'Executions', rows: exec_rows, color: :blue)
+              puts
+
+              # Resources
+              resources = agent.dig('spec', 'resources')
+              if resources
+                resource_rows = {}
+                requests = resources['requests'] || {}
+                limits = resources['limits'] || {}
+
+                # CPU
+                cpu_request = requests['cpu']
+                cpu_limit = limits['cpu']
+                resource_rows['CPU'] = [cpu_request, cpu_limit].compact.join(' / ') if cpu_request || cpu_limit
+
+                # Memory
+                memory_request = requests['memory']
+                memory_limit = limits['memory']
+                resource_rows['Memory'] = [memory_request, memory_limit].compact.join(' / ') if memory_request || memory_limit
+
+                highlighted_box(title: 'Resources (Request/Limit)', rows: resource_rows, color: :cyan) unless resource_rows.empty?
+                puts
+              end
+
+              # Instructions
+              instructions = agent.dig('spec', 'instructions')
+              if instructions
+                puts pastel.white.bold('Instructions')
+                puts instructions
+                puts
+              end
+
+              # Tools
+              tools = agent.dig('spec', 'tools') || []
+              unless tools.empty?
+                list_box(title: 'Tools', items: tools)
+                puts
+              end
+
+              # Models
+              model_refs = agent.dig('spec', 'modelRefs') || []
+              unless model_refs.empty?
+                model_names = model_refs.map { |ref| ref['name'] }
+                list_box(title: 'Models', items: model_names)
+                puts
+              end
+
+              # Synthesis info
+              synthesis = agent.dig('status', 'synthesis')
+              if synthesis
+                highlighted_box(
+                  title: 'Synthesis',
+                  rows: {
+                    'Status' => synthesis['status'],
+                    'Model' => synthesis['model'],
+                    'Completed' => synthesis['completedAt'],
+                    'Duration' => synthesis['duration'],
+                    'Token Count' => synthesis['tokenCount']
+                  }
+                )
+                puts
+              end
+
+              # Conditions
+              conditions = agent.dig('status', 'conditions') || []
+              unless conditions.empty?
+                list_box(
+                  title: 'Conditions',
+                  items: conditions,
+                  style: :conditions
+                )
+                puts
+              end
+
+              # Labels
+              labels = agent.dig('metadata', 'labels') || {}
+              list_box(
+                title: 'Labels',
+                items: labels,
+                style: :key_value
+              )
+
+              # Recent events (if available)
+              # This would require querying events, which we can add later
+            end
           end
 
           desc 'delete NAME', 'Delete an agent'
           option :cluster, type: :string, desc: 'Override current cluster context'
           option :force, type: :boolean, default: false, desc: 'Skip confirmation'
-          def delete(_name)
-            # TODO: Extract full implementation from original agent.rb
-            puts 'Agent delete command - implementation pending'
+          def delete(name)
+            handle_command_error('delete agent') do
+              ctx = Helpers::ClusterContext.from_options(options)
+
+              # Get agent to verify it exists
+              get_resource_or_exit(RESOURCE_AGENT, name)
+
+              # Confirm deletion
+              return unless confirm_deletion_with_force('agent', name, ctx.name, force: options[:force])
+
+              # Delete the agent
+              puts
+              Formatters::ProgressFormatter.with_spinner("Deleting agent '#{name}'") do
+                ctx.client.delete_resource(RESOURCE_AGENT, name, ctx.namespace)
+              end
+            end
           end
 
           private
@@ -314,6 +526,94 @@ module LanguageOperator
                                           .transform_values { |agents| agents.map { |a| a.except(:cluster) } }
 
             Formatters::TableFormatter.all_agents(agents_by_cluster)
+          end
+
+          def watch_synthesis_status(k8s, agent_name, namespace)
+            max_wait = 600 # Wait up to 10 minutes (local models can be slow)
+            interval = 2   # Check every 2 seconds
+            elapsed = 0
+            start_time = Time.now
+            synthesis_data = {}
+
+            Formatters::ProgressFormatter.with_spinner('Synthesizing code from instructions') do
+              synthesis_result = nil
+              loop do
+                status = check_synthesis_status(k8s, agent_name, namespace, synthesis_data, start_time)
+                if status
+                  synthesis_result = status
+                  break
+                end
+
+                # Timeout check
+                if elapsed >= max_wait
+                  Formatters::ProgressFormatter.warn('Synthesis taking longer than expected, continuing in background...')
+                  puts
+                  puts 'Check synthesis status with:'
+                  puts "  aictl agent inspect #{agent_name}"
+                  synthesis_result = { success: true, timeout: true }
+                  break
+                end
+
+                sleep interval
+                elapsed += interval
+              end
+              synthesis_result
+            rescue K8s::Error::NotFound
+              # Agent not found yet, keep waiting
+              sleep interval
+              elapsed += interval
+              retry if elapsed < max_wait
+
+              Formatters::ProgressFormatter.error('Agent resource not found')
+              return { success: false }
+            rescue StandardError => e
+              Formatters::ProgressFormatter.warn("Could not watch synthesis: #{e.message}")
+              return { success: true } # Continue anyway
+            end
+          end
+
+          def check_synthesis_status(k8s, agent_name, namespace, synthesis_data, start_time)
+            agent = k8s.get_resource(RESOURCE_AGENT, agent_name, namespace)
+            conditions = agent.dig('status', 'conditions') || []
+            synthesis_status = agent.dig('status', 'synthesis')
+
+            # Capture synthesis metadata
+            if synthesis_status
+              synthesis_data[:model] = synthesis_status['model']
+              synthesis_data[:token_count] = synthesis_status['tokenCount']
+            end
+
+            # Check for synthesis completion
+            synthesized = conditions.find { |c| c['type'] == 'Synthesized' }
+            return nil unless synthesized
+
+            if synthesized['status'] == 'True'
+              duration = Time.now - start_time
+              { success: true, duration: duration, **synthesis_data }
+            elsif synthesized['status'] == 'False'
+              Formatters::ProgressFormatter.error("Synthesis failed: #{synthesized['message']}")
+              { success: false }
+            end
+          end
+
+          def get_resource_or_exit(resource_type, name)
+            ctx = Helpers::ClusterContext.from_options(options)
+            begin
+              ctx.client.get_resource(resource_type, name, ctx.namespace)
+            rescue K8s::Error::NotFound
+              handle_agent_not_found(name, ctx) if resource_type == RESOURCE_AGENT
+              exit 1
+            end
+          end
+
+          def confirm_deletion_with_force(resource_type, name, cluster, force: false)
+            return true if force
+
+            puts
+            puts "This will delete #{resource_type} '#{name}' from cluster '#{cluster}'"
+            puts pastel.yellow('This action cannot be undone.')
+            puts
+            Helpers::UserPrompts.confirm('Are you sure?')
           end
         end
       end

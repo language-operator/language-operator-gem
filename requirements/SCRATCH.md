@@ -71,24 +71,11 @@ This is the Gem component of language-operator, an operator for Kubernetes that 
 
 ## Task Execution (DSL v1)
 
-**Neural Task Flow:**
-1. TaskExecutor builds prompt from task instructions + inputs + output schema
-2. LLM called via `agent.send_message` with full tool access
-3. Response parsed as JSON (supports ```json blocks or raw objects)
-4. Outputs validated against schema via TaskDefinition#validate_outputs
-5. Fail fast on any error (critical for re-synthesis)
+**Task Flows:**
+- **Neural:** TaskExecutor → LLM prompt → JSON parsing → validation (fail fast)
+- **Symbolic:** TaskDefinition#call → code execution → validation (fail fast)
 
-**Symbolic Task Flow:**
-1. TaskExecutor calls TaskDefinition#call with inputs and self as context
-2. TaskDefinition validates inputs, executes code block, validates outputs
-3. Context provides `execute_task`, `execute_llm`, `execute_tool` helpers
-4. Fail fast on any error
-
-**Runtime Wiring:**
-- Agent module detects DSL v1 (main block) vs v0 (workflow)
-- Autonomous mode: `execute_main_block` creates TaskExecutor, calls MainDefinition
-- Scheduled mode: `Scheduler#start_with_main` creates TaskExecutor, schedules main
-- MainDefinition receives TaskExecutor as execution context via instance_exec
+**Runtime:** Agent detects DSL v1/v0, creates TaskExecutor, executes via mode (autonomous/scheduled)
 
 ## Parallel Execution (DSL v1)
 
@@ -105,35 +92,14 @@ merged = execute_task(:merge, inputs: { s1: s1 })
 
 ## Learning System
 
-**Architecture:**
-- `TraceAnalyzer`: Query OTLP backends (SigNoz/Jaeger/Tempo) for task execution traces
-- `PatternDetector`: Convert deterministic patterns to symbolic Ruby code
-- Auto-detection chain: signoz → jaeger → tempo → graceful degradation
-
-**Pattern Detection:**
-- Threshold: 85% consistency, 10+ executions required
-- Groups by input signature (serialized, sorted)
-- Generates chained execute_task calls from tool sequences
-- Validates via ASTValidator before returning code
-
-**Config:**
-```ruby
-ENV['OTEL_QUERY_ENDPOINT'] = 'https://example.signoz.io'
-ENV['OTEL_QUERY_API_KEY'] = 'api-key'  # SigNoz only
-ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional
-```
-
-**Key Details:**
-- WebMock stubs needed before TraceAnalyzer init (auto-detection happens in constructor)
-- Input normalization: `.sort.to_h.to_s` - different values = different signatures
-- Required span attributes: `task.name`, `task.input.*`, `task.output.*`, `gen_ai.tool.name`
+**Components:** TraceAnalyzer (OTLP query) + PatternDetector (pattern→code generation)
+**Threshold:** 85% consistency, 10+ executions → symbolic conversion
+**Config:** OTEL_QUERY_ENDPOINT, OTEL_QUERY_API_KEY, OTEL_QUERY_BACKEND
+**Gotcha:** WebMock stubs needed before TraceAnalyzer init (auto-detection in constructor)
 
 ## CLI Architecture
 
-**Structure:**
-- Wizards: `cli/wizards/` (AgentWizard, ModelWizard, QuickstartWizard)
-- Helpers: `cli/helpers/` (UxHelper, ValidationHelper, ProviderHelper)
-- Pattern: All wizards `include UxHelper` (provides `pastel`, `prompt`, `spinner`, `table`, `box`)
+**Pattern:** Wizards in `cli/wizards/` + Helpers in `cli/helpers/` + UxHelper for TTY components
 
 ## Quick Wins / Common Gotchas
 
@@ -149,43 +115,23 @@ ENV['OTEL_QUERY_BACKEND'] = 'signoz'   # Optional
 10. **WebMock Timing:** Stub HTTP calls before object initialization if constructor makes requests
 11. **Wizard Pattern:** Always use `UxHelper` for TTY components, never instantiate directly
 
-## Current Priorities (2025-11-23)
+## Current Priorities (2025-11-24)
 
-**P0 - Critical Blockers:**
-No critical blockers remaining.
+**P1 - Resource/Performance:**
+- #61 - Resource leak in cluster list (likely duplicate of resolved #62/#67)
 
-**P1 - Resource/Performance Issues:**
-1. #61 - Resource leak in cluster list with multiple K8s clients (likely duplicate of #62/#67)
-
-**P2 - UX/Config Issues:**
-1. #66 - Dead code and unreachable return statement in QuickstartWizard
-2. #47 - Silent type conversion failures
-3. #49 - CLI exits on invalid selection
+**P2 - UX/Config:**
+(None currently)
 
 **P3 - Enhancements:**
-1. #51 - Include complete MCP tool schemas
-2. #39 - Update examples to task/main
-3. #40 - Performance optimization
-4. #41 - Comprehensive test suite
+- #51 - Include complete MCP tool schemas
+- #39 - Update examples to task/main
+- #40 - Performance optimization
+- #41 - Comprehensive test suite
 
-**Recently Completed:**
-- ✅ #55 - Agent list command shows 'implementation pending' (commit bd63f66 - fixed incomplete refactoring by wiring up list() method to existing helper functions, added ClusterContext import, comprehensive test coverage, manual testing confirms table output works correctly)
-- ✅ #59 - Insufficient error handling in K8s current_namespace (commit dcced47 - improved error handling to catch SystemCallError/IOError, added comprehensive tests, prevents agent startup crashes in edge-case Kubernetes deployments)
-- ✅ #62 - Memory leak and connection pool exhaustion in cluster list (closed as already fixed in commit df302d9)
-- ✅ #67 - Multiple K8s client instantiation without cleanup (commit df302d9 - critical resource leak fix, implemented client caching with kubeconfig:context keys, added comprehensive tests for client reuse behavior, eliminates resource leaks in cluster list command)
-- ✅ #60 - Silent conversion of invalid env vars in Agent::Executor safety config (commit a485351 - security critical, replaced silent to_f/to_i with proper Float()/Integer() validation, added comprehensive tests)
-- ✅ #69 - Thread-safety issue with shared Executor in WebServer (commit 9cc1838 - critical thread safety fix, eliminated shared executor instance to prevent race conditions)
-- ✅ #50 - Request body consumed without rewind (commit 8c8913d - critical webhook security fix, added request.body.rewind for proper HMAC authentication)
-- ✅ #68 - Critical sandbox bypass vulnerability in SafeExecutor (commit 6f65156 - security critical, replaced dangerous const_missing fallback with explicit allowlist)
-- ✅ #65 - Command injection vulnerability in model test curl (closed as duplicate, already fixed in commit 84b056b)
-- ✅ #64 - Command injection vulnerability in model test curl (commit 84b056b - security critical, replaced dangerous echo+pipe with secure tempfile approach)
-- ✅ #63 - Syntax error in dsl.rb prevents gem loading (closed as not reproducible, CI validation prevents such issues)
-- ✅ #58 - TypeError in WebhookAuthenticator with malformed credentials
-- ✅ #46 - Unsafe YAML.load_file security vulnerability
-- ✅ #45 - NoMethodError in Scheduler (.cron accessor bug)
-- ✅ #52 - CLI wizard consolidation under cli/wizards/
-- ✅ #44 - NoMethodError for missing mcp_servers
-- ✅ #54 - Confusing error message when AGENT_MODE is unset or empty
-- ✅ #56/#57 - Closed as duplicates of #47
-- ✅ #48 - Path traversal vulnerability in Dsl.load_file methods
-- ✅ #53 - Unhandled file access errors in Dsl.load_file methods
+**Recently Completed (Major Issues):**
+- ✅ #66, #55, #59, #62, #67 - CLI and K8s client fixes
+- ✅ #60, #69, #50, #68, #64, #46, #48 - Security vulnerabilities resolved
+- ✅ #45, #52, #44, #54, #53 - Runtime and UX improvements
+- ✅ #49 - CLI exits on invalid selection (2025-11-24) - Fixed UserPrompts.select to retry instead of exit
+- ✅ #47 - Silent type conversion failures (2025-11-24) - Replaced to_i/to_f with strict Integer()/Float() validation

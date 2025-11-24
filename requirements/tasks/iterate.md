@@ -23,7 +23,7 @@ Follow these directions closely:
 5. Implement your plan.
 6. Run existing tests, and add new ones if necessary.  Remember to include CI. Remember the linter and that bundler will fail if it's out of sync with its lockfile.
 7. **CRITICAL:** Test the actual functionality manually before committing. If it's a CLI command, run it. If it's library code, test it in the appropriate context. Never commit untested code.
-8. Commit the change with a semantic, ONE LINE message, like 'feat: create task_definition structure'.
+8. Commit the change with a semantic, ONE LINE message, like 'feat: create task_definition structure' and push to origin.
 9. **CRITICAL:** Halt while CI runs and await my feedback.
 10. Add resolution details as a comment on the GitHub issue.
 11. Resolve the GitHub issue.

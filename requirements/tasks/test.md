@@ -16,7 +16,8 @@ Adopt the `requirements/personas/:persona.md` persona while executing these inst
 ## Instructions
 
 - Use the `gh` command to select issues labeled "bug", so you do not file a duplicate issue.
-- Find a single bug that a user of this gem is likely to encounter.
+- Ignore files in the requirements/ folder.
+- Find a bug that a user of this gem is likely to encounter.
 - Using the `gh` command, file a bug against this repository labeled "bug".
 
 ## Output

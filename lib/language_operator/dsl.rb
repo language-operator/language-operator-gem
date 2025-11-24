@@ -107,20 +107,18 @@ module LanguageOperator
       #   LanguageOperator::Dsl.load_file("mcp/tools.rb")
       def load_file(file_path)
         # Validate file path to prevent path traversal attacks
-        validated_path = validate_file_path!(file_path, context: "tool definition file loading")
-        
+        validated_path = validate_file_path!(file_path, context: 'tool definition file loading')
+
         # Check if file exists
-        unless File.exist?(validated_path)
-          raise FileNotFoundError, Errors.file_not_found(file_path, "tool definition file")
-        end
+        raise FileNotFoundError, Errors.file_not_found(file_path, 'tool definition file') unless File.exist?(validated_path)
 
         # Attempt to read the file
         begin
           code = File.read(validated_path)
         rescue Errno::EACCES
-          raise FilePermissionError, Errors.file_permission_denied(file_path, "tool definition file")
+          raise FilePermissionError, Errors.file_permission_denied(file_path, 'tool definition file')
         rescue Errno::EISDIR
-          raise FileNotFoundError, Errors.file_not_found(file_path, "tool definition file")
+          raise FileNotFoundError, Errors.file_not_found(file_path, 'tool definition file')
         rescue SystemCallError => e
           raise FileLoadError, "Error reading tool definition file '#{file_path}': #{e.message}"
         end
@@ -132,7 +130,7 @@ module LanguageOperator
           executor = Agent::Safety::SafeExecutor.new(context)
           executor.eval(code, validated_path)
         rescue SyntaxError => e
-          raise FileSyntaxError, Errors.file_syntax_error(file_path, e.message, "tool definition file")
+          raise FileSyntaxError, Errors.file_syntax_error(file_path, e.message, 'tool definition file')
         rescue StandardError => e
           # Re-raise with additional context for other execution errors
           raise FileLoadError, "Error executing tool definition file '#{file_path}': #{e.message}"
@@ -154,20 +152,18 @@ module LanguageOperator
       #   LanguageOperator::Dsl.load_agent_file("agents/news-summarizer.rb")
       def load_agent_file(file_path)
         # Validate file path to prevent path traversal attacks
-        validated_path = validate_file_path!(file_path, context: "agent definition file loading")
-        
+        validated_path = validate_file_path!(file_path, context: 'agent definition file loading')
+
         # Check if file exists
-        unless File.exist?(validated_path)
-          raise FileNotFoundError, Errors.file_not_found(file_path, "agent definition file")
-        end
+        raise FileNotFoundError, Errors.file_not_found(file_path, 'agent definition file') unless File.exist?(validated_path)
 
         # Attempt to read the file
         begin
           code = File.read(validated_path)
         rescue Errno::EACCES
-          raise FilePermissionError, Errors.file_permission_denied(file_path, "agent definition file")
+          raise FilePermissionError, Errors.file_permission_denied(file_path, 'agent definition file')
         rescue Errno::EISDIR
-          raise FileNotFoundError, Errors.file_not_found(file_path, "agent definition file")
+          raise FileNotFoundError, Errors.file_not_found(file_path, 'agent definition file')
         rescue SystemCallError => e
           raise FileLoadError, "Error reading agent definition file '#{file_path}': #{e.message}"
         end
@@ -179,7 +175,7 @@ module LanguageOperator
           executor = Agent::Safety::SafeExecutor.new(context)
           executor.eval(code, validated_path)
         rescue SyntaxError => e
-          raise FileSyntaxError, Errors.file_syntax_error(file_path, e.message, "agent definition file")
+          raise FileSyntaxError, Errors.file_syntax_error(file_path, e.message, 'agent definition file')
         rescue StandardError => e
           # Re-raise with additional context for other execution errors
           raise FileLoadError, "Error executing agent definition file '#{file_path}': #{e.message}"
@@ -222,11 +218,9 @@ module LanguageOperator
       # @param context [String] Context for error messages
       # @return [String] The validated and resolved absolute path
       # @raise [PathTraversalError] When path traversal is detected
-      def validate_file_path!(file_path, context: "file loading")
+      def validate_file_path!(file_path, context: 'file loading')
         # Check for suspicious patterns before path resolution
-        if contains_path_traversal_patterns?(file_path)
-          raise PathTraversalError, Errors.path_traversal_blocked(context)
-        end
+        raise PathTraversalError, Errors.path_traversal_blocked(context) if contains_path_traversal_patterns?(file_path)
 
         # Resolve the path to handle relative paths and symlinks
         begin
@@ -239,9 +233,7 @@ module LanguageOperator
         allowed_bases = get_allowed_base_paths
 
         # Check if resolved path is within any allowed base directory
-        unless allowed_bases.any? { |base| path_within_base?(resolved_path, base) }
-          raise PathTraversalError, Errors.path_traversal_blocked(context)
-        end
+        raise PathTraversalError, Errors.path_traversal_blocked(context) unless allowed_bases.any? { |base| path_within_base?(resolved_path, base) }
 
         resolved_path
       end
@@ -254,14 +246,14 @@ module LanguageOperator
         # List of suspicious patterns that indicate path traversal attempts
         # Focus on actual traversal patterns, not just any relative path
         patterns = [
-          /\.\./,                    # Parent directory references (classic traversal)
-          /[\x00]/,                  # Null byte injection
+          /\.\./, # Parent directory references (classic traversal)
+          /\x00/, # Null byte injection
           /%2e%2e/i,                # URL-encoded parent directory
-          /%2f/i,                   # URL-encoded path separator  
+          /%2f/i,                   # URL-encoded path separator
           /%5c/i,                   # URL-encoded backslash
           /\\+\.\./,                # Windows-style parent directory with backslashes
-          /\/\.\.+/,                # Multiple dots after slash
-          /\.\.[\/\\]/              # Parent directory followed by path separator
+          %r{/\.\.+},                # Multiple dots after slash
+          %r{\.\.[/\\]}              # Parent directory followed by path separator
         ]
 
         patterns.any? { |pattern| file_path.match?(pattern) }
@@ -306,7 +298,7 @@ module LanguageOperator
       def path_within_base?(resolved_path, base_path)
         # Ensure base path ends with separator for accurate prefix matching
         normalized_base = File.join(base_path, '')
-        
+
         # Allow exact matches or paths that start with the base directory
         resolved_path == base_path || resolved_path.start_with?(normalized_base)
       end

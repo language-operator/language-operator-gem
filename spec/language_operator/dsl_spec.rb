@@ -24,11 +24,11 @@ RSpec.describe LanguageOperator::Dsl do
       agent "test_agent" do
         description "A test agent"
         mode :autonomous
-        
+      #{'  '}
         task :simple_task do |inputs|
           { result: "completed" }
         end
-        
+      #{'  '}
         main do |inputs|
           execute_task(:simple_task)
         end
@@ -62,7 +62,7 @@ RSpec.describe LanguageOperator::Dsl do
 
       it 'loads the tool successfully' do
         registry = described_class.load_file(tool_file)
-        
+
         expect(registry.get('test_tool')).not_to be_nil
         expect(registry.get('test_tool').description).to eq('A test tool')
       end
@@ -144,7 +144,7 @@ RSpec.describe LanguageOperator::Dsl do
               raise StandardError, "Intentional error"
             end
           end
-          
+
           # This will cause an error during loading
           undefined_method_call
         RUBY
@@ -173,7 +173,7 @@ RSpec.describe LanguageOperator::Dsl do
 
       it 'loads the agent successfully' do
         registry = described_class.load_agent_file(agent_file)
-        
+
         expect(registry.get('test_agent')).not_to be_nil
         expect(registry.get('test_agent').description).to eq('A test agent')
       end
@@ -253,7 +253,7 @@ RSpec.describe LanguageOperator::Dsl do
             description "This will cause a runtime error"
             mode :autonomous
           end
-          
+
           # This will cause an error during loading
           undefined_method_call
         RUBY
@@ -299,7 +299,7 @@ RSpec.describe LanguageOperator::Dsl do
       it 'allows valid relative paths within current directory' do
         valid_file = File.join(temp_dir, 'valid.rb')
         File.write(valid_file, valid_tool_content)
-        
+
         # Change to temp directory to test relative path access
         Dir.chdir(temp_dir) do
           expect { described_class.load_file('valid.rb') }.not_to raise_error
@@ -311,7 +311,7 @@ RSpec.describe LanguageOperator::Dsl do
         Dir.mkdir(subdir)
         valid_file = File.join(subdir, 'valid.rb')
         File.write(valid_file, valid_tool_content)
-        
+
         Dir.chdir(temp_dir) do
           expect { described_class.load_file('tools/valid.rb') }.not_to raise_error
         end
@@ -336,7 +336,7 @@ RSpec.describe LanguageOperator::Dsl do
       it 'allows valid relative paths within current directory' do
         valid_file = File.join(temp_dir, 'valid_agent.rb')
         File.write(valid_file, valid_agent_content)
-        
+
         Dir.chdir(temp_dir) do
           expect { described_class.load_agent_file('valid_agent.rb') }.not_to raise_error
         end
@@ -354,7 +354,7 @@ RSpec.describe LanguageOperator::Dsl do
 
       it 'allows access to custom paths when configured' do
         ENV['LANGOP_ALLOWED_PATHS'] = custom_dir
-        
+
         expect { described_class.load_file(custom_file) }.not_to raise_error
       ensure
         ENV.delete('LANGOP_ALLOWED_PATHS')
@@ -367,7 +367,7 @@ RSpec.describe LanguageOperator::Dsl do
         File.write(another_file, valid_tool_content)
 
         ENV['LANGOP_ALLOWED_PATHS'] = "#{custom_dir}:#{another_dir}"
-        
+
         expect { described_class.load_file(custom_file) }.not_to raise_error
         expect { described_class.load_file(another_file) }.not_to raise_error
       ensure
@@ -376,7 +376,7 @@ RSpec.describe LanguageOperator::Dsl do
 
       it 'still blocks paths outside custom allowed paths' do
         ENV['LANGOP_ALLOWED_PATHS'] = custom_dir
-        
+
         expect { described_class.load_file('/etc/passwd') }.to raise_error(
           LanguageOperator::PathTraversalError
         )
@@ -420,7 +420,7 @@ RSpec.describe LanguageOperator::Dsl do
     it 'provides actionable error messages for missing files' do
       expect { described_class.load_file(missing_file) }.to raise_error do |error|
         expect(error.message).to include('Tool definition file not found')
-        expect(error.message).to include('missing.rb')  # Check for filename rather than full path
+        expect(error.message).to include('missing.rb') # Check for filename rather than full path
         expect(error.message).to include('Please check the file path exists')
       end
     end

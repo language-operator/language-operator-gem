@@ -135,7 +135,7 @@ RSpec.describe LanguageOperator::Errors do
   describe '.file_not_found' do
     it 'returns a formatted error message with file path' do
       message = described_class.file_not_found('/path/to/missing.rb')
-      
+
       expect(message).to include('File not found at')
       expect(message).to include('/path/to/missing.rb')
       expect(message).to include('Please check the file path exists')
@@ -143,7 +143,7 @@ RSpec.describe LanguageOperator::Errors do
 
     it 'accepts custom context' do
       message = described_class.file_not_found('/path/to/agent.rb', 'agent definition')
-      
+
       expect(message).to include('Agent definition not found at')
       expect(message).to include('/path/to/agent.rb')
     end
@@ -152,7 +152,7 @@ RSpec.describe LanguageOperator::Errors do
   describe '.file_permission_denied' do
     it 'returns a formatted error message with file path' do
       message = described_class.file_permission_denied('/path/to/restricted.rb')
-      
+
       expect(message).to include('Permission denied reading')
       expect(message).to include('/path/to/restricted.rb')
       expect(message).to include('check file permissions')
@@ -160,7 +160,7 @@ RSpec.describe LanguageOperator::Errors do
 
     it 'accepts custom context' do
       message = described_class.file_permission_denied('/path/to/tool.rb', 'tool definition')
-      
+
       expect(message).to include('Permission denied reading tool definition')
       expect(message).to include('/path/to/tool.rb')
     end
@@ -170,7 +170,7 @@ RSpec.describe LanguageOperator::Errors do
     it 'returns a formatted error message with file path and error' do
       original_error = 'unexpected end-of-input'
       message = described_class.file_syntax_error('/path/to/bad.rb', original_error)
-      
+
       expect(message).to include('Syntax error in file')
       expect(message).to include('/path/to/bad.rb')
       expect(message).to include(original_error)
@@ -180,7 +180,7 @@ RSpec.describe LanguageOperator::Errors do
     it 'accepts custom context' do
       original_error = 'missing end'
       message = described_class.file_syntax_error('/path/to/agent.rb', original_error, 'agent configuration')
-      
+
       expect(message).to include('Syntax error in agent configuration')
       expect(message).to include('/path/to/agent.rb')
       expect(message).to include(original_error)
@@ -190,7 +190,7 @@ RSpec.describe LanguageOperator::Errors do
   describe '.path_traversal_blocked' do
     it 'returns a formatted security error message' do
       message = described_class.path_traversal_blocked
-      
+
       expect(message).to include('Path traversal attempt blocked')
       expect(message).to include('File path must be within allowed directories')
       expect(message).to include('LANGOP_ALLOWED_PATHS')
@@ -198,7 +198,7 @@ RSpec.describe LanguageOperator::Errors do
 
     it 'accepts custom context' do
       message = described_class.path_traversal_blocked('agent file loading')
-      
+
       expect(message).to include('Path traversal attempt blocked during agent file loading')
       expect(message).to include('File path must be within allowed directories')
     end
@@ -255,13 +255,13 @@ RSpec.describe 'LanguageOperator custom exceptions' do
 
     it 'can be caught as FileLoadError' do
       exception_caught = false
-      
+
       begin
         raise LanguageOperator::FileNotFoundError, 'test'
       rescue LanguageOperator::FileLoadError
         exception_caught = true
       end
-      
+
       expect(exception_caught).to be(true)
     end
   end
@@ -291,25 +291,25 @@ RSpec.describe 'LanguageOperator custom exceptions' do
 
     it 'can be caught as SecurityError' do
       exception_caught = false
-      
+
       begin
         raise LanguageOperator::PathTraversalError, 'test'
       rescue LanguageOperator::SecurityError
         exception_caught = true
       end
-      
+
       expect(exception_caught).to be(true)
     end
 
     it 'can be caught as base LanguageOperator::Error' do
       exception_caught = false
-      
+
       begin
         raise LanguageOperator::PathTraversalError, 'test'
       rescue LanguageOperator::Error
         exception_caught = true
       end
-      
+
       expect(exception_caught).to be(true)
     end
   end

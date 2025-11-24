@@ -9,7 +9,7 @@ module LanguageOperator
   class FileNotFoundError < FileLoadError; end
   class FilePermissionError < FileLoadError; end
   class FileSyntaxError < FileLoadError; end
-  
+
   # Security related errors
   class SecurityError < Error; end
   class PathTraversalError < SecurityError; end
@@ -74,18 +74,18 @@ module LanguageOperator
     # @param file_path [String] Path to the file that wasn't found
     # @param context [String] Additional context about what the file is for
     # @return [String] Formatted error message
-    def self.file_not_found(file_path, context = "file")
+    def self.file_not_found(file_path, context = 'file')
       "Error: #{context.capitalize} not found at '#{file_path}'. " \
-      "Please check the file path exists and is accessible."
+        'Please check the file path exists and is accessible.'
     end
 
     # File permission error
     # @param file_path [String] Path to the file with permission issues
     # @param context [String] Additional context about what the file is for
     # @return [String] Formatted error message
-    def self.file_permission_denied(file_path, context = "file")
+    def self.file_permission_denied(file_path, context = 'file')
       "Error: Permission denied reading #{context} '#{file_path}'. " \
-      "Please check file permissions or run with appropriate access rights."
+        'Please check file permissions or run with appropriate access rights.'
     end
 
     # File syntax error
@@ -93,18 +93,18 @@ module LanguageOperator
     # @param original_error [String] Original error message from parser
     # @param context [String] Additional context about what the file is for
     # @return [String] Formatted error message
-    def self.file_syntax_error(file_path, original_error, context = "file")
+    def self.file_syntax_error(file_path, original_error, context = 'file')
       "Error: Syntax error in #{context} '#{file_path}': #{original_error}. " \
-      "Please check the file for valid Ruby syntax."
+        'Please check the file for valid Ruby syntax.'
     end
 
     # Path traversal security error
     # @param context [String] Context about what operation was attempted
     # @return [String] Formatted error message
-    def self.path_traversal_blocked(context = "file operation")
+    def self.path_traversal_blocked(context = 'file operation')
       "Error: Path traversal attempt blocked during #{context}. " \
-      "File path must be within allowed directories. " \
-      "Use relative paths or configure LANGOP_ALLOWED_PATHS if needed."
+        'File path must be within allowed directories. ' \
+        'Use relative paths or configure LANGOP_ALLOWED_PATHS if needed.'
     end
   end
 end

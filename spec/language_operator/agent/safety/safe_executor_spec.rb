@@ -15,7 +15,7 @@ RSpec.describe LanguageOperator::Agent::Safety::SafeExecutor do
 
       it 'blocks access to dangerous constants (via NameError or SecurityError)' do
         dangerous_constants = %w[File Dir Process IO Kernel ObjectSpace Thread Socket TCPSocket STDIN STDOUT STDERR]
-        
+
         dangerous_constants.each do |const_name|
           expect { executor.eval(const_name) }.to raise_error(StandardError) do |error|
             # Either NameError (not in scope) or SecurityError (const_missing protection)
@@ -29,9 +29,9 @@ RSpec.describe LanguageOperator::Agent::Safety::SafeExecutor do
         registry = LanguageOperator::Dsl::Registry.new
         context = LanguageOperator::Dsl::Context.new(registry)
         sandbox = LanguageOperator::Agent::Safety::SafeExecutor::SandboxProxy.new(context, executor)
-        
+
         dangerous_constants = %i[File Dir Process IO Kernel ObjectSpace Thread Socket]
-        
+
         dangerous_constants.each do |const_name|
           expect { sandbox.const_missing(const_name) }.to raise_error(
             LanguageOperator::Agent::Safety::SafeExecutor::SecurityError,
@@ -49,7 +49,7 @@ RSpec.describe LanguageOperator::Agent::Safety::SafeExecutor do
       it 'allows access to safe Ruby constants that are pre-injected' do
         # Test constants that are explicitly injected by SafeExecutor
         safe_constants = %w[String Array Hash Integer Float Time Date]
-        
+
         safe_constants.each do |const_name|
           expect { executor.eval(const_name) }.not_to raise_error
         end
@@ -60,9 +60,9 @@ RSpec.describe LanguageOperator::Agent::Safety::SafeExecutor do
         registry = LanguageOperator::Dsl::Registry.new
         context = LanguageOperator::Dsl::Context.new(registry)
         sandbox = LanguageOperator::Agent::Safety::SafeExecutor::SandboxProxy.new(context, executor)
-        
+
         safe_constants = %i[String Array Hash Integer Float Numeric Symbol Time Date TrueClass FalseClass NilClass HTTP Shell]
-        
+
         safe_constants.each do |const_name|
           expect { sandbox.const_missing(const_name) }.not_to raise_error
         end
@@ -73,8 +73,8 @@ RSpec.describe LanguageOperator::Agent::Safety::SafeExecutor do
       it 'blocks dangerous method access like const_get via AST validation' do
         # Test that AST validator blocks const_get
         expect(validator).to receive(:validate!).with('String.const_get(:File)', anything)
-                                               .and_raise(LanguageOperator::Agent::Safety::ASTValidator::SecurityError.new('const_get not allowed'))
-        
+                                                .and_raise(LanguageOperator::Agent::Safety::ASTValidator::SecurityError.new('const_get not allowed'))
+
         expect { executor.eval('String.const_get(:File)') }.to raise_error(
           LanguageOperator::Agent::Safety::SafeExecutor::SecurityError,
           /Code validation failed: const_get not allowed/
@@ -83,8 +83,8 @@ RSpec.describe LanguageOperator::Agent::Safety::SafeExecutor do
 
       it 'blocks reflection methods via AST validation' do
         expect(validator).to receive(:validate!).with('send(:const_get, :File)', anything)
-                                               .and_raise(LanguageOperator::Agent::Safety::ASTValidator::SecurityError.new('send not allowed'))
-        
+                                                .and_raise(LanguageOperator::Agent::Safety::ASTValidator::SecurityError.new('send not allowed'))
+
         expect { executor.eval('send(:const_get, :File)') }.to raise_error(
           LanguageOperator::Agent::Safety::SafeExecutor::SecurityError,
           /Code validation failed: send not allowed/
@@ -98,7 +98,7 @@ RSpec.describe LanguageOperator::Agent::Safety::SafeExecutor do
         registry = LanguageOperator::Dsl::Registry.new
         context = LanguageOperator::Dsl::Context.new(registry)
         sandbox = LanguageOperator::Agent::Safety::SafeExecutor::SandboxProxy.new(context, executor)
-        
+
         expect { sandbox.const_missing(:File) }.to raise_error(
           LanguageOperator::Agent::Safety::SafeExecutor::SecurityError
         ) do |error|
@@ -125,12 +125,12 @@ RSpec.describe LanguageOperator::Agent::Safety::SafeExecutor do
 
     it 'logs method calls for security auditing' do
       executor_with_context = described_class.new(mock_context, validator: validator)
-      
+
       expect { executor_with_context.eval('safe_method') }.not_to raise_error
-      
+
       expect(executor_with_context.audit_log).not_to be_empty
       log_entry = executor_with_context.audit_log.first
-      expect(log_entry[:method]).to eq(:safe_method)  # Method names are stored as symbols
+      expect(log_entry[:method]).to eq(:safe_method) # Method names are stored as symbols
       expect(log_entry[:receiver]).to include('Double')
       expect(log_entry[:timestamp]).to be_a(Time)
     end
@@ -139,10 +139,10 @@ RSpec.describe LanguageOperator::Agent::Safety::SafeExecutor do
   describe 'integration with AST validator' do
     it 'validates code through AST validator before execution' do
       dangerous_code = 'system("rm -rf /")'
-      
+
       expect(validator).to receive(:validate!).with(dangerous_code, anything)
-                                               .and_raise(LanguageOperator::Agent::Safety::ASTValidator::SecurityError.new('Dangerous code'))
-      
+                                              .and_raise(LanguageOperator::Agent::Safety::ASTValidator::SecurityError.new('Dangerous code'))
+
       expect { executor.eval(dangerous_code) }.to raise_error(
         LanguageOperator::Agent::Safety::SafeExecutor::SecurityError,
         /Code validation failed: Dangerous code/
