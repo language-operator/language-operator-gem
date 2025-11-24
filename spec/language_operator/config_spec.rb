@@ -96,6 +96,26 @@ RSpec.describe LanguageOperator::Config do
         result = described_class.convert_type('0', :integer)
         expect(result).to eq(0)
       end
+
+      it 'raises error for invalid integer strings' do
+        expect { described_class.convert_type('abc', :integer) }
+          .to raise_error(ArgumentError, /invalid value for Integer/)
+      end
+
+      it 'raises error for mixed numeric strings' do
+        expect { described_class.convert_type('123abc', :integer) }
+          .to raise_error(ArgumentError, /invalid value for Integer/)
+      end
+
+      it 'raises error for empty strings' do
+        expect { described_class.convert_type('', :integer) }
+          .to raise_error(ArgumentError, /invalid value for Integer/)
+      end
+
+      it 'handles strings with leading/trailing whitespace' do
+        result = described_class.convert_type('  42  ', :integer)
+        expect(result).to eq(42)
+      end
     end
 
     describe ':float type' do
@@ -112,6 +132,26 @@ RSpec.describe LanguageOperator::Config do
       it 'converts integers to float' do
         result = described_class.convert_type('42', :float)
         expect(result).to eq(42.0)
+      end
+
+      it 'raises error for invalid float strings' do
+        expect { described_class.convert_type('xyz', :float) }
+          .to raise_error(ArgumentError, /invalid value for Float/)
+      end
+
+      it 'raises error for multiple decimal points' do
+        expect { described_class.convert_type('12.34.56', :float) }
+          .to raise_error(ArgumentError, /invalid value for Float/)
+      end
+
+      it 'raises error for empty strings' do
+        expect { described_class.convert_type('', :float) }
+          .to raise_error(ArgumentError, /invalid value for Float/)
+      end
+
+      it 'handles strings with leading/trailing whitespace' do
+        result = described_class.convert_type('  3.14  ', :float)
+        expect(result).to eq(3.14)
       end
     end
 

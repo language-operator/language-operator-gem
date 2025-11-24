@@ -75,16 +75,21 @@ module LanguageOperator
 
     # Convert a string value to the specified type
     #
+    # For integer and float types, uses strict conversion that raises ArgumentError
+    # for invalid input (e.g., non-numeric strings).
+    #
     # @param value [String, nil] Raw string value from environment
     # @param type [Symbol] Target type (:string, :integer, :boolean, :float, :array)
     # @param separator [String] Separator for array type (default: ',')
     # @return [Object] Converted value
+    # @raise [ArgumentError] When integer/float conversion fails
     #
     # @example String conversion
     #   Config.convert_type('hello', :string) # => "hello"
     #
     # @example Integer conversion
     #   Config.convert_type('42', :integer) # => 42
+    #   Config.convert_type('abc', :integer) # raises ArgumentError
     #
     # @example Boolean conversion
     #   Config.convert_type('true', :boolean) # => true
@@ -94,6 +99,7 @@ module LanguageOperator
     #
     # @example Float conversion
     #   Config.convert_type('3.14', :float) # => 3.14
+    #   Config.convert_type('xyz', :float) # raises ArgumentError
     #
     # @example Array conversion
     #   Config.convert_type('a,b,c', :array) # => ["a", "b", "c"]
@@ -104,9 +110,9 @@ module LanguageOperator
       when :string
         value.to_s
       when :integer
-        value.to_i
+        Integer(value)
       when :float
-        value.to_f
+        Float(value)
       when :boolean
         %w[true 1 yes on].include?(value.to_s.downcase)
       when :array
