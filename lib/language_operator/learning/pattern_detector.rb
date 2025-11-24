@@ -266,12 +266,10 @@ module LanguageOperator
         if task_definition
           inputs_str = (task_definition.inputs || {}).map { |k, v| "#{k}: '#{v}'" }.join(', ')
           outputs_str = (task_definition.outputs || {}).map { |k, v| "#{k}: '#{v}'" }.join(', ')
-          task_definition.instructions
         else
           # Fallback to generic schema
           inputs_str = "data: 'hash'"
           outputs_str = "result: 'hash'"
-          'Learned symbolic implementation from execution patterns'
         end
 
         <<~RUBY
