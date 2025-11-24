@@ -29,7 +29,6 @@ module LanguageOperator
                   # Suspend the CronJob by setting spec.suspend = true
                   # This is done by patching the underlying CronJob resource
                   cronjob_name = name
-                  ctx.namespace
 
                   Formatters::ProgressFormatter.with_spinner("Pausing agent '#{name}'") do
                     # Use kubectl to patch the cronjob
@@ -65,7 +64,6 @@ module LanguageOperator
 
                   # Resume the CronJob by setting spec.suspend = false
                   cronjob_name = name
-                  ctx.namespace
 
                   Formatters::ProgressFormatter.with_spinner("Resuming agent '#{name}'") do
                     # Use kubectl to patch the cronjob
