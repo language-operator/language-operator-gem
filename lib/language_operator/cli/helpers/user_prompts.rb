@@ -49,18 +49,26 @@ module LanguageOperator
         # @param options [Array<String>] Available options
         # @return [String] Selected option
         def self.select(prompt, options)
-          puts prompt
-          options.each_with_index do |option, index|
-            puts "  #{index + 1}. #{option}"
-          end
-          print "\nSelect (1-#{options.length}): "
+          loop do
+            puts prompt
+            options.each_with_index do |option, index|
+              puts "  #{index + 1}. #{option}"
+            end
+            print "\nSelect (1-#{options.length}): "
 
-          selection = $stdin.gets&.chomp.to_i
-          if selection.between?(1, options.length)
-            options[selection - 1]
-          else
-            puts 'Invalid selection'
-            exit 1
+            input = $stdin.gets&.chomp || ''
+
+            # Allow user to quit/cancel
+            if input.downcase.match?(/^q(uit)?$/)
+              puts 'Selection cancelled'
+              exit 0
+            end
+
+            selection = input.to_i
+            return options[selection - 1] if selection.between?(1, options.length)
+
+            puts 'Invalid selection. Please try again.'
+            puts
           end
         end
       end
