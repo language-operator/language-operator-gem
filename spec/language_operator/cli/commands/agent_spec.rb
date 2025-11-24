@@ -168,4 +168,107 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
       end
     end
   end
+
+  describe '#generate_agent_name' do
+    it 'generates valid Kubernetes names for normal descriptions' do
+      name = command.send(:generate_agent_name, 'valid agent description')
+      expect(name).to match(/^valid-agent-description-\d{4}$/)
+      expect(name).to match(/^[a-z]/) # Must start with letter
+    end
+
+    it 'fixes names that start with numbers' do
+      name = command.send(:generate_agent_name, '123 check something important')
+      expect(name).to match(/^agent-123-check-something-\d{4}$/)
+      expect(name).to match(/^[a-z]/) # Must start with letter
+    end
+
+    it 'fixes names generated from empty descriptions' do
+      name = command.send(:generate_agent_name, '')
+      expect(name).to match(/^agent--\d{4}$/)
+      expect(name).to match(/^[a-z]/) # Must start with letter
+    end
+
+    it 'fixes names that are only numbers' do
+      name = command.send(:generate_agent_name, '12345')
+      expect(name).to match(/^agent-12345-\d{4}$/)
+      expect(name).to match(/^[a-z]/) # Must start with letter
+    end
+
+    it 'fixes names generated from special characters only' do
+      name = command.send(:generate_agent_name, '!@#$%^&*()')
+      expect(name).to match(/^agent--\d{4}$/)
+      expect(name).to match(/^[a-z]/) # Must start with letter
+    end
+
+    it 'preserves valid names without agent- prefix' do
+      name = command.send(:generate_agent_name, 'analytics system monitor')
+      expect(name).to match(/^analytics-system-monitor-\d{4}$/)
+      expect(name).to match(/^[a-z]/) # Must start with letter
+      expect(name).not_to include('agent-analytics') # No unnecessary prefix
+    end
+
+    it 'limits to first 3 words as documented' do
+      name = command.send(:generate_agent_name, 'this is a very long description with many words')
+      expect(name).to match(/^this-is-a-\d{4}$/)
+      expect(name).to match(/^[a-z]/) # Must start with letter
+    end
+
+    it 'removes special characters as documented' do
+      name = command.send(:generate_agent_name, 'test-agent!@# with$%^ special&*() chars')
+      expect(name).to match(/^testagent-with-special-\d{4}$/)
+      expect(name).to match(/^[a-z]/) # Must start with letter
+    end
+
+    it 'includes timestamp suffix for uniqueness' do
+      # Generate two names quickly - should have same timestamp suffix
+      name1 = command.send(:generate_agent_name, 'test description')
+      name2 = command.send(:generate_agent_name, 'test description')
+
+      # Both should end with same 4-digit timestamp
+      timestamp1 = name1.split('-').last
+      timestamp2 = name2.split('-').last
+
+      expect(timestamp1).to eq(timestamp2)
+      expect(timestamp1.length).to eq(4)
+      expect(timestamp1).to match(/^\d{4}$/)
+    end
+
+    context 'Kubernetes naming compliance' do
+      let(:test_cases) do
+        [
+          '123 invalid start',
+          '',
+          '!@# special only',
+          'valid description',
+          '999 numbers first',
+          'single',
+          'hyphen-test already',
+          '1',
+          'a',
+          'a b c d e f g h i j' # many words
+        ]
+      end
+
+      it 'generates names that always start with lowercase letter' do
+        test_cases.each do |description|
+          name = command.send(:generate_agent_name, description)
+          expect(name).to match(/^[a-z]/), "Generated name '#{name}' from '#{description}' should start with lowercase letter"
+        end
+      end
+
+      it 'generates names that only contain valid characters' do
+        test_cases.each do |description|
+          name = command.send(:generate_agent_name, description)
+          expect(name).to match(/^[a-z0-9-]+$/), "Generated name '#{name}' from '#{description}' contains invalid characters"
+        end
+      end
+
+      it 'generates names that end with alphanumeric character' do
+        test_cases.each do |description|
+          name = command.send(:generate_agent_name, description)
+          expect(name).to match(/[a-z0-9]$/), "Generated name '#{name}' from '#{description}' should end with alphanumeric character"
+        end
+      end
+    end
+  end
 end

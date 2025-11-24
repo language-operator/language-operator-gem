@@ -455,6 +455,10 @@ module LanguageOperator
             # Take first few words, lowercase, hyphenate
             words = description.downcase.gsub(/[^a-z0-9\s]/, '').split[0..2]
             name = words.join('-')
+
+            # Ensure name starts with a letter (Kubernetes requirement)
+            name = "agent-#{name}" unless name.match?(/^[a-z]/)
+
             # Add random suffix to avoid collisions
             "#{name}-#{Time.now.to_i.to_s[-4..]}"
           end
