@@ -27,7 +27,6 @@ module LanguageOperator
                   # 1. Get model resource
                   model = get_resource_or_exit(RESOURCE_MODEL, name)
                   model_name = model.dig('spec', 'modelName')
-                  model.dig('spec', 'provider')
 
                   # 2. Check deployment status
                   deployment = check_deployment_status(name)
