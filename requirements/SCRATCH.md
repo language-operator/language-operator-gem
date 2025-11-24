@@ -117,19 +117,23 @@ merged = execute_task(:merge, inputs: { s1: s1 })
 
 ## Current Priorities (2025-11-24)
 
-**P1 - Resource/Performance:**
-- #61 - Resource leak in cluster list (likely duplicate of resolved #62/#67)
+**P1 - User-Facing Bugs (READY):**
+- #75 - Missing require statement in tool search (1-line fix, blocks search functionality)
+- #78 - Remove dead code tool.rb file (645 lines, cleanup)
 
-**P2 - UX/Config:**
-(None currently)
+**P2 - Minor Bug Fixes:**
+- #73 - Malformed kubectl command in model test
+- #74 - Inconsistent env var parsing in Agent::Executor  
+- #76 - Dead code: unused expression in model test
+- #70 - Dead code: useless statements in agent commands
 
 **P3 - Enhancements:**
 - #51 - Include complete MCP tool schemas
-- #39 - Update examples to task/main
 - #40 - Performance optimization
 - #41 - Comprehensive test suite
 
 **Recently Completed (Major Issues):**
+- ✅ #77 - Tool commands broken after refactor (2025-11-24) - Investigation revealed issue was already resolved; fixed minor constant reference bug in auth command and closed issue
 - ✅ #71 - Dead code: unused expressions in PatternDetector.generate_task_fragment (2025-11-24) - Removed remnants from instruction generation experiments
 - ✅ #72 - Dead code: placeholder agent command implementations (2025-11-24) - Completed refactoring by moving real implementations to Agent::Base
 - ✅ #66, #55, #59, #62, #67 - CLI and K8s client fixes
