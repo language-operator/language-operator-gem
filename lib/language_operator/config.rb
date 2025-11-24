@@ -193,7 +193,11 @@ module LanguageOperator
       value = get(*keys)
       return default if value.nil?
 
-      value.to_i
+      begin
+        Integer(value)
+      rescue ArgumentError, TypeError => e
+        raise ArgumentError, "Invalid integer value '#{value}' for #{keys.join('/')}: #{e.message}"
+      end
     end
 
     # Get environment variable as boolean

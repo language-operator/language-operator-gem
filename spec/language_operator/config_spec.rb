@@ -409,4 +409,186 @@ RSpec.describe LanguageOperator::Config do
       expect(config[:kubeconfig]).to eq(File.expand_path('~/.kube/config'))
     end
   end
+
+  describe '.get_int' do
+    it 'converts valid integer strings' do
+      ENV['TEST_PORT'] = '8080'
+      result = described_class.get_int('TEST_PORT')
+      expect(result).to eq(8080)
+      ENV.delete('TEST_PORT')
+    end
+
+    it 'handles negative integers' do
+      ENV['TEST_NUM'] = '-42'
+      result = described_class.get_int('TEST_NUM')
+      expect(result).to eq(-42)
+      ENV.delete('TEST_NUM')
+    end
+
+    it 'handles zero' do
+      ENV['TEST_ZERO'] = '0'
+      result = described_class.get_int('TEST_ZERO')
+      expect(result).to eq(0)
+      ENV.delete('TEST_ZERO')
+    end
+
+    it 'handles strings with leading/trailing whitespace' do
+      ENV['TEST_SPACE'] = '  123  '
+      result = described_class.get_int('TEST_SPACE')
+      expect(result).to eq(123)
+      ENV.delete('TEST_SPACE')
+    end
+
+    it 'returns default when environment variable is nil' do
+      result = described_class.get_int('NONEXISTENT_VAR', default: 42)
+      expect(result).to eq(42)
+    end
+
+    it 'returns nil when no default provided and env var missing' do
+      result = described_class.get_int('NONEXISTENT_VAR')
+      expect(result).to be_nil
+    end
+
+    it 'raises error for invalid integer strings' do
+      ENV['TEST_INVALID'] = 'abc'
+      expect { described_class.get_int('TEST_INVALID') }
+        .to raise_error(ArgumentError, /Invalid integer value 'abc' for TEST_INVALID/)
+      ENV.delete('TEST_INVALID')
+    end
+
+    it 'raises error for mixed numeric strings' do
+      ENV['TEST_MIXED'] = '123abc'
+      expect { described_class.get_int('TEST_MIXED') }
+        .to raise_error(ArgumentError, /Invalid integer value '123abc' for TEST_MIXED/)
+      ENV.delete('TEST_MIXED')
+    end
+
+    it 'raises error for empty strings' do
+      ENV['TEST_EMPTY'] = ''
+      expect { described_class.get_int('TEST_EMPTY') }
+        .to raise_error(ArgumentError, /Invalid integer value '' for TEST_EMPTY/)
+      ENV.delete('TEST_EMPTY')
+    end
+
+    it 'raises error for whitespace-only strings' do
+      ENV['TEST_WHITESPACE'] = '   '
+      expect { described_class.get_int('TEST_WHITESPACE') }
+        .to raise_error(ArgumentError, /Invalid integer value '   ' for TEST_WHITESPACE/)
+      ENV.delete('TEST_WHITESPACE')
+    end
+
+    it 'includes all key names in error message when multiple keys provided' do
+      ENV['KEY1'] = 'invalid'
+      expect { described_class.get_int('KEY1', 'KEY2', 'KEY3') }
+        .to raise_error(ArgumentError, %r{for KEY1/KEY2/KEY3})
+      ENV.delete('KEY1')
+    end
+  end
+
+  describe '.get_bool' do
+    it 'converts "true" to true' do
+      ENV['TEST_BOOL'] = 'true'
+      result = described_class.get_bool('TEST_BOOL')
+      expect(result).to be true
+      ENV.delete('TEST_BOOL')
+    end
+
+    it 'converts "1" to true' do
+      ENV['TEST_BOOL'] = '1'
+      result = described_class.get_bool('TEST_BOOL')
+      expect(result).to be true
+      ENV.delete('TEST_BOOL')
+    end
+
+    it 'converts "yes" to true' do
+      ENV['TEST_BOOL'] = 'yes'
+      result = described_class.get_bool('TEST_BOOL')
+      expect(result).to be true
+      ENV.delete('TEST_BOOL')
+    end
+
+    it 'converts "on" to true' do
+      ENV['TEST_BOOL'] = 'on'
+      result = described_class.get_bool('TEST_BOOL')
+      expect(result).to be true
+      ENV.delete('TEST_BOOL')
+    end
+
+    it 'is case insensitive for true values' do
+      ENV['TEST_BOOL_UPPER'] = 'TRUE'
+      expect(described_class.get_bool('TEST_BOOL_UPPER')).to be true
+      ENV.delete('TEST_BOOL_UPPER')
+
+      ENV['TEST_BOOL_MIXED'] = 'Yes'
+      expect(described_class.get_bool('TEST_BOOL_MIXED')).to be true
+      ENV.delete('TEST_BOOL_MIXED')
+    end
+
+    it 'converts "false" and other values to false' do
+      ENV['TEST_BOOL_FALSE'] = 'false'
+      expect(described_class.get_bool('TEST_BOOL_FALSE')).to be false
+      ENV.delete('TEST_BOOL_FALSE')
+
+      ENV['TEST_BOOL_OTHER'] = 'random'
+      expect(described_class.get_bool('TEST_BOOL_OTHER')).to be false
+      ENV.delete('TEST_BOOL_OTHER')
+    end
+
+    it 'returns default when environment variable is nil' do
+      result = described_class.get_bool('NONEXISTENT_VAR', default: true)
+      expect(result).to be true
+    end
+
+    it 'returns false when no default provided and env var missing' do
+      result = described_class.get_bool('NONEXISTENT_VAR')
+      expect(result).to be false
+    end
+  end
+
+  describe '.get_array' do
+    it 'splits comma-separated values' do
+      ENV['TEST_ARRAY'] = 'a,b,c'
+      result = described_class.get_array('TEST_ARRAY')
+      expect(result).to eq(%w[a b c])
+      ENV.delete('TEST_ARRAY')
+    end
+
+    it 'strips whitespace from values' do
+      ENV['TEST_ARRAY_SPACE'] = ' a , b , c '
+      result = described_class.get_array('TEST_ARRAY_SPACE')
+      expect(result).to eq(%w[a b c])
+      ENV.delete('TEST_ARRAY_SPACE')
+    end
+
+    it 'removes empty values' do
+      ENV['TEST_ARRAY_EMPTY'] = 'a,,b,  ,c'
+      result = described_class.get_array('TEST_ARRAY_EMPTY')
+      expect(result).to eq(%w[a b c])
+      ENV.delete('TEST_ARRAY_EMPTY')
+    end
+
+    it 'supports custom separator' do
+      ENV['TEST_ARRAY_PIPE'] = 'a|b|c'
+      result = described_class.get_array('TEST_ARRAY_PIPE', separator: '|')
+      expect(result).to eq(%w[a b c])
+      ENV.delete('TEST_ARRAY_PIPE')
+    end
+
+    it 'returns empty array for empty string' do
+      ENV['TEST_ARRAY_EMPTY_STR'] = ''
+      result = described_class.get_array('TEST_ARRAY_EMPTY_STR')
+      expect(result).to eq([])
+      ENV.delete('TEST_ARRAY_EMPTY_STR')
+    end
+
+    it 'returns default when environment variable is nil' do
+      result = described_class.get_array('NONEXISTENT_VAR', default: %w[x y z])
+      expect(result).to eq(%w[x y z])
+    end
+
+    it 'returns empty array when no default provided and env var missing' do
+      result = described_class.get_array('NONEXISTENT_VAR')
+      expect(result).to eq([])
+    end
+  end
 end
