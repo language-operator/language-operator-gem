@@ -146,7 +146,7 @@ module LanguageOperator
                 kubectl_command = if command.is_a?(String)
                                     "kubectl exec -n #{ctx.namespace} #{pod_name} -- sh -c #{Shellwords.escape(command)}"
                                   else
-                                    (['kubectl', 'exec', '-n', ctx.namespace, pod_name, '--'] + command).join(' ')
+                                    Shellwords.join(['kubectl', 'exec', '-n', ctx.namespace, pod_name, '--'] + command)
                                   end
 
                 output = `#{kubectl_command} 2>&1`

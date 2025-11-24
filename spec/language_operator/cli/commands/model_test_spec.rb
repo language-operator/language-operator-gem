@@ -3,6 +3,7 @@
 require 'spec_helper'
 require 'tempfile'
 require 'json'
+require 'shellwords'
 
 RSpec.describe 'Model Test Command Security Fix' do
   # Test the vulnerable method directly by extracting it
@@ -325,6 +326,179 @@ RSpec.describe 'Model Test Command Security Fix' do
       expect(captured_command).not_to include(';')
       expect(captured_command).not_to include('echo')
       expect(captured_command).not_to include('|')
+    end
+  end
+
+  describe '#execute_in_pod method fix' do
+    # Test the actual execute_in_pod method logic
+    let(:mock_ctx) { double('ctx', namespace: 'default') }
+
+    let(:kubectl_tester) do
+      test_ctx = mock_ctx
+      Class.new do
+        attr_reader :executed_commands, :ctx
+
+        def initialize(ctx)
+          @executed_commands = []
+          @ctx = ctx
+        end
+
+        def execute_in_pod(pod_name, command)
+          kubectl_command = if command.is_a?(String)
+                              "kubectl exec -n #{ctx.namespace} #{pod_name} -- sh -c #{Shellwords.escape(command)}"
+                            else
+                              Shellwords.join(['kubectl', 'exec', '-n', ctx.namespace, pod_name, '--'] + command)
+                            end
+
+          @executed_commands << kubectl_command
+          # Mock successful execution
+          'mock output'
+        end
+      end.new(test_ctx)
+    end
+
+    describe 'string command handling' do
+      it 'properly escapes string commands' do
+        pod_name = 'test-pod'
+        command = 'echo "hello world"'
+
+        kubectl_tester.execute_in_pod(pod_name, command)
+
+        executed = kubectl_tester.executed_commands.last
+        expect(executed).to eq('kubectl exec -n default test-pod -- sh -c echo\ \"hello\ world\"')
+      end
+
+      it 'handles commands with special characters' do
+        pod_name = 'test-pod'
+        command = 'curl -X POST "http://api.example.com" -d \'{"test": "data"}\''
+
+        kubectl_tester.execute_in_pod(pod_name, command)
+
+        executed = kubectl_tester.executed_commands.last
+        expect(executed).to include('kubectl exec -n default test-pod -- sh -c')
+        expect(executed).to include('curl')
+        expect(executed).not_to include('"http://api.example.com"') # Should be escaped
+      end
+    end
+
+    describe 'array command handling (fixed)' do
+      it 'properly joins and escapes array commands' do
+        pod_name = 'test-pod'
+        command = ['echo', 'hello world']
+
+        kubectl_tester.execute_in_pod(pod_name, command)
+
+        executed = kubectl_tester.executed_commands.last
+        expect(executed).to eq('kubectl exec -n default test-pod -- echo hello\ world')
+      end
+
+      it 'handles array commands with special characters' do
+        pod_name = 'test-pod'
+        command = ['curl', '-X', 'POST', 'http://api.example.com', '-d', '{"test": "data"}']
+
+        kubectl_tester.execute_in_pod(pod_name, command)
+
+        executed = kubectl_tester.executed_commands.last
+        # Verify the command structure and that special characters are properly escaped
+        expect(executed).to start_with('kubectl exec -n default test-pod -- curl -X POST http://api.example.com -d ')
+        expect(executed).to include('\{') # JSON braces should be escaped
+        expect(executed).to include('\"test\"') # JSON quotes should be escaped
+      end
+
+      it 'handles pod names and namespaces with spaces or special characters' do
+        pod_name = 'test pod-with-spaces'
+        command = %w[echo test]
+
+        kubectl_tester.execute_in_pod(pod_name, command)
+
+        executed = kubectl_tester.executed_commands.last
+        expect(executed).to include('test\ pod-with-spaces')
+      end
+    end
+
+    describe 'edge cases' do
+      it 'handles empty array commands' do
+        pod_name = 'test-pod'
+        command = []
+
+        kubectl_tester.execute_in_pod(pod_name, command)
+
+        executed = kubectl_tester.executed_commands.last
+        expect(executed).to eq('kubectl exec -n default test-pod --')
+      end
+
+      it 'handles single-element array commands' do
+        pod_name = 'test-pod'
+        command = ['ls']
+
+        kubectl_tester.execute_in_pod(pod_name, command)
+
+        executed = kubectl_tester.executed_commands.last
+        expect(executed).to eq('kubectl exec -n default test-pod -- ls')
+      end
+
+      it 'properly escapes complex namespace and pod names' do
+        # Test with different namespace
+        special_ctx = double('ctx', namespace: 'my-namespace-2')
+        special_tester = kubectl_tester.class.new(special_ctx)
+
+        pod_name = 'my-pod-123'
+        command = %w[echo test]
+
+        special_tester.execute_in_pod(pod_name, command)
+
+        executed = special_tester.executed_commands.last
+        expect(executed).to eq('kubectl exec -n my-namespace-2 my-pod-123 -- echo test')
+      end
+    end
+
+    describe 'security considerations' do
+      it 'prevents command injection in array commands' do
+        pod_name = 'test-pod'
+        # Attempt command injection via array elements
+        command = ['echo', 'test; rm -rf /', '&&', 'echo', 'injected']
+
+        kubectl_tester.execute_in_pod(pod_name, command)
+
+        executed = kubectl_tester.executed_commands.last
+        # With proper Shellwords.join, this should be safely escaped
+        expect(executed).to include('test\\;\ rm\ -rf\ /')
+        expect(executed).not_to include('test; rm -rf /') # Should be escaped
+      end
+
+      it 'handles malicious pod names safely' do
+        pod_name = 'test; rm -rf /'
+        command = %w[echo test]
+
+        kubectl_tester.execute_in_pod(pod_name, command)
+
+        executed = kubectl_tester.executed_commands.last
+        # Pod name should be escaped in the kubectl command
+        expect(executed).to include('test\\;\ rm\ -rf\ /')
+      end
+    end
+
+    describe 'comparison between command types' do
+      it 'produces equivalent results for equivalent string vs array commands' do
+        pod_name = 'test-pod'
+
+        # Test string version
+        string_command = 'echo hello'
+        kubectl_tester.execute_in_pod(pod_name, string_command)
+        string_result = kubectl_tester.executed_commands.last
+
+        # Test array version
+        array_command = %w[echo hello]
+        kubectl_tester.execute_in_pod(pod_name, array_command)
+        array_result = kubectl_tester.executed_commands.last
+
+        # Both should execute 'echo hello' but via different kubectl approaches
+        expect(string_result).to include('-- sh -c echo\ hello')
+        expect(array_result).to eq('kubectl exec -n default test-pod -- echo hello')
+
+        # Both are valid but different approaches to same goal
+        expect(string_result).not_to eq(array_result)
+      end
     end
   end
 end
