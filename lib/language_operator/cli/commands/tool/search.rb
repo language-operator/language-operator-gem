@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative '../../../config/tool_registry'
+
 module LanguageOperator
   module CLI
     module Commands
