@@ -1,6 +1,6 @@
 # Language Operator Documentation
 
-Complete guide to using Language Operator to build, deploy, and manage AI agents.
+Complete guide to using Language Operator to build, deploy, and manage AI agents using natural language synthesis.
 
 ## Quick Start
 
@@ -8,41 +8,49 @@ Complete guide to using Language Operator to build, deploy, and manage AI agents
 # Install the CLI
 gem install language-operator
 
-# Set up your first cluster and agent
+# Interactive setup (recommended)
 aictl quickstart
 ```
+
+**New to Language Operator?** Start with the [Installation Guide](installation.md) and [Quickstart Guide](quickstart.md).
 
 ## Table of Contents
 
 ### Getting Started
-- **[Installation](installation.md)** - Install aictl and configure your environment
-- **[Quickstart Guide](quickstart.md)** - Complete setup walkthrough with your first agent
-- **[Your First Agent](your-first-agent.md)** - Understanding what gets created during quickstart
+- **[Installation](installation.md)** - Install aictl and configure your environment  
+- **[Quickstart Guide](quickstart.md)** - Create your first agent in 5 minutes
+- **[CLI Reference](cli-reference.md)** - Complete command documentation
 
-### Understanding Agents
-- **[How Agents Work](how-agents-work.md)** - What happens when you describe an agent to Language Operator
-- **[Understanding Generated Code](understanding-generated-code.md)** - Reading and understanding synthesized agent code
-- **[Agent Optimization](agent-optimization.md)** - How agents learn and improve automatically over time
+### Core Concepts
+- **[How Agents Work](how-agents-work.md)** - Understanding the synthesis process from description to working code
+- **[Understanding Generated Code](understanding-generated-code.md)** - Reading and working with synthesized agent definitions
+- **[Agent Optimization](agent-optimization.md)** - How agents learn patterns and improve performance over time
 
-### Agent Capabilities
-- **[Using Tools](using-tools.md)** - How agents call external APIs, databases, and services
-- **[Webhooks](webhooks.md)** - Creating agents that respond to GitHub, Stripe, and custom webhooks
-- **[Chat Endpoints](chat-endpoints.md)** - Building conversational AI interfaces
-- **[Scheduling](scheduling.md)** - Running agents on cron schedules and event triggers
+### Agent Capabilities  
+- **[Using Tools](using-tools.md)** - How agents interact with external services through MCP
+- **[Webhooks](webhooks.md)** - Creating reactive agents that respond to GitHub, Stripe, and custom events
+- **[Chat Endpoints](chat-endpoints.md)** - Building conversational AI interfaces with OpenAI-compatible APIs
 
-### Configuration & Management  
-- **[Agent Configuration](agent-configuration.md)** - Configuring behavior, constraints, and resource limits
-- **[Monitoring & Debugging](monitoring.md)** - Monitoring agent performance and debugging issues
-- **[Best Practices](best-practices.md)** - Patterns for building reliable, efficient agents
-
-### CLI Reference
-- **[aictl Reference](aictl-reference.md)** - Complete command documentation
-- **[Cluster Management](cluster-management.md)** - Managing Kubernetes clusters and deployments
+### Configuration & Management
+- **[Constraints](constraints.md)** - Timeouts, budgets, rate limits, and resource constraints
+- **[Best Practices](best-practices.md)** - Production patterns for reliable, cost-effective agents
+- **[Schema Versioning](schema-versioning.md)** - Managing agent definition compatibility
 
 ### Advanced Topics
-- **[Agent Internals](agent-internals.md)** - How synthesis and optimization work under the hood
-- **[Custom Tools](custom-tools.md)** - Creating your own MCP tool servers
-- **[Integration Patterns](integration-patterns.md)** - Common patterns for enterprise integration
+- **[Agent Internals](agent-internals.md)** - Deep dive into synthesis, optimization, and execution engine
+
+## Available Commands
+
+```bash
+aictl status              # Show system status
+aictl cluster            # Manage Kubernetes clusters
+aictl agent              # Create and manage agents  
+aictl model              # Manage language models
+aictl persona            # Manage agent personas
+aictl tool               # Manage MCP tool servers
+aictl system             # System utilities and templates
+aictl quickstart         # First-time setup wizard
+```
 
 ## Getting Help
 

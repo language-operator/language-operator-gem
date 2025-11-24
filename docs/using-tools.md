@@ -1,10 +1,10 @@
 # Using Tools
 
-Language Operator agents can interact with external services, APIs, databases, and other tools. This guide shows how agents use tools and how to configure tool access.
+Language Operator agents interact with external services through the Model Context Protocol (MCP). This guide shows how to configure and use tools in your agent definitions.
 
 ## How Tools Work
 
-When you describe an agent that needs to interact with external systems, Language Operator automatically configures tool access. Agents use tools through simple function calls.
+Tools in Language Operator are provided by MCP servers that expose specific capabilities to agents. When you define an agent that needs external access, you specify which MCP tools are available.
 
 ### Tool Examples
 
@@ -18,65 +18,66 @@ Common tools agents use:
 
 ## Using Tools in Agents
 
-### Neural Tasks (AI-Powered)
+### Basic Tool Usage in Tasks
 
-When you describe what an agent should do, Language Operator figures out which tools to use:
+Tasks can use MCP tools during neural (AI-powered) execution:
 
 ```ruby
-task :fetch_user_orders,
-  instructions: "get all orders for the user from the database",
-  inputs: { user_id: 'integer' },
-  outputs: { orders: 'array' }
-
-# Language Operator will:
-# 1. Identify that this needs database access
-# 2. Use the appropriate database tool
-# 3. Construct the right query
-# 4. Return the results in the expected format
+task :fetch_user_orders do |inputs|
+  # Tool usage is handled by the AI synthesis process
+  # The AI will determine appropriate tools to call based on:
+  # - Available MCP servers
+  # - Task requirements
+  # - Input/output schemas
+  
+  user_id = inputs[:user_id]
+  # AI will synthesize appropriate tool calls
+  { orders: [] } # Placeholder - actual implementation synthesized
+end
 ```
 
-### Symbolic Tasks (Optimized)
+### MCP Tool Server Configuration
 
-After learning, tasks use tools directly:
+Tools are provided by MCP servers defined in your agent:
 
 ```ruby
-task :fetch_user_orders,
-  inputs: { user_id: 'integer' },
-  outputs: { orders: 'array' }
-do |inputs|
-  orders = execute_tool('database', 'query', {
-    table: 'orders',
-    where: { user_id: inputs[:user_id] },
-    order: 'created_at DESC'
-  })
+agent "order-processor" do
+  description "Process customer orders"
   
-  { orders: orders }
+  mcp_server do
+    # MCP server configuration would go here
+    # See components/tool/ directory for examples
+  end
+  
+  task :fetch_orders do |inputs|
+    # AI synthesis will use available MCP tools
+    { orders: [] }
+  end
 end
 ```
 
 ## Tool Categories
 
-### Database Tools
+### MCP Tool Examples
 
-Connect to SQL and NoSQL databases:
+Tools are provided by MCP servers. See `components/tool/examples/` for working examples:
 
 ```ruby
-# SQL databases
-execute_tool('database', 'query', {
-  sql: 'SELECT * FROM users WHERE active = ?',
-  params: [true]
-})
-
-# MongoDB
-execute_tool('mongodb', 'find', {
-  collection: 'users',
-  filter: { active: true }
-})
-
-# Redis
-execute_tool('redis', 'get', {
-  key: 'user:123'
-})
+# Example calculator tool (from components/tool/examples/calculator.rb)
+tool 'calculate' do
+  description 'Perform basic mathematical calculations'
+  
+  parameter 'expression' do
+    type :string
+    required true
+    description 'Mathematical expression to evaluate'
+  end
+  
+  execute do |params|
+    result = eval(params['expression']) # Note: Use safe evaluation in production
+    { result: result }
+  end
+end
 ```
 
 ### HTTP/API Tools
@@ -237,18 +238,20 @@ export AWS_SECRET_ACCESS_KEY="..."
 
 ### Tool Discovery
 
-See what tools are available to your agents:
+Language Operator provides basic tool management commands:
 
 ```bash
-# List all available tools
-aictl tool list
+# Deploy a tool server to your cluster
+aictl tool deploy ./path/to/tool
 
-# Search for specific tools
-aictl tool search database
+# Test tool connectivity
+aictl tool test my-tool
 
-# Get tool documentation
-aictl tool info database
+# View tool logs
+aictl tool logs my-tool
 ```
+
+For available tools, check the `components/tool/examples/` directory in the repository.
 
 ## Error Handling
 

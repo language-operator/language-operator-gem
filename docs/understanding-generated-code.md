@@ -69,58 +69,62 @@ schedule "0 0 * * 1"      # Every Monday at midnight
 
 Tasks are individual work units with clear contracts. They come in two types:
 
-### Neural Tasks (AI-Powered)
+### Task Definitions
 
-Initially, most tasks use AI to figure out what to do:
-
-```ruby
-task :analyze_logs,
-  instructions: "scan error logs and identify critical issues",
-  inputs: { logs: 'array' },
-  outputs: { critical_issues: 'array', summary: 'string' }
-```
-
-**Key parts:**
-- `instructions` - Natural language description of what to do
-- `inputs` - Data this task needs (with types)
-- `outputs` - Data this task produces (with types)
-
-### Symbolic Tasks (Optimized Code)
-
-After learning, tasks become optimized code blocks:
+Tasks are Ruby blocks that process inputs and return outputs:
 
 ```ruby
-task :fetch_recent_logs,
-  inputs: { hours: 'integer' },
-  outputs: { logs: 'array' }
-do |inputs|
-  since_time = Time.now - (inputs[:hours] * 3600)
-  logs = execute_tool('logging', 'query', {
-    since: since_time.iso8601,
-    level: 'ERROR'
-  })
-  { logs: logs }
+task :analyze_logs do |inputs|
+  # Task implementation - this can be:
+  # 1. Simple Ruby code
+  # 2. Calls to AI for complex reasoning
+  # 3. MCP tool usage (when available)
+  
+  logs = inputs[:logs] || []
+  critical_issues = logs.select { |log| log[:level] == 'ERROR' }
+  
+  {
+    critical_issues: critical_issues,
+    summary: "Found #{critical_issues.length} critical issues"
+  }
 end
 ```
 
-**Key differences:**
-- No `instructions` (has explicit code instead)
-- `do |inputs|` block contains the actual implementation
-- More efficient and predictable than AI inference
+**Key parts:**
+- Task name (`:analyze_logs`)
+- Input parameter (`inputs` hash)
+- Ruby block with implementation
+- Return value (hash with results)
+
+### Task Evolution
+
+Tasks can evolve from simple implementations to more sophisticated ones:
+
+```ruby
+# Simple implementation
+task :fetch_recent_logs do |inputs|
+  hours = inputs[:hours] || 24
+  since_time = Time.now - (hours * 3600)
+  
+  # In a real implementation, this might call MCP tools
+  # or use AI synthesis for complex queries
+  { logs: [], since: since_time }
+end
+```
 
 ## Main Logic
 
-The `main` block coordinates task execution:
+The `main` block coordinates task execution and defines the agent's workflow:
 
 ```ruby
 main do |inputs|
-  # Sequential execution
-  logs = execute_task(:fetch_recent_logs, inputs: { hours: 24 })
-  analysis = execute_task(:analyze_logs, inputs: logs)
+  # Task execution - tasks are called as methods
+  logs = fetch_recent_logs(hours: 24)
+  analysis = analyze_logs(logs: logs[:logs])
   
   # Conditional logic
   if analysis[:critical_issues].any?
-    execute_task(:send_alert, inputs: analysis)
+    send_alert(analysis)
   end
   
   # Return final result
@@ -129,10 +133,11 @@ end
 ```
 
 **Important concepts:**
-- `execute_task(:name, inputs: {})` - Calls a task
-- Task results are hashes matching the `outputs` schema
-- You can use regular Ruby (if/else, loops, variables)
+- Tasks are called as method names
+- Task results are returned as hashes
+- Standard Ruby control flow (if/else, loops, variables)
 - The return value becomes the agent's output
+- Tasks can be chained together
 
 ## Output Handling
 

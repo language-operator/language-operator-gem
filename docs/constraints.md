@@ -1,6 +1,6 @@
-# Constraints Reference
+# Agent Constraints Reference
 
-Complete reference for configuring agent constraints in the Language Operator DSL.
+Complete reference for configuring agent constraints to control behavior, resource usage, and costs.
 
 ## Table of Contents
 
@@ -665,7 +665,7 @@ end
 
 ## See Also
 
-- [Agent Reference](agent-reference.md) - Complete agent DSL reference
-- [Workflows](workflows.md) - Workflow definition guide
-- [Best Practices](best-practices.md) - Production deployment patterns
+- [Understanding Generated Code](understanding-generated-code.md) - Working with agent definitions
+- [Best Practices](best-practices.md) - Production deployment patterns  
 - [Webhooks](webhooks.md) - Reactive agent configuration
+- [CLI Reference](cli-reference.md) - Managing constraints via CLI

@@ -1070,9 +1070,9 @@ spec:
 
 ## See Also
 
-- [Agent Reference](agent-reference.md) - Complete agent DSL reference
-- [Workflows](workflows.md) - Workflow definition guide
+- [Understanding Generated Code](understanding-generated-code.md) - Working with agent definitions
+- [CLI Reference](cli-reference.md) - Complete command documentation
 - [Constraints](constraints.md) - Resource and behavior limits
 - [Webhooks](webhooks.md) - Reactive agent configuration
-- [MCP Integration](mcp-integration.md) - Tool server capabilities
-- [Chat Endpoints](chat-endpoints.md) - OpenAI-compatible endpoint guide
+- [Using Tools](using-tools.md) - MCP tool integration
+- [Chat Endpoints](chat-endpoints.md) - Conversational AI interfaces
