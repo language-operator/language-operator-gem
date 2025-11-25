@@ -60,6 +60,29 @@ RSpec.describe LanguageOperator::CLI::Commands::Cluster do
         command.create('test-cluster')
       end
     end
+
+    context 'domain display in cluster details' do
+      it 'includes domain in format_cluster_details when provided' do
+        expect(command).to receive(:format_cluster_details) do |args|
+          expect(args[:domain]).to eq('example.com')
+          expect(args[:name]).to eq('test-cluster')
+          expect(args[:namespace]).to eq('default')
+        end
+
+        allow(command).to receive(:options).and_return({ domain: 'example.com' })
+        command.create('test-cluster')
+      end
+
+      it 'passes nil domain to format_cluster_details when not provided' do
+        expect(command).to receive(:format_cluster_details) do |args|
+          expect(args[:domain]).to be_nil
+          expect(args[:name]).to eq('test-cluster')
+        end
+
+        allow(command).to receive(:options).and_return({})
+        command.create('test-cluster')
+      end
+    end
   end
 
   describe '#list' do

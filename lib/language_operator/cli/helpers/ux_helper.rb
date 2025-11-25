@@ -376,16 +376,19 @@ module LanguageOperator
         # @param status [String, nil] Cluster status (optional)
         # @param created [String, nil] Creation timestamp (optional)
         # @return [void] Displays formatted cluster information
-        def format_cluster_details(name:, namespace:, context:, status: nil, created: nil)
+        def format_cluster_details(name:, namespace:, context:, status: nil, created: nil, domain: nil)
+          rows = {
+            'Name' => pastel.white.bold(name),
+            'Namespace' => namespace,
+            'Context' => context
+          }
+          rows['Domain'] = domain if domain && !domain.empty?
+          rows['Status'] = status if status
+          rows['Created'] = created if created
+
           highlighted_box(
             title: 'LanguageCluster',
-            rows: {
-              'Name' => pastel.white.bold(name),
-              'Namespace' => namespace,
-              'Context' => context,
-              'Status' => status,
-              'Created' => created
-            }.compact
+            rows: rows.compact
           )
         end
 

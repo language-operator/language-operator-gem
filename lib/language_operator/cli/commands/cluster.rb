@@ -91,6 +91,7 @@ module LanguageOperator
               name: name,
               namespace: namespace,
               context: actual_context,
+              domain: options[:domain],
               status: 'Ready',
               created: Time.now.strftime('%Y-%m-%dT%H:%M:%SZ')
             )
@@ -338,6 +339,7 @@ module LanguageOperator
               # Get cluster resource
               cluster_resource = k8s.get_resource('LanguageCluster', name, cluster[:namespace])
               status = cluster_resource.dig('status', 'phase') || 'Unknown'
+              domain = cluster_resource.dig('spec', 'domain')
 
               # Main cluster information
               puts
@@ -348,9 +350,10 @@ module LanguageOperator
                   'Namespace' => cluster[:namespace],
                   'Cluster' => name,
                   'Context' => cluster[:context] || 'default',
+                  'Domain' => domain,
                   'Status' => status,
                   'Created' => cluster[:created]
-                }
+                }.compact
               )
               puts
 
