@@ -98,7 +98,7 @@ module LanguageOperator
             puts 'Delete these agents first, or use --force to delete anyway.'
             puts
 
-            return Helpers::UserPrompts.confirm('Are you sure?')
+            return CLI::Helpers::UserPrompts.confirm('Are you sure?')
           end
 
           true

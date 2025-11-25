@@ -262,7 +262,7 @@ module LanguageOperator
                 puts
 
                 # Use UserPrompts helper
-                return unless Helpers::UserPrompts.confirm('Are you sure?')
+                return unless CLI::Helpers::UserPrompts.confirm('Are you sure?')
 
                 # Delete all files in workspace
                 Formatters::ProgressFormatter.with_spinner('Cleaning workspace') do

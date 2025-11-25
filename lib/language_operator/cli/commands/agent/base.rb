@@ -649,7 +649,7 @@ module LanguageOperator
             puts "This will delete #{resource_type} '#{name}' from cluster '#{cluster}'"
             puts pastel.yellow('This action cannot be undone.')
             puts
-            Helpers::UserPrompts.confirm('Are you sure?')
+            CLI::Helpers::UserPrompts.confirm('Are you sure?')
           end
 
           def display_agent_versions(agent_configs, agent_name, cluster_name)

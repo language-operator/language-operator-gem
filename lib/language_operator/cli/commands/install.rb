@@ -275,7 +275,7 @@ module LanguageOperator
               puts '  - LanguageModel resources'
               puts '  - LanguagePersona resources'
               puts
-              return unless Helpers::UserPrompts.confirm('Continue with uninstall?')
+              return unless CLI::Helpers::UserPrompts.confirm('Continue with uninstall?')
             end
 
             # Build helm uninstall command

@@ -280,7 +280,7 @@ module LanguageOperator
             unless options[:force]
               puts "This will delete cluster #{pastel.bold.red(name)} and all its resources (agents, models, tools, personas)."
               puts
-              return unless Helpers::UserPrompts.confirm('Are you sure?')
+              return unless CLI::Helpers::UserPrompts.confirm('Are you sure?')
             end
 
             # Delete LanguageCluster resource

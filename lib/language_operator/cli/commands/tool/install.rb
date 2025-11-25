@@ -100,7 +100,7 @@ module LanguageOperator
                     ctx.client.get_resource(RESOURCE_TOOL, tool_name, ctx.namespace)
                     Formatters::ProgressFormatter.warn("Tool '#{tool_name}' already exists in cluster '#{ctx.name}'")
                     puts
-                    return unless Helpers::UserPrompts.confirm('Do you want to update it?')
+                    return unless CLI::Helpers::UserPrompts.confirm('Do you want to update it?')
                   rescue K8s::Error::NotFound
                     # Tool doesn't exist, proceed with creation
                   end
