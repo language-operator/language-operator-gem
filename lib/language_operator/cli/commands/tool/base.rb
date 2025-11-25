@@ -56,12 +56,12 @@ module LanguageOperator
                                    else '?'
                                    end
 
+                status = 'Active' if %w[Running Ready].include?(status)
+                
                 {
                   name: name,
-                  type: type,
-                  status: status,
-                  agents_using: agents_using,
-                  health: "#{health_indicator} #{health}"
+                  namespace: tool.dig('metadata', 'namespace') || ctx.namespace,
+                  status: status
                 }
               end
 

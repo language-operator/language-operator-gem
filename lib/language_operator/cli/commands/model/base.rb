@@ -35,8 +35,11 @@ module LanguageOperator
                 model_name = model.dig('spec', 'modelName') || 'unknown'
                 status = model.dig('status', 'phase') || 'Unknown'
 
+                status = 'Active' if %w[Running Ready].include?(status)
+                
                 {
                   name: name,
+                  namespace: model.dig('metadata', 'namespace') || ctx.namespace,
                   provider: provider,
                   model: model_name,
                   status: status

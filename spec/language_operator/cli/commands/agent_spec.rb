@@ -38,7 +38,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
             'mode' => 'scheduled'
           },
           'status' => {
-            'phase' => 'Running',
+            'phase' => 'Active',
             'nextRun' => '2025-11-23T10:00:00Z',
             'executionCount' => 5
           }
@@ -52,7 +52,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
             'mode' => 'autonomous'
           },
           'status' => {
-            'phase' => 'Running',
+            'phase' => 'Active',
             'executionCount' => 12
           }
         }
@@ -102,17 +102,15 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
         expected_table_data = [
           {
             name: 'test-agent-1',
+            namespace: 'default',
             mode: 'scheduled',
-            status: 'Running',
-            next_run: '2025-11-23T10:00:00Z',
-            executions: 5
+            status: 'Active'
           },
           {
             name: 'test-agent-2',
+            namespace: 'default',
             mode: 'autonomous',
-            status: 'Running',
-            next_run: 'N/A',
-            executions: 12
+            status: 'Active'
           }
         ]
 

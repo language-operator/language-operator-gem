@@ -19,7 +19,7 @@ module LanguageOperator
           status_str = status.to_s
 
           case status_str.downcase
-          when 'ready', 'running', 'active'
+          when 'ready', 'active'
             "#{pastel.green('●')} #{status_str}"
           when 'pending', 'creating', 'synthesizing'
             "#{pastel.yellow('●')} #{status_str}"
@@ -29,6 +29,27 @@ module LanguageOperator
             "#{pastel.dim('●')} #{status_str}"
           else
             "#{pastel.dim('●')} #{status_str}"
+          end
+        end
+
+        # Format just the status indicator dot (without text)
+        #
+        # @param status [String, Symbol] The status to format
+        # @return [String] Just the colored dot
+        def self.dot(status)
+          status_str = status.to_s
+
+          case status_str.downcase
+          when 'ready', 'active'
+            pastel.green('●')
+          when 'pending', 'creating', 'synthesizing'
+            pastel.yellow('●')
+          when 'failed', 'error'
+            pastel.red('●')
+          when 'paused', 'stopped', 'suspended'
+            pastel.dim('●')
+          else
+            pastel.dim('●')
           end
         end
       end

@@ -161,6 +161,9 @@ module LanguageOperator
               name_display = cluster[:name]
               name_display += ' *' if cluster[:name] == current
 
+              # Map ambiguous statuses to Active
+              status = 'Active' if %w[Running Ready].include?(status)
+              
               {
                 name: name_display,
                 namespace: cluster[:namespace],

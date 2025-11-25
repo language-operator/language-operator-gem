@@ -14,15 +14,20 @@ module LanguageOperator
           def clusters(clusters)
             return ProgressFormatter.info('No clusters found') if clusters.empty?
 
-            headers = %w[NAME NAMESPACE AGENTS TOOLS MODELS STATUS]
+            headers = ['', 'NAME', 'NAMESPACE', 'STATUS']
             rows = clusters.map do |cluster|
+              # Extract asterisk for selected cluster
+              name = cluster[:name].to_s.gsub(' *', '')
+              is_current = cluster[:name].to_s.include?(' *')
+              
+              # Apply bold yellow formatting if current cluster
+              formatted_name = is_current ? pastel.bold.yellow(name) : name
+
               [
-                cluster[:name],
+                StatusFormatter.dot(cluster[:status] || 'Unknown'),
+                formatted_name,
                 cluster[:namespace],
-                cluster[:agents] || 0,
-                cluster[:tools] || 0,
-                cluster[:models] || 0,
-                StatusFormatter.format(cluster[:status] || 'Unknown')
+                cluster[:status] || 'Unknown'
               ]
             end
 
@@ -32,14 +37,14 @@ module LanguageOperator
           def agents(agents)
             return ProgressFormatter.info('No agents found') if agents.empty?
 
-            headers = ['NAME', 'MODE', 'STATUS', 'NEXT RUN', 'EXECUTIONS']
+            headers = ['', 'NAME', 'NAMESPACE', 'STATUS', 'MODE']
             rows = agents.map do |agent|
               [
+                StatusFormatter.dot(agent[:status]),
                 agent[:name],
-                agent[:mode],
-                StatusFormatter.format(agent[:status]),
-                agent[:next_run] || 'N/A',
-                agent[:executions] || 0
+                agent[:namespace],
+                agent[:status] || 'Unknown',
+                agent[:mode]
               ]
             end
 
@@ -71,13 +76,13 @@ module LanguageOperator
           def tools(tools)
             return ProgressFormatter.info('No tools found') if tools.empty?
 
-            headers = ['NAME', 'TYPE', 'STATUS', 'AGENTS USING']
+            headers = ['', 'NAME', 'NAMESPACE', 'STATUS']
             rows = tools.map do |tool|
               [
+                StatusFormatter.dot(tool[:status]),
                 tool[:name],
-                tool[:type],
-                StatusFormatter.format(tool[:status]),
-                tool[:agents_using] || 0
+                tool[:namespace],
+                tool[:status] || 'Unknown'
               ]
             end
 
@@ -103,13 +108,16 @@ module LanguageOperator
           def models(models)
             return ProgressFormatter.info('No models found') if models.empty?
 
-            headers = %w[NAME PROVIDER MODEL STATUS]
+            headers = ['', 'NAME', 'NAMESPACE', 'STATUS', 'PROVIDER/MODEL']
             rows = models.map do |model|
+              provider_model = "#{model[:provider]}/#{model[:model]}"
+              
               [
+                StatusFormatter.dot(model[:status]),
                 model[:name],
-                model[:provider],
-                model[:model],
-                StatusFormatter.format(model[:status])
+                model[:namespace],
+                model[:status] || 'Unknown',
+                provider_model
               ]
             end
 
