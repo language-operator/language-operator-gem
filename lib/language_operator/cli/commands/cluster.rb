@@ -85,18 +85,23 @@ module LanguageOperator
             # Switch to new cluster if requested
             if options[:switch]
               Config::ClusterConfig.set_current_cluster(name)
-              Formatters::ProgressFormatter.success("Created and switched to cluster '#{name}'")
-            else
-              Formatters::ProgressFormatter.success("Created cluster '#{name}'")
-              puts "\nSwitch to this cluster with:"
-              puts "  aictl use #{name}"
             end
 
-            puts "\nCluster Details"
-            puts '---------------'
-            puts "Name: #{pastel.bold.white(name)}"
-            puts "Namespace: #{pastel.bold.white(namespace)}"
-            puts "Context: #{pastel.bold.white(actual_context)}"
+            puts
+            format_cluster_details(
+              name: name,
+              namespace: namespace,
+              context: actual_context,
+              status: 'Ready',
+              created: Time.now.strftime('%Y-%m-%dT%H:%M:%SZ')
+            )
+
+            # Show usage instructions if not auto-switched
+            unless options[:switch]
+              puts
+              puts "Switch to this cluster with:"
+              puts pastel.dim("  aictl use #{name}")
+            end
           end
         end
 

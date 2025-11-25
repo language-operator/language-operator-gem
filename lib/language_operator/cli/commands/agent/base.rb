@@ -140,7 +140,7 @@ module LanguageOperator
               agent = ctx.client.get_resource(RESOURCE_AGENT, agent_name, ctx.namespace)
 
               # Display enhanced success output
-              display_agent_created(agent, ctx.name, description, synthesis_result)
+              display_agent_created(agent, ctx, description, synthesis_result)
             end
           end
 
@@ -172,17 +172,15 @@ module LanguageOperator
               # Main agent information
               puts
               status = agent.dig('status', 'phase') || 'Unknown'
-              highlighted_box(
-                title: RESOURCE_AGENT,
-                rows: {
-                  'Name' => pastel.white.bold(name),
-                  'Namespace' => ctx.namespace,
-                  'Cluster' => ctx.name,
-                  'Status' => format_status(status),
-                  'Mode' => agent.dig('spec', 'mode') || 'autonomous',
-                  'Schedule' => agent.dig('spec', 'schedule'),
-                  'Persona' => agent.dig('spec', 'persona') || '(auto-selected)'
-                }
+              format_agent_details(
+                name: name,
+                namespace: ctx.namespace,
+                cluster: ctx.name,
+                status: format_status(status),
+                mode: agent.dig('spec', 'mode') || 'autonomous',
+                schedule: agent.dig('spec', 'schedule'),
+                persona: agent.dig('spec', 'persona') || '(auto-selected)',
+                created: agent.dig('metadata', 'creationTimestamp')
               )
               puts
 
@@ -360,8 +358,21 @@ module LanguageOperator
                                                   available_resources: available_names)
           end
 
-          def display_agent_created(agent, _cluster, _description, _synthesis_result)
+          def display_agent_created(agent, ctx, _description, _synthesis_result)
             agent_name = agent.dig('metadata', 'name')
+            status = agent.dig('status', 'phase') || 'Unknown'
+
+            puts
+            format_agent_details(
+              name: agent_name,
+              namespace: ctx.namespace,
+              cluster: ctx.name,
+              status: format_status(status),
+              mode: agent.dig('spec', 'mode') || 'autonomous',
+              schedule: agent.dig('spec', 'schedule'),
+              persona: agent.dig('spec', 'persona') || '(auto-selected)',
+              created: Time.now.strftime('%Y-%m-%dT%H:%M:%SZ')
+            )
 
             puts
             puts 'Next steps:'

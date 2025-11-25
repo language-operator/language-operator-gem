@@ -367,6 +367,104 @@ module LanguageOperator
           end
           prompt.yes?(message)
         end
+
+        # Formats cluster details for consistent display in creation and inspection
+        #
+        # @param name [String] Cluster name
+        # @param namespace [String] Kubernetes namespace
+        # @param context [String] Kubernetes context
+        # @param status [String, nil] Cluster status (optional)
+        # @param created [String, nil] Creation timestamp (optional)
+        # @return [void] Displays formatted cluster information
+        def format_cluster_details(name:, namespace:, context:, status: nil, created: nil)
+          highlighted_box(
+            title: 'LanguageCluster',
+            rows: {
+              'Name' => pastel.white.bold(name),
+              'Namespace' => namespace,
+              'Context' => context,
+              'Status' => status,
+              'Created' => created
+            }.compact
+          )
+        end
+
+        # Formats agent details for consistent display in creation and inspection
+        #
+        # @param name [String] Agent name
+        # @param namespace [String] Kubernetes namespace
+        # @param cluster [String] Cluster name
+        # @param status [String, nil] Agent status (optional)
+        # @param mode [String, nil] Agent mode (optional)
+        # @param schedule [String, nil] Agent schedule (optional)
+        # @param persona [String, nil] Agent persona (optional)
+        # @param created [String, nil] Creation timestamp (optional)
+        # @return [void] Displays formatted agent information
+        def format_agent_details(name:, namespace:, cluster:, status: nil, mode: nil, schedule: nil, persona: nil, created: nil)
+          highlighted_box(
+            title: 'LanguageAgent',
+            rows: {
+              'Name' => pastel.white.bold(name),
+              'Namespace' => namespace,
+              'Cluster' => cluster,
+              'Status' => status,
+              'Mode' => mode,
+              'Schedule' => schedule,
+              'Persona' => persona,
+              'Created' => created
+            }.compact
+          )
+        end
+
+        # Formats model details for consistent display in creation and inspection
+        #
+        # @param name [String] Model name
+        # @param namespace [String] Kubernetes namespace
+        # @param cluster [String] Cluster name
+        # @param status [String, nil] Model status (optional)
+        # @param provider [String, nil] Model provider (optional)
+        # @param model [String, nil] Model identifier (optional)
+        # @param endpoint [String, nil] Model endpoint (optional)
+        # @param created [String, nil] Creation timestamp (optional)
+        # @return [void] Displays formatted model information
+        def format_model_details(name:, namespace:, cluster:, status: nil, provider: nil, model: nil, endpoint: nil, created: nil)
+          highlighted_box(
+            title: 'LanguageModel',
+            rows: {
+              'Name' => pastel.white.bold(name),
+              'Namespace' => namespace,
+              'Cluster' => cluster,
+              'Status' => status,
+              'Provider' => provider,
+              'Model' => model,
+              'Endpoint' => endpoint,
+              'Created' => created
+            }.compact
+          )
+        end
+
+        # Formats tool details for consistent display in creation and inspection
+        #
+        # @param name [String] Tool name
+        # @param namespace [String] Kubernetes namespace
+        # @param cluster [String] Cluster name
+        # @param status [String, nil] Tool status (optional)
+        # @param image [String, nil] Tool container image (optional)
+        # @param created [String, nil] Creation timestamp (optional)
+        # @return [void] Displays formatted tool information
+        def format_tool_details(name:, namespace:, cluster:, status: nil, image: nil, created: nil)
+          highlighted_box(
+            title: 'LanguageTool',
+            rows: {
+              'Name' => pastel.white.bold(name),
+              'Namespace' => namespace,
+              'Cluster' => cluster,
+              'Status' => status,
+              'Image' => image,
+              'Created' => created
+            }.compact
+          )
+        end
       end
     end
   end

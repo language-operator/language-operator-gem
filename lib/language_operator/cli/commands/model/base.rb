@@ -113,12 +113,16 @@ module LanguageOperator
 
               Formatters::ProgressFormatter.success("Model '#{name}' created successfully")
               puts
-              puts 'Model Details:'
-              puts "  Name:     #{name}"
-              puts "  Provider: #{options[:provider]}"
-              puts "  Model:    #{options[:model]}"
-              puts "  Endpoint: #{options[:endpoint]}" if options[:endpoint]
-              puts "  Cluster:  #{ctx.name}"
+              format_model_details(
+                name: name,
+                namespace: ctx.namespace,
+                cluster: ctx.name,
+                status: 'Ready',
+                provider: options[:provider],
+                model: options[:model],
+                endpoint: options[:endpoint],
+                created: Time.now.strftime('%Y-%m-%dT%H:%M:%SZ')
+              )
             end
           end
 
@@ -129,17 +133,15 @@ module LanguageOperator
               model = get_resource_or_exit(RESOURCE_MODEL, name)
 
               puts
-              highlighted_box(
-                title: RESOURCE_MODEL,
-                rows: {
-                  'Name' => pastel.white.bold(name),
-                  'Namespace' => ctx.namespace,
-                  'Cluster' => ctx.name,
-                  'Status' => model.dig('status', 'phase') || 'Unknown',
-                  'Provider' => model.dig('spec', 'provider'),
-                  'Model' => model.dig('spec', 'modelName'),
-                  'Endpoint' => model.dig('spec', 'endpoint')
-                }
+              format_model_details(
+                name: name,
+                namespace: ctx.namespace,
+                cluster: ctx.name,
+                status: model.dig('status', 'phase') || 'Unknown',
+                provider: model.dig('spec', 'provider'),
+                model: model.dig('spec', 'modelName'),
+                endpoint: model.dig('spec', 'endpoint'),
+                created: model.dig('metadata', 'creationTimestamp')
               )
               puts
 

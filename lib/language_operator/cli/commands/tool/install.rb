@@ -113,11 +113,23 @@ module LanguageOperator
 
                   Formatters::ProgressFormatter.success("Tool '#{tool_name}' installed successfully")
                   puts
-                  puts "Tool '#{tool_name}' is now available in cluster '#{ctx.name}'"
+
+                  # Show tool details
+                  format_tool_details(
+                    name: tool_name,
+                    namespace: ctx.namespace,
+                    cluster: ctx.name,
+                    status: 'Ready',
+                    image: tool_config['image'],
+                    created: Time.now.strftime('%Y-%m-%dT%H:%M:%SZ')
+                  )
+
+                  puts
                   if tool_config['authRequired']
-                    puts
                     puts 'This tool requires authentication. Configure it with:'
-                    puts "  aictl tool auth #{tool_name}"
+                    puts pastel.dim("  aictl tool auth #{tool_name}")
+                  else
+                    puts "Tool '#{tool_name}' is now available for agents to use"
                   end
                 end
               end
