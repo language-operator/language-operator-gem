@@ -161,6 +161,16 @@ module LanguageOperator
         end
       end
 
+      def help(command = nil, subcommand = false)
+        if command.nil? && !subcommand
+          # Show logo when displaying general help (no specific command)
+          logo
+        end
+
+        # Delegate to Thor's original help method
+        super
+      end
+
       private
 
       def install_bash_completion
