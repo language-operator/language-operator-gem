@@ -9,6 +9,7 @@ require_relative 'workspace'
 require_relative 'code_operations'
 require_relative 'logs'
 require_relative 'lifecycle'
+require_relative 'learning'
 
 # Include helper modules
 require_relative 'helpers/cluster_llm_client'
@@ -34,6 +35,7 @@ module LanguageOperator
           include CodeOperations
           include Logs
           include Lifecycle
+          include Learning
 
           # NOTE: Core commands (create, list, inspect, delete) will be added below
           # This file is a placeholder for the refactoring process
@@ -303,22 +305,59 @@ module LanguageOperator
             end
           end
 
+          desc 'versions NAME', 'Show ConfigMap versions managed by operator'
+          long_desc <<-DESC
+            List the versioned ConfigMaps created by the operator for an agent.
+            
+            Shows the automatic optimization history and available versions for rollback.
+
+            Examples:
+              aictl agent versions my-agent
+              aictl agent versions my-agent --cluster production
+          DESC
+          option :cluster, type: :string, desc: 'Override current cluster context'
+          def versions(name)
+            handle_command_error('list agent versions') do
+              ctx = CLI::Helpers::ClusterContext.from_options(options)
+
+              # Get agent to verify it exists
+              get_resource_or_exit(RESOURCE_AGENT, name)
+
+              # List all ConfigMaps with the agent label
+              config_maps = ctx.client.list_resources('ConfigMap', namespace: ctx.namespace)
+              
+              # Filter for versioned ConfigMaps for this agent
+              agent_configs = config_maps.select do |cm|
+                labels = cm.dig('metadata', 'labels') || {}
+                labels['agent'] == name && labels['version']
+              end
+
+              # Sort by version (assuming numeric versions)
+              agent_configs.sort! do |a, b|
+                version_a = a.dig('metadata', 'labels', 'version').to_i
+                version_b = b.dig('metadata', 'labels', 'version').to_i
+                version_b <=> version_a # Reverse order (newest first)
+              end
+
+              display_agent_versions(agent_configs, name, ctx.name)
+            end
+          end
+
           private
 
           # Shared helper methods that are used across multiple commands
           # These will be extracted from the original agent.rb
 
-          def handle_agent_not_found(name, ctx)
+          def handle_agent_not_found(name, ctx, error)
             # Get available agents for fuzzy matching
             agents = ctx.client.list_resources(RESOURCE_AGENT, namespace: ctx.namespace)
             available_names = agents.map { |a| a.dig('metadata', 'name') }
 
-            error = K8s::Error::NotFound.new(404, 'Not Found', RESOURCE_AGENT)
-            Errors::Handler.handle_not_found(error,
-                                             resource_type: RESOURCE_AGENT,
-                                             resource_name: name,
-                                             cluster: ctx.name,
-                                             available_resources: available_names)
+            CLI::Errors::Handler.handle_not_found(error,
+                                                   resource_type: RESOURCE_AGENT,
+                                                   resource_name: name,
+                                                   cluster: ctx.name,
+                                                   available_resources: available_names)
           end
 
           def display_agent_created(agent, _cluster, _description, _synthesis_result)
@@ -595,11 +634,11 @@ module LanguageOperator
           end
 
           def get_resource_or_exit(resource_type, name)
-            ctx = Helpers::ClusterContext.from_options(options)
+            ctx = CLI::Helpers::ClusterContext.from_options(options)
             begin
               ctx.client.get_resource(resource_type, name, ctx.namespace)
-            rescue K8s::Error::NotFound
-              handle_agent_not_found(name, ctx) if resource_type == RESOURCE_AGENT
+            rescue K8s::Error::NotFound => e
+              handle_agent_not_found(name, ctx, e) if resource_type == RESOURCE_AGENT
               exit 1
             end
           end
@@ -612,6 +651,83 @@ module LanguageOperator
             puts pastel.yellow('This action cannot be undone.')
             puts
             Helpers::UserPrompts.confirm('Are you sure?')
+          end
+
+          def display_agent_versions(agent_configs, agent_name, cluster_name)
+            puts
+            
+            if agent_configs.empty?
+              puts pastel.yellow("No versioned ConfigMaps found for agent '#{agent_name}'")
+              puts
+              puts 'Versioned ConfigMaps are created by the operator during automatic learning.'
+              puts 'Run the agent a few times to see optimization versions appear here.'
+              return
+            end
+
+            highlighted_box(
+              title: "Agent Versions: #{agent_name}",
+              rows: {
+                'Agent' => pastel.white.bold(agent_name),
+                'Cluster' => cluster_name,
+                'Total Versions' => agent_configs.length
+              }
+            )
+            puts
+
+            puts pastel.white.bold('Version History:')
+            
+            agent_configs.each do |config_map|
+              labels = config_map.dig('metadata', 'labels') || {}
+              annotations = config_map.dig('metadata', 'annotations') || {}
+              
+              version = labels['version']
+              synthesis_type = labels['synthesis-type'] || 'unknown'
+              created_at = config_map.dig('metadata', 'creationTimestamp')
+              learned_at = annotations['learned-at']
+              learned_tasks = annotations['learned-tasks']
+              
+              # Format creation time
+              if created_at
+                begin
+                  time = Time.parse(created_at)
+                  formatted_time = time.strftime('%Y-%m-%d %H:%M:%S UTC')
+                rescue StandardError
+                  formatted_time = created_at
+                end
+              else
+                formatted_time = 'Unknown'
+              end
+              
+              # Format version display
+              version_display = case synthesis_type
+                               when 'initial'
+                                 pastel.blue("v#{version} (initial)")
+                               when 'learned'
+                                 pastel.green("v#{version} (learned)")
+                               when 'manual'
+                                 pastel.yellow("v#{version} (manual)")
+                               else
+                                 pastel.dim("v#{version} (#{synthesis_type})")
+                               end
+              
+              puts "  #{version_display}"
+              puts "    Created: #{pastel.dim(formatted_time)}"
+              
+              if learned_at
+                puts "    Learned: #{pastel.dim(learned_at)}"
+              end
+              
+              if learned_tasks && !learned_tasks.empty?
+                tasks = learned_tasks.split(',').map(&:strip)
+                puts "    Tasks: #{pastel.cyan(tasks.join(', '))}"
+              end
+              
+              puts
+            end
+
+            puts pastel.white.bold('Available Commands:')
+            puts pastel.dim("  aictl agent learning status #{agent_name}")
+            puts pastel.dim("  aictl agent inspect #{agent_name}")
           end
         end
       end

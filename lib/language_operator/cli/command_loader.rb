@@ -40,7 +40,7 @@ module LanguageOperator
         require_relative 'formatters/status_formatter'
         require_relative 'formatters/code_formatter'
         require_relative 'formatters/log_style'
-        require_relative 'formatters/optimization_formatter'
+        # require_relative 'formatters/optimization_formatter'
 
         # Helpers - shared utilities and validations
         require_relative 'helpers/cluster_validator'
