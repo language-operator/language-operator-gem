@@ -272,6 +272,7 @@ module LanguageOperator
 
         desc 'delete NAME', 'Delete a cluster'
         option :force, type: :boolean, default: false, desc: 'Skip confirmation'
+        option :force_local, type: :boolean, default: false, desc: 'Force removal from local config only (skip Kubernetes deletion)'
         def delete(name)
           handle_command_error('delete cluster') do
             unless Config::ClusterConfig.cluster_exists?(name)
@@ -284,18 +285,32 @@ module LanguageOperator
             # Confirm deletion
             return if !options[:force] && !confirm_deletion('cluster', name, name)
 
-            # Delete LanguageCluster resource
-            begin
-              k8s = Helpers::ClusterValidator.kubernetes_client(name)
+            # Delete LanguageCluster resource from Kubernetes (unless --force-local)
+            unless options[:force_local]
+              begin
+                k8s = Helpers::ClusterValidator.kubernetes_client(name)
 
-              Formatters::ProgressFormatter.with_spinner('Deleting LanguageCluster resource') do
-                k8s.delete_resource('LanguageCluster', name, cluster[:namespace])
+                Formatters::ProgressFormatter.with_spinner('Deleting LanguageCluster resource') do
+                  k8s.delete_resource('LanguageCluster', name, cluster[:namespace])
+                end
+              rescue StandardError => e
+                Formatters::ProgressFormatter.error("Failed to delete cluster resource: #{e.message}")
+                puts
+                puts "Cluster deletion failed. The LanguageCluster resource could not be removed from Kubernetes."
+                puts "This may be due to:"
+                puts "  • Network connectivity issues"
+                puts "  • Insufficient permissions"
+                puts "  • The cluster resource no longer exists"
+                puts
+                puts "To force removal from local configuration only, use:"
+                puts pastel.dim("  aictl cluster delete #{name} --force-local")
+                exit 1
               end
-            rescue StandardError => e
-              Formatters::ProgressFormatter.warn("Failed to delete cluster resource: #{e.message}")
+            else
+              Formatters::ProgressFormatter.warn('Skipping Kubernetes resource deletion (--force-local specified)')
             end
 
-            # Remove from config
+            # Remove from config only after successful Kubernetes deletion
             Formatters::ProgressFormatter.with_spinner('Removing cluster from configuration') do
               Config::ClusterConfig.remove_cluster(name)
             end
@@ -303,7 +318,7 @@ module LanguageOperator
             # Clear current cluster if this was it
             Config::ClusterConfig.set_current_cluster(nil) if Config::ClusterConfig.current_cluster == name
 
-            Formatters::ProgressFormatter.success("Deleted cluster '#{name}'")
+            Formatters::ProgressFormatter.success("Cluster '#{name}' deleted successfully")
           end
         end
 
