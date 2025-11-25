@@ -134,10 +134,13 @@ RSpec.describe LanguageOperator::CLI::Commands::Cluster do
         .with(kubeconfig: '/tmp/kubeconfig2', context: 'context2')
         .and_return(mock_client2)
 
-      # Mock API calls to return empty arrays
+      # Mock API calls to return empty arrays and cluster resources with domains
       [mock_client1, mock_client2].each do |client|
         allow(client).to receive(:list_resources).and_return([])
-        allow(client).to receive(:get_resource).and_return({})
+        allow(client).to receive(:get_resource).and_return({
+                                                             'status' => { 'phase' => 'Ready' },
+                                                             'spec' => { 'domain' => 'agents.example.com' }
+                                                           })
       end
 
       # Mock table formatter to avoid output
@@ -176,6 +179,44 @@ RSpec.describe LanguageOperator::CLI::Commands::Cluster do
           '/tmp/kubeconfig1:context1',
           '/tmp/kubeconfig2:context2'
         )
+      end
+    end
+
+    context 'domain extraction and display' do
+      it 'extracts domain from cluster resources' do
+        expect(LanguageOperator::CLI::Formatters::TableFormatter).to receive(:clusters) do |table_data|
+          expect(table_data).to all(have_key(:domain))
+          expect(table_data.first[:domain]).to eq('agents.example.com')
+        end
+
+        command.list
+      end
+
+      it 'handles clusters without domains' do
+        # Mock one client to return cluster without domain
+        allow(mock_client1).to receive(:get_resource).and_return({
+                                                                   'status' => { 'phase' => 'Ready' },
+                                                                   'spec' => {}
+                                                                 })
+
+        expect(LanguageOperator::CLI::Formatters::TableFormatter).to receive(:clusters) do |table_data|
+          cluster1_data = table_data.find { |c| c[:name].include?('cluster1') }
+          expect(cluster1_data[:domain]).to be_nil
+        end
+
+        command.list
+      end
+
+      it 'shows error indicators for inaccessible clusters' do
+        # Mock one client to raise error
+        allow(mock_client1).to receive(:get_resource).and_raise(StandardError, 'Connection failed')
+
+        expect(LanguageOperator::CLI::Formatters::TableFormatter).to receive(:clusters) do |table_data|
+          error_clusters = table_data.select { |c| c[:domain] == '?' }
+          expect(error_clusters.count).to eq(2) # cluster1 and cluster2 share same client
+        end
+
+        command.list
       end
     end
   end

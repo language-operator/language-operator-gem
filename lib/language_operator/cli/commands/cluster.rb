@@ -150,7 +150,8 @@ module LanguageOperator
                   agents: '?',
                   tools: '?',
                   models: '?',
-                  status: 'Config Error'
+                  status: 'Config Error',
+                  domain: '?'
                 }
               end
 
@@ -159,9 +160,10 @@ module LanguageOperator
               tools = k8s.list_resources(RESOURCE_TOOL, namespace: cluster[:namespace])
               models = k8s.list_resources(RESOURCE_MODEL, namespace: cluster[:namespace])
 
-              # Get cluster status
+              # Get cluster status and domain
               cluster_resource = k8s.get_resource('LanguageCluster', cluster[:name], cluster[:namespace])
               status = cluster_resource.dig('status', 'phase') || 'Unknown'
+              domain = cluster_resource.dig('spec', 'domain')
 
               name_display = cluster[:name]
               name_display += ' *' if cluster[:name] == current
@@ -172,7 +174,8 @@ module LanguageOperator
                 agents: agents.count,
                 tools: tools.count,
                 models: models.count,
-                status: status
+                status: status,
+                domain: domain
               }
             rescue K8s::Error::NotFound
               # Cluster exists in local config but not in Kubernetes
@@ -185,7 +188,8 @@ module LanguageOperator
                 agents: '-',
                 tools: '-',
                 models: '-',
-                status: 'Not Found'
+                status: 'Not Found',
+                domain: '-'
               }
             rescue StandardError
               # Other errors (connection issues, auth problems, etc.)
@@ -198,15 +202,14 @@ module LanguageOperator
                 agents: '?',
                 tools: '?',
                 models: '?',
-                status: 'Error'
+                status: 'Error',
+                domain: '?'
               }
             end
 
             Formatters::TableFormatter.clusters(table_data)
 
-            if current
-              puts "\nCurrent cluster: #{current} (*)"
-            else
+            unless current
               puts "\nNo cluster selected. Use 'aictl use <cluster>' to select one."
             end
 

@@ -14,20 +14,31 @@ module LanguageOperator
           def clusters(clusters)
             return ProgressFormatter.info('No clusters found') if clusters.empty?
 
-            headers = ['', 'NAME', 'NAMESPACE', 'STATUS']
+            headers = ['', 'NAME', 'NAMESPACE', 'STATUS', 'DOMAIN']
             rows = clusters.map do |cluster|
               # Extract asterisk for selected cluster
               name = cluster[:name].to_s.gsub(' *', '')
               is_current = cluster[:name].to_s.include?(' *')
-              
+
               # Apply bold yellow formatting if current cluster
               formatted_name = is_current ? pastel.bold.yellow(name) : name
+
+              # Format domain - show empty cell if nil or empty, handle error states
+              domain_display = case cluster[:domain]
+                               when nil, ''
+                                 ''
+                               when '?', '-'
+                                 cluster[:domain]
+                               else
+                                 cluster[:domain]
+                               end
 
               [
                 StatusFormatter.dot(cluster[:status] || 'Unknown'),
                 formatted_name,
                 cluster[:namespace],
-                cluster[:status] || 'Unknown'
+                cluster[:status] || 'Unknown',
+                domain_display
               ]
             end
 
@@ -111,7 +122,7 @@ module LanguageOperator
             headers = ['', 'NAME', 'NAMESPACE', 'STATUS', 'PROVIDER/MODEL']
             rows = models.map do |model|
               provider_model = "#{model[:provider]}/#{model[:model]}"
-              
+
               [
                 StatusFormatter.dot(model[:status]),
                 model[:name],
