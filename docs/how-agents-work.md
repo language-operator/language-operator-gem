@@ -134,9 +134,9 @@ end
 - Performance improves and costs decrease
 
 ### Phase 4: Continuous Improvement
-- Agent continues learning new patterns
-- `aictl agent optimize` can trigger re-optimization
-- Agents adapt to changing requirements
+- Agent continues learning new patterns automatically
+- System continuously adapts to changing requirements
+- Optimization happens transparently in the background
 
 ## Key Benefits
 
@@ -153,5 +153,4 @@ end
 ## Next Steps
 
 - **[Understanding Generated Code](understanding-generated-code.md)** - Learn to read synthesized agents
-- **[Agent Optimization](agent-optimization.md)** - How learning and optimization work
 - **[Using Tools](using-tools.md)** - How agents interact with external services

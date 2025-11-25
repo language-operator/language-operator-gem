@@ -6,8 +6,6 @@ require_relative '../../wizards/agent_wizard'
 
 # Include all agent subcommand modules
 require_relative 'workspace'
-require_relative 'optimize'
-require_relative 'rollback'
 require_relative 'code_operations'
 require_relative 'logs'
 require_relative 'lifecycle'
@@ -16,7 +14,6 @@ require_relative 'lifecycle'
 require_relative 'helpers/cluster_llm_client'
 require_relative 'helpers/code_parser'
 require_relative 'helpers/synthesis_watcher'
-require_relative 'helpers/optimization_helper'
 require_relative '../../helpers/cluster_context'
 require_relative '../../../kubernetes/resource_builder'
 
@@ -31,12 +28,9 @@ module LanguageOperator
           include CLI::Helpers::UxHelper
           include Agent::Helpers::CodeParser
           include Agent::Helpers::SynthesisWatcher
-          include Agent::Helpers::OptimizationHelper
 
           # Include all subcommand modules
           include Workspace
-          include Optimize
-          include Rollback
           include CodeOperations
           include Logs
           include Lifecycle

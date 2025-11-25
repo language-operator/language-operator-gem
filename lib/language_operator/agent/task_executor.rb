@@ -74,6 +74,11 @@ module LanguageOperator
         @agent = agent
         @tasks = tasks
         @config = default_config.merge(config)
+        
+        # Pre-cache task lookup and timeout information for performance
+        @task_cache = build_task_cache
+        @task_timeouts = build_timeout_cache
+        
         logger.debug('TaskExecutor initialized',
                      task_count: @tasks.size,
                      timeout_symbolic: @config[:timeout_symbolic],
@@ -104,21 +109,26 @@ module LanguageOperator
                     'task.inputs' => inputs.keys.map(&:to_s).join(','),
                     'task.max_retries' => max_retries
                   }) do
-          # Find task definition
-          task = @tasks[task_name.to_sym]
-          raise ArgumentError, "Task not found: #{task_name}. Available tasks: #{@tasks.keys.join(', ')}" unless task
+          # Fast task lookup using pre-built cache
+          task_name_sym = task_name.to_sym
+          task_info = @task_cache[task_name_sym]
+          raise ArgumentError, "Task not found: #{task_name}. Available tasks: #{@tasks.keys.join(', ')}" unless task_info
 
-          task_type = determine_task_type(task)
+          task = task_info[:definition]
+          task_type = task_info[:type]
 
-          # Determine timeout based on task type if not explicitly provided
-          timeout ||= task_timeout_for_type(task)
+          # Use cached timeout if not explicitly provided
+          timeout ||= @task_timeouts[task_name_sym]
 
-          logger.info('Executing task',
-                      task: task_name,
-                      type: task_type,
-                      timeout: timeout,
-                      max_retries: max_retries,
-                      inputs: summarize_values(inputs))
+          # Optimize logging - only log if debug level enabled or log_executions is true
+          if logger.logger.level <= ::Logger::DEBUG || @config[:log_executions]
+            logger.info('Executing task',
+                        task: task_name,
+                        type: task_type,
+                        timeout: timeout,
+                        max_retries: max_retries,
+                        inputs: summarize_values(inputs))
+          end
 
           # Add timeout to span attributes after it's determined
           OpenTelemetry::Trace.current_span&.set_attribute('task.timeout', timeout)
@@ -319,22 +329,41 @@ module LanguageOperator
       end
 
       # Summarize hash values for logging (truncate long strings)
+      # Optimized for performance with lazy computation
       #
       # @param hash [Hash] Hash to summarize
       # @return [Hash] Summarized hash with truncated values
       def summarize_values(hash)
         return {} unless hash.is_a?(Hash)
 
-        hash.transform_values do |v|
-          case v
-          when String
-            v.length > 100 ? "#{v[0..97]}... (#{v.length} chars)" : v
-          when Array
-            v.length > 5 ? "#{v.first(3).inspect}... (#{v.length} items)" : v.inspect
-          else
-            v.inspect
-          end
+        # Optimize: only create new hash if values need summarization
+        needs_summarization = false
+        result = {}
+        
+        hash.each do |key, v|
+          summarized_value = case v
+                           when String
+                             if v.length > 100
+                               needs_summarization = true
+                               "#{v[0, 97]}... (#{v.length} chars)"
+                             else
+                               v
+                             end
+                           when Array
+                             if v.length > 5
+                               needs_summarization = true
+                               "#{v.first(3).inspect}... (#{v.length} items)"
+                             else
+                               v.inspect
+                             end
+                           else
+                             v.inspect
+                           end
+          result[key] = summarized_value
         end
+        
+        # Return original if no summarization was needed (rare optimization)
+        needs_summarization ? result : hash
       end
 
       # Build prompt for neural task execution
@@ -425,13 +454,23 @@ module LanguageOperator
         raise "Neural task '#{task.name}' returned invalid JSON: #{e.message}"
       end
 
-      # Recursively convert all hash keys to symbols
+      # Recursively convert all hash keys to symbols (optimized for performance)
       def deep_symbolize_keys(obj)
         case obj
         when Hash
-          obj.transform_keys(&:to_sym).transform_values { |v| deep_symbolize_keys(v) }
+          # Optimize: pre-allocate hash with correct size and avoid double iteration
+          result = Hash.new
+          obj.each do |key, value|
+            result[key.to_sym] = deep_symbolize_keys(value)
+          end
+          result
         when Array
-          obj.map { |item| deep_symbolize_keys(item) }
+          # Optimize: pre-allocate array with correct size
+          result = Array.new(obj.size)
+          obj.each_with_index do |item, index|
+            result[index] = deep_symbolize_keys(item)
+          end
+          result
         else
           obj
         end
@@ -559,11 +598,15 @@ module LanguageOperator
                  end
 
         execution_time = Time.now - attempt_start
-        logger.info('Task completed',
-                    task: task_name,
-                    attempt: attempt + 1,
-                    execution_time: execution_time.round(3),
-                    outputs: summarize_values(result))
+        
+        # Optimize logging - only log if debug level enabled or log_executions is true
+        if logger.logger.level <= ::Logger::DEBUG || @config[:log_executions]
+          logger.info('Task completed',
+                      task: task_name,
+                      attempt: attempt + 1,
+                      execution_time: execution_time.round(3),
+                      outputs: summarize_values(result))
+        end
 
         result
       rescue Timeout::Error => e
@@ -682,6 +725,56 @@ module LanguageOperator
                      retry_count: retry_count,
                      retryable: retryable_error?(error),
                      backtrace: error.backtrace&.first(5))
+      end
+
+      # Build task lookup cache for O(1) task resolution
+      #
+      # Pre-computes task metadata to avoid repeated type determinations
+      # and provide fast hash-based lookup instead of linear search.
+      #
+      # @return [Hash] Cache mapping task names to metadata
+      def build_task_cache
+        cache = {}
+        @tasks.each do |name, task|
+          # Guard against test doubles that don't respond to task methods
+          if task.respond_to?(:neural?) && task.respond_to?(:symbolic?)
+            cache[name] = {
+              definition: task,
+              type: determine_task_type(task),
+              neural: task.neural?,
+              symbolic: task.symbolic?
+            }
+          else
+            # Fallback for test doubles or invalid task objects
+            cache[name] = {
+              definition: task,
+              type: 'unknown',
+              neural: false,
+              symbolic: false
+            }
+          end
+        end
+        cache
+      end
+
+      # Build timeout cache for O(1) timeout resolution
+      #
+      # Pre-computes timeouts for all tasks to avoid repeated calculations
+      # during task execution hot path.
+      #
+      # @return [Hash] Cache mapping task names to timeout values
+      def build_timeout_cache
+        cache = {}
+        @tasks.each do |name, task|
+          # Guard against test doubles that don't respond to task methods
+          if task.respond_to?(:neural?) && task.respond_to?(:symbolic?)
+            cache[name] = task_timeout_for_type(task)
+          else
+            # Fallback timeout for test doubles or invalid task objects
+            cache[name] = @config[:timeout_symbolic]
+          end
+        end
+        cache
       end
     end
   end

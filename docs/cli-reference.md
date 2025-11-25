@@ -58,14 +58,8 @@ aictl agent logs my-agent
 # Delete an agent
 aictl agent delete my-agent
 
-# Optimize agent performance
-aictl agent optimize my-agent
-
 # Work with agent code
 aictl agent workspace my-agent
-
-# Rollback agent to previous version
-aictl agent rollback my-agent
 ```
 
 ## Model Management

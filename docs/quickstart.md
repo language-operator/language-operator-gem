@@ -189,16 +189,16 @@ aictl agent logs daily-reporter -f
 aictl agent logs daily-reporter --since 1h
 ```
 
-### Agent Optimization
+### Monitoring Agents
 
-Over time, your agents learn patterns and become more efficient:
+Monitor your agent's execution and performance:
 
 ```bash
-# Trigger optimization
-aictl agent optimize daily-reporter
-
-# View optimization results
+# View detailed agent information
 aictl agent inspect daily-reporter
+
+# Check recent execution logs
+aictl agent logs daily-reporter --since 1h
 ```
 
 ## Common Patterns

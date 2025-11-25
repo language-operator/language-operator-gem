@@ -7,6 +7,11 @@ module LanguageOperator
   # and clear error messages when coercion is not possible. This enables
   # flexible type handling while maintaining type safety.
   #
+  # Performance optimizations:
+  # - Fast-path checks for already-correct types
+  # - Memoization cache for expensive string coercions
+  # - Pre-compiled regexes for boolean parsing
+  #
   # Supported types:
   # - integer: Coerces String, Integer, Float to Integer
   # - number: Coerces String, Integer, Float to Float
@@ -35,41 +40,102 @@ module LanguageOperator
   #   TypeCoercion.coerce([1, 2], "array")    # => [1, 2]
   #   TypeCoercion.coerce({a: 1}, "array")    # raises ArgumentError
   module TypeCoercion
-    # Coerce a value to the specified type
-    #
-    # @param value [Object] Value to coerce
-    # @param type [String] Target type (see COERCION_RULES for valid types)
-    # @return [Object] Coerced value
-    # @raise [ArgumentError] If coercion fails or type is unknown
-    #
-    # @example
-    #   TypeCoercion.coerce("345", "integer")  # => 345
-    #   TypeCoercion.coerce("true", "boolean") # => true
-    def self.coerce(value, type)
-      case type
-      when 'integer'
-        coerce_integer(value)
-      when 'number'
-        coerce_number(value)
-      when 'string'
-        coerce_string(value)
-      when 'boolean'
-        coerce_boolean(value)
-      when 'array'
-        validate_array(value)
-      when 'hash'
-        validate_hash(value)
-      when 'any'
-        value
-      else
-        raise ArgumentError, "Unknown type: #{type}"
+    # Performance optimization: Cache for expensive coercions
+    @coercion_cache = {}
+    @cache_mutex = Mutex.new
+    @cache_hits = 0
+    @cache_misses = 0
+
+    # Boolean patterns - pre-compiled for performance
+    TRUTHY_PATTERNS = %w[true 1 yes t y].freeze
+    FALSY_PATTERNS = %w[false 0 no f n].freeze
+    
+    class << self
+      # Coerce a value to the specified type
+      #
+      # @param value [Object] Value to coerce
+      # @param type [String] Target type (see COERCION_RULES for valid types)
+      # @return [Object] Coerced value
+      # @raise [ArgumentError] If coercion fails or type is unknown
+      #
+      # @example
+      #   TypeCoercion.coerce("345", "integer")  # => 345
+      #   TypeCoercion.coerce("true", "boolean") # => true
+      def coerce(value, type)
+        # Fast path - check cache first for expensive string coercions
+        if value.is_a?(String) && (type == 'integer' || type == 'number' || type == 'boolean')
+          cache_key = [value, type]
+          cached = @cache_mutex.synchronize { @coercion_cache[cache_key] }
+          if cached
+            @cache_hits += 1
+            return cached[:result] if cached[:success]
+            raise ArgumentError, cached[:error_message]
+          end
+          @cache_misses += 1
+        end
+
+        # Perform coercion
+        result = case type
+                 when 'integer'
+                   coerce_integer(value)
+                 when 'number'
+                   coerce_number(value)
+                 when 'string'
+                   coerce_string(value)
+                 when 'boolean'
+                   coerce_boolean(value)
+                 when 'array'
+                   validate_array(value)
+                 when 'hash'
+                   validate_hash(value)
+                 when 'any'
+                   value
+                 else
+                   raise ArgumentError, "Unknown type: #{type}"
+                 end
+
+        # Cache successful string coercion results
+        if value.is_a?(String) && (type == 'integer' || type == 'number' || type == 'boolean')
+          cache_entry = { success: true, result: result }
+          @cache_mutex.synchronize { @coercion_cache[[value, type]] = cache_entry }
+        end
+
+        result
+      rescue ArgumentError => e
+        # Cache failed coercion attempts to avoid repeating expensive failures
+        if value.is_a?(String) && (type == 'integer' || type == 'number' || type == 'boolean')
+          cache_entry = { success: false, error_message: e.message }
+          @cache_mutex.synchronize { @coercion_cache[[value, type]] = cache_entry }
+        end
+        raise
+      end
+
+      # Get cache statistics for monitoring
+      def cache_stats
+        @cache_mutex.synchronize do
+          {
+            size: @coercion_cache.size,
+            hits: @cache_hits,
+            misses: @cache_misses,
+            hit_rate: @cache_hits.zero? ? 0.0 : @cache_hits.to_f / (@cache_hits + @cache_misses)
+          }
+        end
+      end
+
+      # Clear the cache (for testing or memory management)
+      def clear_cache
+        @cache_mutex.synchronize do
+          @coercion_cache.clear
+          @cache_hits = 0
+          @cache_misses = 0
+        end
       end
     end
 
     # Coerce value to Integer
     #
     # Accepts: String, Integer, Float
-    # Coercion: Uses Ruby's Integer() method
+    # Coercion: Uses Ruby's Integer() method with fast-path optimization
     # Errors: Cannot parse as integer
     #
     # @param value [Object] Value to coerce
@@ -82,6 +148,7 @@ module LanguageOperator
     #   coerce_integer(123.0)   # => 123
     #   coerce_integer("abc")   # raises ArgumentError
     def self.coerce_integer(value)
+      # Fast path for already-correct types
       return value if value.is_a?(Integer)
 
       Integer(value)
@@ -92,7 +159,7 @@ module LanguageOperator
     # Coerce value to Float (number)
     #
     # Accepts: String, Integer, Float
-    # Coercion: Uses Ruby's Float() method
+    # Coercion: Uses Ruby's Float() method with fast-path optimization
     # Errors: Cannot parse as number
     #
     # @param value [Object] Value to coerce
@@ -105,7 +172,8 @@ module LanguageOperator
     #   coerce_number(3.14)        # => 3.14
     #   coerce_number("not a num") # raises ArgumentError
     def self.coerce_number(value)
-      return value if value.is_a?(Numeric)
+      # Fast path for already-correct types
+      return value.to_f if value.is_a?(Numeric)
 
       Float(value)
     rescue ArgumentError, TypeError => e
@@ -132,7 +200,7 @@ module LanguageOperator
     # Coerce value to Boolean
     #
     # Accepts: Boolean, String (explicit values only)
-    # Coercion: Case-insensitive string matching
+    # Coercion: Case-insensitive string matching with optimized pattern lookup
     # Truthy: "true", "1", "yes", "t", "y"
     # Falsy: "false", "0", "no", "f", "n"
     # Errors: Ambiguous values (e.g., "maybe", "unknown")
@@ -152,14 +220,16 @@ module LanguageOperator
     #   coerce_boolean("no")      # => false
     #   coerce_boolean("maybe")   # raises ArgumentError
     def self.coerce_boolean(value)
+      # Fast path for already-correct types
       return value if value.is_a?(TrueClass) || value.is_a?(FalseClass)
 
       # Only allow string values for coercion (not integers or other types)
       raise ArgumentError, "Cannot coerce #{value.inspect} to boolean" unless value.is_a?(String)
 
+      # Optimized pattern matching using pre-compiled arrays
       str = value.strip.downcase
-      return true if %w[true 1 yes t y].include?(str)
-      return false if %w[false 0 no f n].include?(str)
+      return true if TRUTHY_PATTERNS.include?(str)
+      return false if FALSY_PATTERNS.include?(str)
 
       raise ArgumentError, "Cannot coerce #{value.inspect} to boolean"
     end

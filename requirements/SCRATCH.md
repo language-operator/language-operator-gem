@@ -118,14 +118,10 @@ merged = execute_task(:merge, inputs: { s1: s1 })
 ## Current Priorities (2025-11-24)
 
 **P1 - User-Facing Bugs (READY):**
-- #75 - Missing require statement in tool search (1-line fix, blocks search functionality)
 - #78 - Remove dead code tool.rb file (645 lines, cleanup)
 
 **P2 - Minor Bug Fixes:**
-- #73 - Malformed kubectl command in model test
-- #74 - Inconsistent env var parsing in Agent::Executor  
 - #76 - Dead code: unused expression in model test
-- #70 - Dead code: useless statements in agent commands
 
 **P3 - Enhancements:**
 - #51 - Include complete MCP tool schemas
@@ -133,6 +129,12 @@ merged = execute_task(:merge, inputs: { s1: s1 })
 - #41 - Comprehensive test suite
 
 **Recently Completed (Major Issues):**
+- ✅ #79 - Invalid Kubernetes resource names in agent creation (2025-11-24) - Fixed generate_agent_name to ensure K8s-compliant names by prepending 'agent-' when name doesn't start with letter, added comprehensive test coverage for all edge cases
+- ✅ #80 - Config.get_int silent conversion bug (2025-11-24) - Replaced permissive to_i with strict Integer() conversion, added comprehensive tests for get_int/get_bool/get_array, clear error messages prevent misconfigurations
+- ✅ #70 - Dead code: useless statements in agent pause and resume commands (2025-11-24) - Removed two useless ctx.namespace statements that had no effect, verified with full test suite and manual testing
+- ✅ #73 - Malformed kubectl command in model test (2025-11-24) - Fixed array command handling using Shellwords.join for proper shell escaping, added comprehensive test coverage for both string and array commands
+- ✅ #74 - Inconsistent empty value handling in Agent::Executor environment variable parsing (2025-11-24) - Fixed parse_array_env to behave consistently with parse_float_env/parse_int_env, added comprehensive test coverage
+- ✅ #75 - Missing require statement in tool search (2025-11-24) - Added missing require_relative for Config::ToolRegistry, added comprehensive test coverage
 - ✅ #77 - Tool commands broken after refactor (2025-11-24) - Investigation revealed issue was already resolved; fixed minor constant reference bug in auth command and closed issue
 - ✅ #71 - Dead code: unused expressions in PatternDetector.generate_task_fragment (2025-11-24) - Removed remnants from instruction generation experiments
 - ✅ #72 - Dead code: placeholder agent command implementations (2025-11-24) - Completed refactoring by moving real implementations to Agent::Base
