@@ -3,6 +3,7 @@
 require_relative '../base_command'
 require_relative '../formatters/progress_formatter'
 require_relative '../../config/cluster_config'
+require_relative '../helpers/cluster_validator'
 
 module LanguageOperator
   module CLI
@@ -32,10 +33,32 @@ module LanguageOperator
 
             Formatters::ProgressFormatter.success("Switched to cluster '#{cluster_name}'")
 
-            puts "\nCluster Details"
-            puts '----------------'
-            puts "Name: #{pastel.bold.white(cluster[:name])}"
-            puts "Namespace: #{pastel.bold.white(cluster[:namespace])}"
+            # Get cluster details from Kubernetes for complete information
+            begin
+              k8s = Helpers::ClusterValidator.kubernetes_client(cluster_name)
+              cluster_resource = k8s.get_resource('LanguageCluster', cluster[:name], cluster[:namespace])
+              status = cluster_resource.dig('status', 'phase') || 'Unknown'
+              domain = cluster_resource.dig('spec', 'domain')
+
+              puts
+              format_cluster_details(
+                name: cluster[:name],
+                namespace: cluster[:namespace],
+                context: cluster[:context] || 'default',
+                domain: domain,
+                status: status,
+                created: cluster[:created]
+              )
+            rescue StandardError
+              # Fallback to basic display if K8s access fails
+              puts
+              format_cluster_details(
+                name: cluster[:name],
+                namespace: cluster[:namespace],
+                context: cluster[:context] || 'default',
+                status: 'Connection Error'
+              )
+            end
           end
         end
       end
