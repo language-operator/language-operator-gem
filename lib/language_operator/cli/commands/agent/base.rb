@@ -512,28 +512,27 @@ module LanguageOperator
           end
 
           def list_cluster_agents(cluster)
-            ctx = CLI::Helpers::ClusterContext.from_options({ cluster: cluster })
+            context = CLI::Helpers::ClusterContext.from_options({ cluster: cluster })
+            agents = context.client.list_resources(RESOURCE_AGENT, namespace: context.namespace)
 
-            Formatters::ProgressFormatter.info("Agents in cluster '#{cluster}'")
-
-            agents = ctx.client.list_resources(RESOURCE_AGENT, namespace: ctx.namespace)
+            if agents.empty?
+              Formatters::ProgressFormatter.info('No agents found')
+              puts
+              puts 'Create an agent with:'
+              puts '  aictl agent create "<description>"'
+              return
+            end
 
             table_data = agents.map do |agent|
               {
                 name: agent.dig('metadata', 'name'),
-                namespace: agent.dig('metadata', 'namespace') || ctx.namespace,
+                namespace: agent.dig('metadata', 'namespace') || context.namespace,
                 mode: agent.dig('spec', 'mode') || 'autonomous',
                 status: agent.dig('status', 'phase') || 'Unknown'
               }
             end
 
             Formatters::TableFormatter.agents(table_data)
-
-            return unless agents.empty?
-
-            puts
-            puts 'Create an agent with:'
-            puts '  aictl agent create "<description>"'
           end
 
           def list_all_clusters

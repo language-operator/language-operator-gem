@@ -19,9 +19,7 @@ module LanguageOperator
           option :cluster, type: :string, desc: 'Override current cluster context'
           def list
             handle_command_error('list models') do
-              models = list_resources_or_empty(RESOURCE_MODEL) do
-                puts
-                puts 'Models define LLM configurations for agents.'
+              models = list_resources_or_empty(RESOURCE_MODEL, resource_name: 'models') do
                 puts
                 puts 'Create a model with:'
                 puts '  aictl model create <name> --provider <provider> --model <model>'
@@ -183,8 +181,6 @@ module LanguageOperator
               Formatters::ProgressFormatter.with_spinner("Deleting model '#{name}'") do
                 ctx.client.delete_resource(RESOURCE_MODEL, name, ctx.namespace)
               end
-
-              Formatters::ProgressFormatter.success("Model '#{name}' deleted successfully")
             end
           end
 

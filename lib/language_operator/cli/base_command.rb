@@ -106,14 +106,16 @@ module LanguageOperator
 
         # List resources or handle empty state
         # @param type [String] Resource type (e.g., 'LanguageModel')
+        # @param resource_name [String] Human-readable resource name (e.g., 'models')
         # @param empty_message [String, nil] Custom message when no resources found
         # @yield Optional block to execute when list is empty (for guidance)
         # @return [Array<Hash>] List of resources (empty array if none found)
-        def list_resources_or_empty(type, empty_message: nil)
+        def list_resources_or_empty(type, resource_name: nil, empty_message: nil)
           resources = ctx.client.list_resources(type, namespace: ctx.namespace)
 
           if resources.empty?
-            msg = empty_message || "No #{type} resources found in cluster '#{ctx.name}'"
+            resource_display = resource_name || type.downcase.gsub('language', '')
+            msg = empty_message || "No #{resource_display} found"
             Formatters::ProgressFormatter.info(msg)
             yield if block_given?
           end

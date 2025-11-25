@@ -27,9 +27,7 @@ module LanguageOperator
           option :cluster, type: :string, desc: 'Override current cluster context'
           def list
             handle_command_error('list tools') do
-              tools = list_resources_or_empty(RESOURCE_TOOL) do
-                puts
-                puts 'Tools provide MCP server capabilities for agents.'
+              tools = list_resources_or_empty(RESOURCE_TOOL, resource_name: 'tools') do
                 puts
                 puts 'Install a tool with:'
                 puts '  aictl tool install <name>'
@@ -42,19 +40,19 @@ module LanguageOperator
 
               table_data = tools.map do |tool|
                 name = tool.dig('metadata', 'name')
-                type = tool.dig('spec', 'type') || 'unknown'
+                tool.dig('spec', 'type') || 'unknown'
                 status = tool.dig('status', 'phase') || 'Unknown'
 
                 # Count agents using this tool
-                agents_using = Helpers::ResourceDependencyChecker.tool_usage_count(agents, name)
+                Helpers::ResourceDependencyChecker.tool_usage_count(agents, name)
 
                 # Get health status
                 health = tool.dig('status', 'health') || 'unknown'
-                health_indicator = case health.downcase
-                                   when 'healthy' then '✓'
-                                   when 'unhealthy' then '✗'
-                                   else '?'
-                                   end
+                case health.downcase
+                when 'healthy' then '✓'
+                when 'unhealthy' then '✗'
+                else '?'
+                end
 
                 {
                   name: name,
@@ -215,8 +213,6 @@ module LanguageOperator
               Formatters::ProgressFormatter.with_spinner("Deleting tool '#{name}'") do
                 ctx.client.delete_resource(RESOURCE_TOOL, name, ctx.namespace)
               end
-
-              Formatters::ProgressFormatter.success("Tool '#{name}' deleted successfully")
             end
           end
 
