@@ -19,7 +19,7 @@ module LanguageOperator
           status_str = status.to_s
 
           case status_str.downcase
-          when 'ready', 'active'
+          when 'ready', 'running', 'active'
             "#{pastel.green('●')} #{status_str}"
           when 'pending', 'creating', 'synthesizing'
             "#{pastel.yellow('●')} #{status_str}"
@@ -40,7 +40,7 @@ module LanguageOperator
           status_str = status.to_s
 
           case status_str.downcase
-          when 'ready', 'active'
+          when 'ready', 'running', 'active'
             pastel.green('●')
           when 'pending', 'creating', 'synthesizing'
             pastel.yellow('●')

@@ -508,14 +508,11 @@ module LanguageOperator
             agents = ctx.client.list_resources(RESOURCE_AGENT, namespace: ctx.namespace)
 
             table_data = agents.map do |agent|
-              status = agent.dig('status', 'phase') || 'Unknown'
-              status = 'Active' if %w[Running Ready].include?(status)
-              
               {
                 name: agent.dig('metadata', 'name'),
                 namespace: agent.dig('metadata', 'namespace') || ctx.namespace,
                 mode: agent.dig('spec', 'mode') || 'autonomous',
-                status: status
+                status: agent.dig('status', 'phase') || 'Unknown'
               }
             end
 

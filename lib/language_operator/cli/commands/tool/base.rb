@@ -56,8 +56,6 @@ module LanguageOperator
                                    else '?'
                                    end
 
-                status = 'Active' if %w[Running Ready].include?(status)
-                
                 {
                   name: name,
                   namespace: tool.dig('metadata', 'namespace') || ctx.namespace,
