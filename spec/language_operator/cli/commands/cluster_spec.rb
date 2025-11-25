@@ -6,6 +6,62 @@ require 'language_operator/cli/commands/cluster'
 RSpec.describe LanguageOperator::CLI::Commands::Cluster do
   let(:command) { described_class.new }
 
+  describe '#create' do
+    let(:mock_k8s_client) { double('K8s Client') }
+    let(:mock_resource) { { 'apiVersion' => 'langop.io/v1alpha1', 'kind' => 'LanguageCluster' } }
+
+    before do
+      allow(LanguageOperator::Config::ClusterConfig).to receive(:cluster_exists?).and_return(false)
+      allow(LanguageOperator::Kubernetes::Client).to receive(:new).and_return(mock_k8s_client)
+      allow(mock_k8s_client).to receive(:current_namespace).and_return('default')
+      allow(mock_k8s_client).to receive(:operator_installed?).and_return(true)
+      allow(mock_k8s_client).to receive(:namespace_exists?).and_return(true)
+      allow(mock_k8s_client).to receive(:current_context).and_return('test-context')
+      allow(mock_k8s_client).to receive(:apply_resource).and_return(mock_resource)
+      allow(LanguageOperator::Config::ClusterConfig).to receive(:add_cluster)
+      allow(LanguageOperator::Config::ClusterConfig).to receive(:set_current_cluster)
+      allow(LanguageOperator::Kubernetes::ResourceBuilder).to receive(:language_cluster).and_return(mock_resource)
+      allow(LanguageOperator::CLI::Formatters::ProgressFormatter).to receive(:with_spinner).and_yield
+      allow(LanguageOperator::CLI::Formatters::ProgressFormatter).to receive(:error)
+      allow($stdout).to receive(:puts)
+      allow(command).to receive(:format_cluster_details)
+    end
+
+    context 'with --domain option' do
+      it 'passes domain to ResourceBuilder' do
+        expect(LanguageOperator::Kubernetes::ResourceBuilder).to receive(:language_cluster)
+          .with('test-cluster', namespace: 'default', domain: 'example.com')
+          .and_return(mock_resource)
+
+        allow(command).to receive(:options).and_return({ domain: 'example.com' })
+        command.create('test-cluster')
+      end
+    end
+
+    context 'with --dry-run and --domain' do
+      it 'includes domain in dry-run output' do
+        expect(LanguageOperator::Kubernetes::ResourceBuilder).to receive(:language_cluster)
+          .with('test-cluster', namespace: 'default', domain: 'webhooks.test.com')
+          .and_return(mock_resource)
+        expect(mock_resource).to receive(:to_yaml)
+
+        allow(command).to receive(:options).and_return({ dry_run: true, domain: 'webhooks.test.com' })
+        command.create('test-cluster')
+      end
+    end
+
+    context 'without --domain option' do
+      it 'passes nil domain to ResourceBuilder' do
+        expect(LanguageOperator::Kubernetes::ResourceBuilder).to receive(:language_cluster)
+          .with('test-cluster', namespace: 'default', domain: nil)
+          .and_return(mock_resource)
+
+        allow(command).to receive(:options).and_return({})
+        command.create('test-cluster')
+      end
+    end
+  end
+
   describe '#list' do
     let(:mock_clusters) do
       [

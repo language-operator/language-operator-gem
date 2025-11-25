@@ -17,6 +17,7 @@ module LanguageOperator
         option :context, type: :string, desc: 'Kubernetes context to use'
         option :switch, type: :boolean, default: true, desc: 'Switch to new cluster context'
         option :dry_run, type: :boolean, default: false, desc: 'Output the manifest without creating'
+        option :domain, type: :string, desc: 'Base domain for webhook routing (e.g., example.com)'
         def create(name)
           handle_command_error('create cluster') do
             kubeconfig = options[:kubeconfig]
@@ -25,7 +26,7 @@ module LanguageOperator
             # Handle dry-run: output manifest and exit early
             if options[:dry_run]
               namespace = options[:namespace] || 'default'
-              resource = Kubernetes::ResourceBuilder.language_cluster(name, namespace: namespace)
+              resource = Kubernetes::ResourceBuilder.language_cluster(name, namespace: namespace, domain: options[:domain])
               puts resource.to_yaml
               return
             end
@@ -64,7 +65,7 @@ module LanguageOperator
 
             # Create LanguageCluster resource
             Formatters::ProgressFormatter.with_spinner('Creating LanguageCluster resource') do
-              resource = Kubernetes::ResourceBuilder.language_cluster(name, namespace: namespace)
+              resource = Kubernetes::ResourceBuilder.language_cluster(name, namespace: namespace, domain: options[:domain])
               k8s.apply_resource(resource)
               resource
             end
@@ -83,9 +84,7 @@ module LanguageOperator
             end
 
             # Switch to new cluster if requested
-            if options[:switch]
-              Config::ClusterConfig.set_current_cluster(name)
-            end
+            Config::ClusterConfig.set_current_cluster(name) if options[:switch]
 
             puts
             format_cluster_details(
@@ -99,7 +98,7 @@ module LanguageOperator
             # Show usage instructions if not auto-switched
             unless options[:switch]
               puts
-              puts "Switch to this cluster with:"
+              puts 'Switch to this cluster with:'
               puts pastel.dim("  aictl use #{name}")
             end
           end
@@ -286,7 +285,9 @@ module LanguageOperator
             return if !options[:force] && !confirm_deletion('cluster', name, name)
 
             # Delete LanguageCluster resource from Kubernetes (unless --force-local)
-            unless options[:force_local]
+            if options[:force_local]
+              Formatters::ProgressFormatter.warn('Skipping Kubernetes resource deletion (--force-local specified)')
+            else
               begin
                 k8s = Helpers::ClusterValidator.kubernetes_client(name)
 
@@ -296,18 +297,16 @@ module LanguageOperator
               rescue StandardError => e
                 Formatters::ProgressFormatter.error("Failed to delete cluster resource: #{e.message}")
                 puts
-                puts "Cluster deletion failed. The LanguageCluster resource could not be removed from Kubernetes."
-                puts "This may be due to:"
-                puts "  • Network connectivity issues"
-                puts "  • Insufficient permissions"
-                puts "  • The cluster resource no longer exists"
+                puts 'Cluster deletion failed. The LanguageCluster resource could not be removed from Kubernetes.'
+                puts 'This may be due to:'
+                puts '  • Network connectivity issues'
+                puts '  • Insufficient permissions'
+                puts '  • The cluster resource no longer exists'
                 puts
-                puts "To force removal from local configuration only, use:"
+                puts 'To force removal from local configuration only, use:'
                 puts pastel.dim("  aictl cluster delete #{name} --force-local")
                 exit 1
               end
-            else
-              Formatters::ProgressFormatter.warn('Skipping Kubernetes resource deletion (--force-local specified)')
             end
 
             # Remove from config only after successful Kubernetes deletion

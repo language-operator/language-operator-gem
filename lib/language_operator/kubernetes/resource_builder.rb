@@ -6,12 +6,15 @@ module LanguageOperator
     class ResourceBuilder
       class << self
         # Build a LanguageCluster resource
-        def language_cluster(name, namespace: nil, labels: {})
-          build_resource('LanguageCluster', name, {
-                           'namespace' => namespace || name,
-                           'resourceQuota' => default_resource_quota,
-                           'networkPolicy' => default_network_policy
-                         }, namespace: namespace, labels: labels)
+        def language_cluster(name, namespace: nil, domain: nil, labels: {})
+          spec = {
+            'namespace' => namespace || name,
+            'resourceQuota' => default_resource_quota,
+            'networkPolicy' => default_network_policy
+          }
+          spec['domain'] = domain if domain && !domain.empty?
+
+          build_resource('LanguageCluster', name, spec, namespace: namespace, labels: labels)
         end
 
         # Build a LanguageAgent resource
