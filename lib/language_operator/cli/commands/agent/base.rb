@@ -94,7 +94,7 @@ module LanguageOperator
                 cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
               end
 
-              ctx = Helpers::ClusterContext.from_options(options.merge(cluster: cluster))
+              ctx = CLI::Helpers::ClusterContext.from_options(options.merge(cluster: cluster))
 
               # Generate agent name from description if not provided
               agent_name = options[:name] || generate_agent_name(description)
@@ -160,7 +160,7 @@ module LanguageOperator
           option :cluster, type: :string, desc: 'Override current cluster context'
           def inspect(name)
             handle_command_error('inspect agent') do
-              ctx = Helpers::ClusterContext.from_options(options)
+              ctx = CLI::Helpers::ClusterContext.from_options(options)
 
               begin
                 agent = ctx.client.get_resource(RESOURCE_AGENT, name, ctx.namespace)
@@ -289,7 +289,7 @@ module LanguageOperator
           option :force, type: :boolean, default: false, desc: 'Skip confirmation'
           def delete(name)
             handle_command_error('delete agent') do
-              ctx = Helpers::ClusterContext.from_options(options)
+              ctx = CLI::Helpers::ClusterContext.from_options(options)
 
               # Get agent to verify it exists
               get_resource_or_exit(RESOURCE_AGENT, name)
