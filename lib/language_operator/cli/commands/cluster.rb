@@ -277,11 +277,7 @@ module LanguageOperator
             cluster = Config::ClusterConfig.get_cluster(name)
 
             # Confirm deletion
-            unless options[:force]
-              puts "This will delete cluster #{pastel.bold.red(name)} and all its resources (agents, models, tools, personas)."
-              puts
-              return unless CLI::Helpers::UserPrompts.confirm('Are you sure?')
-            end
+            return if !options[:force] && !confirm_deletion('cluster', name, name)
 
             # Delete LanguageCluster resource
             begin

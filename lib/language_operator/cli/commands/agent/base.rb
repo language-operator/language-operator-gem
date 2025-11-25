@@ -308,7 +308,7 @@ module LanguageOperator
           desc 'versions NAME', 'Show ConfigMap versions managed by operator'
           long_desc <<-DESC
             List the versioned ConfigMaps created by the operator for an agent.
-            
+
             Shows the automatic optimization history and available versions for rollback.
 
             Examples:
@@ -325,7 +325,7 @@ module LanguageOperator
 
               # List all ConfigMaps with the agent label
               config_maps = ctx.client.list_resources('ConfigMap', namespace: ctx.namespace)
-              
+
               # Filter for versioned ConfigMaps for this agent
               agent_configs = config_maps.select do |cm|
                 labels = cm.dig('metadata', 'labels') || {}
@@ -354,10 +354,10 @@ module LanguageOperator
             available_names = agents.map { |a| a.dig('metadata', 'name') }
 
             CLI::Errors::Handler.handle_not_found(error,
-                                                   resource_type: RESOURCE_AGENT,
-                                                   resource_name: name,
-                                                   cluster: ctx.name,
-                                                   available_resources: available_names)
+                                                  resource_type: RESOURCE_AGENT,
+                                                  resource_name: name,
+                                                  cluster: ctx.name,
+                                                  available_resources: available_names)
           end
 
           def display_agent_created(agent, _cluster, _description, _synthesis_result)
@@ -642,19 +642,9 @@ module LanguageOperator
             end
           end
 
-          def confirm_deletion_with_force(resource_type, name, cluster, force: false)
-            return true if force
-
-            puts
-            puts "This will delete #{resource_type} '#{name}' from cluster '#{cluster}'"
-            puts pastel.yellow('This action cannot be undone.')
-            puts
-            CLI::Helpers::UserPrompts.confirm('Are you sure?')
-          end
-
           def display_agent_versions(agent_configs, agent_name, cluster_name)
             puts
-            
+
             if agent_configs.empty?
               puts pastel.yellow("No versioned ConfigMaps found for agent '#{agent_name}'")
               puts
@@ -674,17 +664,17 @@ module LanguageOperator
             puts
 
             puts pastel.white.bold('Version History:')
-            
+
             agent_configs.each do |config_map|
               labels = config_map.dig('metadata', 'labels') || {}
               annotations = config_map.dig('metadata', 'annotations') || {}
-              
+
               version = labels['version']
               synthesis_type = labels['synthesis-type'] || 'unknown'
               created_at = config_map.dig('metadata', 'creationTimestamp')
               learned_at = annotations['learned-at']
               learned_tasks = annotations['learned-tasks']
-              
+
               # Format creation time
               if created_at
                 begin
@@ -696,31 +686,29 @@ module LanguageOperator
               else
                 formatted_time = 'Unknown'
               end
-              
+
               # Format version display
               version_display = case synthesis_type
-                               when 'initial'
-                                 pastel.blue("v#{version} (initial)")
-                               when 'learned'
-                                 pastel.green("v#{version} (learned)")
-                               when 'manual'
-                                 pastel.yellow("v#{version} (manual)")
-                               else
-                                 pastel.dim("v#{version} (#{synthesis_type})")
-                               end
-              
+                                when 'initial'
+                                  pastel.blue("v#{version} (initial)")
+                                when 'learned'
+                                  pastel.green("v#{version} (learned)")
+                                when 'manual'
+                                  pastel.yellow("v#{version} (manual)")
+                                else
+                                  pastel.dim("v#{version} (#{synthesis_type})")
+                                end
+
               puts "  #{version_display}"
               puts "    Created: #{pastel.dim(formatted_time)}"
-              
-              if learned_at
-                puts "    Learned: #{pastel.dim(learned_at)}"
-              end
-              
+
+              puts "    Learned: #{pastel.dim(learned_at)}" if learned_at
+
               if learned_tasks && !learned_tasks.empty?
                 tasks = learned_tasks.split(',').map(&:strip)
                 puts "    Tasks: #{pastel.cyan(tasks.join(', '))}"
               end
-              
+
               puts
             end
 
