@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'open3'
+require 'shellwords'
 
 module LanguageOperator
   module CLI
@@ -27,10 +28,10 @@ module LanguageOperator
               option :clean, type: :boolean, desc: 'Clear workspace (with confirmation)'
               def workspace(name)
                 handle_command_error('access workspace') do
-                  ctx = Helpers::ClusterContext.from_options(options)
+                  ctx = CLI::Helpers::ClusterContext.from_options(options)
 
                   # Get agent to verify it exists
-                  agent = get_resource_or_exit(RESOURCE_AGENT, name)
+                  agent = get_resource_or_exit(LanguageOperator::Constants::RESOURCE_AGENT, name)
 
                   # Check if workspace is enabled
                   workspace_enabled = agent.dig('spec', 'workspace', 'enabled')
@@ -94,12 +95,19 @@ module LanguageOperator
               end
 
               def exec_in_pod(ctx, pod_name, command)
-                # Properly escape command for shell
-                cmd_str = command.is_a?(Array) ? command.join(' ') : command
-                kubectl_cmd = "#{ctx.kubectl_prefix} exec #{pod_name} -- #{cmd_str}"
+                # Build command as array to prevent shell injection
+                kubectl_prefix_array = Shellwords.shellsplit(ctx.kubectl_prefix)
+                cmd_array = kubectl_prefix_array + ['exec', pod_name, '--']
 
-                # Execute and capture output
-                stdout, stderr, status = Open3.capture3(kubectl_cmd)
+                # Add command arguments
+                cmd_array += if command.is_a?(Array)
+                               command
+                             else
+                               [command]
+                             end
+
+                # Execute with array to avoid shell interpolation
+                stdout, stderr, status = Open3.capture3(*cmd_array)
 
                 raise "Command failed: #{stderr}" unless status.success?
 
