@@ -368,6 +368,32 @@ module LanguageOperator
           prompt.yes?(message)
         end
 
+        # Generic resource detail formatter that eliminates duplication
+        #
+        # @param type [String] Resource type (e.g., 'Cluster', 'Agent', 'Model', 'Tool')
+        # @param name [String] Resource name
+        # @param common_fields [Hash] Fields that appear in all resources
+        # @param optional_fields [Hash] Fields that may be nil and should be filtered
+        # @return [void] Displays formatted resource information
+        def format_resource_details(type:, name:, common_fields: {}, optional_fields: {})
+          rows = { 'Name' => pastel.white.bold(name) }
+          rows.merge!(common_fields)
+          
+          optional_fields.each do |key, value|
+            case key
+            when 'Domain'
+              rows[key] = value if value && !value.empty?
+            else
+              rows[key] = value if value
+            end
+          end
+          
+          highlighted_box(
+            title: "Language#{type}",
+            rows: rows.compact
+          )
+        end
+
         # Formats cluster details for consistent display in creation and inspection
         #
         # @param name [String] Cluster name
@@ -375,20 +401,21 @@ module LanguageOperator
         # @param context [String] Kubernetes context
         # @param status [String, nil] Cluster status (optional)
         # @param created [String, nil] Creation timestamp (optional)
+        # @param domain [String, nil] Cluster domain (optional)
         # @return [void] Displays formatted cluster information
         def format_cluster_details(name:, namespace:, context:, status: nil, created: nil, domain: nil)
-          rows = {
-            'Name' => pastel.white.bold(name),
-            'Namespace' => namespace,
-            'Context' => context
-          }
-          rows['Domain'] = domain if domain && !domain.empty?
-          rows['Status'] = status if status
-          rows['Created'] = created if created
-
-          highlighted_box(
-            title: 'LanguageCluster',
-            rows: rows.compact
+          format_resource_details(
+            type: 'Cluster',
+            name: name,
+            common_fields: {
+              'Namespace' => namespace,
+              'Context' => context
+            },
+            optional_fields: {
+              'Domain' => domain,
+              'Status' => status,
+              'Created' => created
+            }
           )
         end
 
@@ -404,18 +431,20 @@ module LanguageOperator
         # @param created [String, nil] Creation timestamp (optional)
         # @return [void] Displays formatted agent information
         def format_agent_details(name:, namespace:, cluster:, status: nil, mode: nil, schedule: nil, persona: nil, created: nil)
-          highlighted_box(
-            title: 'LanguageAgent',
-            rows: {
-              'Name' => pastel.white.bold(name),
+          format_resource_details(
+            type: 'Agent',
+            name: name,
+            common_fields: {
               'Namespace' => namespace,
-              'Cluster' => cluster,
+              'Cluster' => cluster
+            },
+            optional_fields: {
               'Status' => status,
               'Mode' => mode,
               'Schedule' => schedule,
               'Persona' => persona,
               'Created' => created
-            }.compact
+            }
           )
         end
 
@@ -431,18 +460,20 @@ module LanguageOperator
         # @param created [String, nil] Creation timestamp (optional)
         # @return [void] Displays formatted model information
         def format_model_details(name:, namespace:, cluster:, status: nil, provider: nil, model: nil, endpoint: nil, created: nil)
-          highlighted_box(
-            title: 'LanguageModel',
-            rows: {
-              'Name' => pastel.white.bold(name),
+          format_resource_details(
+            type: 'Model',
+            name: name,
+            common_fields: {
               'Namespace' => namespace,
-              'Cluster' => cluster,
+              'Cluster' => cluster
+            },
+            optional_fields: {
               'Status' => status,
               'Provider' => provider,
               'Model' => model,
               'Endpoint' => endpoint,
               'Created' => created
-            }.compact
+            }
           )
         end
 
@@ -456,16 +487,18 @@ module LanguageOperator
         # @param created [String, nil] Creation timestamp (optional)
         # @return [void] Displays formatted tool information
         def format_tool_details(name:, namespace:, cluster:, status: nil, image: nil, created: nil)
-          highlighted_box(
-            title: 'LanguageTool',
-            rows: {
-              'Name' => pastel.white.bold(name),
+          format_resource_details(
+            type: 'Tool',
+            name: name,
+            common_fields: {
               'Namespace' => namespace,
-              'Cluster' => cluster,
+              'Cluster' => cluster
+            },
+            optional_fields: {
               'Status' => status,
               'Image' => image,
               'Created' => created
-            }.compact
+            }
           )
         end
       end
