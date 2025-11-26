@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative '../constants/kubernetes_labels'
+
 module LanguageOperator
   module Kubernetes
     # Builds Kubernetes resource manifests for language-operator
@@ -90,16 +92,15 @@ module LanguageOperator
               'name' => agent_name,
               'namespace' => namespace || 'default',
               'labels' => default_labels.merge(
-                'app.kubernetes.io/name' => agent_name,
-                'app.kubernetes.io/component' => 'agent'
+                Constants::KubernetesLabels.agent_labels(agent_name)
               ).merge(labels)
             },
             'spec' => {
               'type' => 'ClusterIP',
-              'selector' => {
-                'app.kubernetes.io/name' => agent_name,
-                'app.kubernetes.io/component' => 'agent'
-              },
+              'selector' => Constants::KubernetesLabels.agent_labels(agent_name).slice(
+                Constants::KubernetesLabels::NAME,
+                Constants::KubernetesLabels::COMPONENT
+              ),
               'ports' => [
                 {
                   'name' => 'http',
@@ -137,8 +138,8 @@ module LanguageOperator
 
         def default_labels
           {
-            'app.kubernetes.io/managed-by' => 'aictl',
-            'app.kubernetes.io/part-of' => 'language-operator'
+            Constants::KubernetesLabels::MANAGED_BY => Constants::KubernetesLabels::MANAGED_BY_AICTL,
+            Constants::KubernetesLabels::PART_OF => Constants::KubernetesLabels::PROJECT_NAME
           }
         end
 

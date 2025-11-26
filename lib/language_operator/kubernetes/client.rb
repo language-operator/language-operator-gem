@@ -176,8 +176,8 @@ module LanguageOperator
       def operator_version
         deployment = @client.api('apps/v1')
                             .resource('deployments', namespace: 'kube-system')
-                            .get('language-operator')
-        deployment.dig('metadata', 'labels', 'app.kubernetes.io/version') || 'unknown'
+                            .get(Constants::KubernetesLabels::PROJECT_NAME)
+        deployment.dig('metadata', 'labels', Constants::KubernetesLabels::VERSION) || 'unknown'
       rescue K8s::Error::NotFound
         nil
       end

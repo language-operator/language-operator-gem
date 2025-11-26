@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative '../../../constants/kubernetes_labels'
+
 module LanguageOperator
   module CLI
     module Commands
@@ -50,11 +52,9 @@ module LanguageOperator
                 'metadata' => {
                   'name' => name,
                   'namespace' => ctx.namespace,
-                  'labels' => {
-                    'app.kubernetes.io/name' => name,
-                    'app.kubernetes.io/component' => 'test-agent',
-                    'langop.io/kind' => 'LanguageAgent'
-                  }
+                  'labels' => Constants::KubernetesLabels.test_agent_labels(name).merge(
+                    Constants::KubernetesLabels::KIND_LABEL => 'LanguageAgent'
+                  )
                 },
                 'spec' => {
                   'restartPolicy' => 'Never',

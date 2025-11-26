@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require_relative '../../../../lib/language_operator/constants/kubernetes_labels'
 require 'language_operator/cli/commands/agent/learning'
 
 RSpec.describe LanguageOperator::CLI::Commands::Agent::Learning::LearningCommands do
@@ -59,7 +60,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Learning::LearningCommand
         'metadata' => {
           'name' => 'test-agent',
           'annotations' => {
-            'langop.io/learning-disabled' => 'true'
+            LanguageOperator::Constants::KubernetesLabels::LEARNING_DISABLED_LABEL => 'true'
           }
         }
       }
@@ -84,7 +85,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Learning::LearningCommand
       command.enable('test-agent')
 
       expect(command).to have_received(:remove_annotation)
-        .with(client, 'test-agent', 'language-operator', 'langop.io/learning-disabled')
+        .with(client, 'test-agent', 'language-operator', LanguageOperator::Constants::KubernetesLabels::LEARNING_DISABLED_LABEL)
       expect(LanguageOperator::CLI::Formatters::ProgressFormatter)
         .to have_received(:success).with("Learning enabled for agent 'test-agent'")
     end
@@ -105,7 +106,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Learning::LearningCommand
         'metadata' => {
           'name' => 'test-agent',
           'annotations' => {
-            'langop.io/learning-disabled' => 'true'
+            LanguageOperator::Constants::KubernetesLabels::LEARNING_DISABLED_LABEL => 'true'
           }
         }
       }
@@ -130,7 +131,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Learning::LearningCommand
       command.disable('test-agent')
 
       expect(command).to have_received(:add_annotation)
-        .with(client, 'test-agent', 'language-operator', 'langop.io/learning-disabled', 'true')
+        .with(client, 'test-agent', 'language-operator', LanguageOperator::Constants::KubernetesLabels::LEARNING_DISABLED_LABEL, 'true')
       expect(LanguageOperator::CLI::Formatters::ProgressFormatter)
         .to have_received(:success).with("Learning disabled for agent 'test-agent'")
     end

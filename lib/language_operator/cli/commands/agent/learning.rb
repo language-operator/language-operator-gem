@@ -2,6 +2,7 @@
 
 require 'json'
 require_relative '../../command_loader'
+require_relative '../../constants/kubernetes_labels'
 
 module LanguageOperator
   module CLI
@@ -81,7 +82,7 @@ module LanguageOperator
 
                 # Check current status
                 annotations = agent.dig('metadata', 'annotations') || {}
-                disabled_annotation = 'langop.io/learning-disabled'
+                disabled_annotation = Constants::KubernetesLabels::LEARNING_DISABLED_LABEL
 
                 unless annotations.key?(disabled_annotation)
                   Formatters::ProgressFormatter.info("Learning is already enabled for agent '#{name}'")
@@ -117,7 +118,7 @@ module LanguageOperator
 
                 # Check current status
                 annotations = agent.dig('metadata', 'annotations') || {}
-                disabled_annotation = 'langop.io/learning-disabled'
+                disabled_annotation = Constants::KubernetesLabels::LEARNING_DISABLED_LABEL
 
                 if annotations.key?(disabled_annotation)
                   Formatters::ProgressFormatter.info("Learning is already disabled for agent '#{name}'")
@@ -152,7 +153,7 @@ module LanguageOperator
               puts
 
               # Learning enablement status
-              learning_enabled = !annotations.key?('langop.io/learning-disabled')
+              learning_enabled = !annotations.key?(Constants::KubernetesLabels::LEARNING_DISABLED_LABEL)
               status_color = learning_enabled ? :green : :yellow
               status_text = learning_enabled ? 'Enabled' : 'Disabled'
 

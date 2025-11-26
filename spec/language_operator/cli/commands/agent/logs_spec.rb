@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require_relative '../../../../../lib/language_operator/constants/kubernetes_labels'
 require 'language_operator/cli/commands/agent/base'
 
 RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
@@ -64,7 +65,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
       end
 
       it 'builds correct kubectl command' do
-        expected_cmd = 'kubectl --kubeconfig=/tmp/test --context=test --namespace=default logs -l app.kubernetes.io/name=test-agent --tail=100  --all-containers'
+        expected_cmd = "kubectl --kubeconfig=/tmp/test --context=test --namespace=default logs -l #{LanguageOperator::Constants::KubernetesLabels::NAME}=test-agent --tail=100  --all-containers"
 
         expect(Open3).to receive(:popen3).with(expected_cmd)
         command.logs('test-agent')
@@ -73,7 +74,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
       context 'with follow option' do
         it 'includes -f flag in kubectl command' do
           command.instance_variable_set(:@options, { follow: true, tail: 100 })
-          expected_cmd = 'kubectl --kubeconfig=/tmp/test --context=test --namespace=default logs -l app.kubernetes.io/name=test-agent --tail=100 -f --all-containers'
+          expected_cmd = "kubectl --kubeconfig=/tmp/test --context=test --namespace=default logs -l #{LanguageOperator::Constants::KubernetesLabels::NAME}=test-agent --tail=100 -f --all-containers"
 
           expect(Open3).to receive(:popen3).with(expected_cmd)
           command.logs('test-agent')
@@ -202,13 +203,13 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
 
         # Mock the Open3 call to prevent actual execution
         allow(Open3).to receive(:popen3) do |cmd|
-          expect(cmd).to include('app.kubernetes.io/name=test-scheduled')
+          expect(cmd).to include("#{LanguageOperator::Constants::KubernetesLabels::NAME}=test-scheduled")
           double('result')
         end
       end
 
       it 'uses same label selector for scheduled agents' do
-        expect(Open3).to receive(:popen3).with(include('app.kubernetes.io/name=test-scheduled'))
+        expect(Open3).to receive(:popen3).with(include("#{LanguageOperator::Constants::KubernetesLabels::NAME}=test-scheduled"))
         command.logs('test-scheduled')
       end
     end

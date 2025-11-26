@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'net/http'
+require_relative '../../constants/kubernetes_labels'
 
 module LanguageOperator
   module CLI
@@ -47,7 +48,7 @@ module LanguageOperator
                   puts
                   puts 'Pod Status:'
 
-                  label_selector = "langop.io/tool=#{tool_name}"
+                  label_selector = Constants::KubernetesLabels.tool_selector(tool_name)
                   pods = ctx.client.list_resources('Pod', namespace: ctx.namespace, label_selector: label_selector)
 
                   if pods.empty?
@@ -101,7 +102,7 @@ module LanguageOperator
                     Formatters::ProgressFormatter.warn("Tool '#{tool_name}' has issues, check logs for details")
                     puts
                     puts 'View logs with:'
-                    puts "  kubectl logs -n #{ctx.namespace} -l langop.io/tool=#{tool_name}"
+                    puts "  kubectl logs -n #{ctx.namespace} -l #{Constants::KubernetesLabels::TOOL_LABEL}=#{tool_name}"
                   end
                 end
               end

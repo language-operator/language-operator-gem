@@ -3,6 +3,7 @@
 require 'open3'
 require 'shellwords'
 require_relative '../../helpers/label_utils'
+require_relative '../../constants/kubernetes_labels'
 
 module LanguageOperator
   module CLI
@@ -96,7 +97,7 @@ module LanguageOperator
                   puts "  aictl agent inspect #{agent_name}"
                   puts
                   puts 'List all pods in namespace:'
-                  puts "  kubectl get pods -n #{ctx.namespace} -l app.kubernetes.io/component=agent"
+                  puts "  kubectl get pods -n #{ctx.namespace} -l #{Constants::KubernetesLabels::COMPONENT}=#{Constants::KubernetesLabels::COMPONENT_AGENT}"
                   exit 1
                 end
 

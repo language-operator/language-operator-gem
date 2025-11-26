@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative '../../constants/kubernetes_labels'
+
 module LanguageOperator
   module CLI
     module Helpers
@@ -26,7 +28,7 @@ module LanguageOperator
         # @return [String] A label selector string
         def self.agent_pod_selector(agent_name)
           normalized_name = normalize_agent_name(agent_name)
-          "app.kubernetes.io/name=#{normalized_name}"
+          Constants::KubernetesLabels.agent_selector(normalized_name)
         end
 
         # Validate that an agent name will work as a label value

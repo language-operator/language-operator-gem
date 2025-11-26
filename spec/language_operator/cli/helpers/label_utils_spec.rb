@@ -2,6 +2,7 @@
 
 require 'spec_helper'
 require_relative '../../../../lib/language_operator/cli/helpers/label_utils'
+require_relative '../../../../lib/language_operator/constants/kubernetes_labels'
 
 RSpec.describe LanguageOperator::CLI::Helpers::LabelUtils do
   describe '.normalize_agent_name' do
@@ -37,22 +38,22 @@ RSpec.describe LanguageOperator::CLI::Helpers::LabelUtils do
   describe '.agent_pod_selector' do
     it 'creates proper label selector' do
       result = described_class.agent_pod_selector('my-agent')
-      expect(result).to eq('app.kubernetes.io/name=my-agent')
+      expect(result).to eq("#{LanguageOperator::Constants::KubernetesLabels::NAME}=my-agent")
     end
 
     it 'normalizes agent name in selector' do
       result = described_class.agent_pod_selector('MyAgent')
-      expect(result).to eq('app.kubernetes.io/name=myagent')
+      expect(result).to eq("#{LanguageOperator::Constants::KubernetesLabels::NAME}=myagent")
     end
 
     it 'handles special characters' do
       result = described_class.agent_pod_selector('data-processor-v2')
-      expect(result).to eq('app.kubernetes.io/name=data-processor-v2')
+      expect(result).to eq("#{LanguageOperator::Constants::KubernetesLabels::NAME}=data-processor-v2")
     end
 
     it 'handles underscores (normalized)' do
       result = described_class.agent_pod_selector('email_handler')
-      expect(result).to eq('app.kubernetes.io/name=email_handler')
+      expect(result).to eq("#{LanguageOperator::Constants::KubernetesLabels::NAME}=email_handler")
     end
   end
 
@@ -154,7 +155,7 @@ RSpec.describe LanguageOperator::CLI::Helpers::LabelUtils do
       expect(result).to match({
         agent_name: 'MyAgent-v2',
         normalized_name: 'myagent-v2',
-        label_selector: 'app.kubernetes.io/name=myagent-v2',
+        label_selector: "#{LanguageOperator::Constants::KubernetesLabels::NAME}=myagent-v2",
         namespace: 'test-namespace',
         valid_label_value: false  # uppercase letters make it invalid
       })
@@ -193,7 +194,7 @@ RSpec.describe LanguageOperator::CLI::Helpers::LabelUtils do
           "Expected '#{pattern}' to be valid but was invalid"
         
         selector = described_class.agent_pod_selector(pattern)
-        expect(selector).to eq("app.kubernetes.io/name=#{pattern}")
+        expect(selector).to eq("#{LanguageOperator::Constants::KubernetesLabels::NAME}=#{pattern}")
       end
     end
 
