@@ -491,4 +491,212 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
       end
     end
   end
+
+  describe 'timeout and error precedence (race condition fix)' do
+    let(:network_error_task) do
+      LanguageOperator::Dsl::TaskDefinition.new(:network_error).tap do |t|
+        t.inputs({})
+        t.outputs({ result: 'string' })
+        t.execute do |_inputs|
+          raise Errno::ECONNRESET, 'Connection reset'
+        end
+      end
+    end
+
+    let(:slow_network_task) do
+      LanguageOperator::Dsl::TaskDefinition.new(:slow_network).tap do |t|
+        t.inputs({})
+        t.outputs({ result: 'string' })
+        t.execute do |_inputs|
+          sleep(2) # Will timeout before completing
+          { result: 'success' }
+        end
+      end
+    end
+
+    let(:timeout_then_network_task) do
+      LanguageOperator::Dsl::TaskDefinition.new(:timeout_then_network).tap do |t|
+        t.inputs({})
+        t.outputs({ result: 'string' })
+        t.execute do |_inputs|
+          sleep(0.5) # Partial execution
+          raise Errno::ECONNRESET, 'Connection reset during timeout'
+        end
+      end
+    end
+
+    before do
+      tasks[:network_error] = network_error_task
+      tasks[:slow_network] = slow_network_task
+      tasks[:timeout_then_network] = timeout_then_network_task
+    end
+
+    describe 'error precedence hierarchy' do
+      it 'timeout errors always take precedence over network errors' do
+        # Short timeout to ensure timeout wins
+        expect do
+          executor.execute_task(:timeout_then_network, inputs: {}, timeout: 0.1)
+        end.to raise_error(LanguageOperator::Agent::TaskTimeoutError) do |error|
+          expect(error.message).to include('timed out after 0.1s')
+          expect(error.task_name).to eq(:timeout_then_network)
+          expect(error.original_error).to be_a(Timeout::Error)
+        end
+      end
+
+      it 'pure network errors are classified as network errors' do
+        expect do
+          executor.execute_task(:network_error, inputs: {})
+        end.to raise_error(LanguageOperator::Agent::TaskNetworkError) do |error|
+          expect(error.message).to include('network error: Connection reset')
+          expect(error.task_name).to eq(:network_error)
+          expect(error.original_error).to be_a(Errno::ECONNRESET)
+        end
+      end
+
+      it 'timeout errors on slow tasks are always timeout errors' do
+        expect do
+          executor.execute_task(:slow_network, inputs: {}, timeout: 0.1)
+        end.to raise_error(LanguageOperator::Agent::TaskTimeoutError) do |error|
+          expect(error.message).to include('timed out after 0.1s')
+          expect(error.task_name).to eq(:slow_network)
+        end
+      end
+    end
+
+    describe 'error categorization consistency' do
+      it 'categorizes timeout errors consistently' do
+        timeout_error = LanguageOperator::Agent::TaskTimeoutError.new(:test, 'timeout', nil)
+        timeout_stdlib_error = Timeout::Error.new
+
+        expect(executor.send(:categorize_error, timeout_error)).to eq(:timeout)
+        expect(executor.send(:categorize_error, timeout_stdlib_error)).to eq(:timeout)
+      end
+
+      it 'categorizes network errors consistently' do
+        network_error = LanguageOperator::Agent::TaskNetworkError.new(:test, 'network', nil)
+        socket_error = SocketError.new
+        connection_error = Errno::ECONNRESET.new
+
+        expect(executor.send(:categorize_error, network_error)).to eq(:network)
+        expect(executor.send(:categorize_error, socket_error)).to eq(:network)
+        expect(executor.send(:categorize_error, connection_error)).to eq(:network)
+      end
+
+      it 'categorizes validation errors consistently' do
+        validation_error = LanguageOperator::Agent::TaskValidationError.new(:test, 'validation', nil)
+        argument_error = ArgumentError.new
+
+        expect(executor.send(:categorize_error, validation_error)).to eq(:validation)
+        expect(executor.send(:categorize_error, argument_error)).to eq(:validation)
+      end
+
+      it 'timeout precedence overrides nested error classification' do
+        # Simulate wrapped network error inside timeout error
+        network_error = Errno::ECONNRESET.new
+        timeout_error = LanguageOperator::Agent::TaskTimeoutError.new(:test, 'timeout', network_error)
+
+        # Should still be classified as timeout
+        expect(executor.send(:categorize_error, timeout_error)).to eq(:timeout)
+      end
+    end
+
+    describe 'retry behavior consistency' do
+      it 'retries network errors consistently' do
+        retry_count = 0
+        allow(executor).to receive(:execute_task_implementation) do
+          retry_count += 1
+          if retry_count <= 2
+            raise Errno::ECONNRESET, 'Connection reset'
+          else
+            { result: 'success after retries' }
+          end
+        end
+
+        result = executor.execute_task(:network_error, inputs: {}, max_retries: 3)
+        expect(result).to eq({ result: 'success after retries' })
+        expect(retry_count).to eq(3) # Initial attempt + 2 retries
+      end
+
+      it 'does not retry timeout errors' do
+        retry_count = 0
+        allow(executor).to receive(:execute_task_implementation) do
+          retry_count += 1
+          raise Timeout::Error, 'Timeout'
+        end
+
+        expect do
+          executor.execute_task(:network_error, inputs: {}, max_retries: 3, timeout: 1)
+        end.to raise_error(LanguageOperator::Agent::TaskTimeoutError)
+
+        # Should not retry timeout errors
+        expect(retry_count).to eq(1)
+      end
+
+      it 'does not retry validation errors' do
+        retry_count = 0
+        allow(executor).to receive(:execute_task_implementation) do
+          retry_count += 1
+          raise ArgumentError, 'Invalid input'
+        end
+
+        expect do
+          executor.execute_task(:network_error, inputs: {}, max_retries: 3)
+        end.to raise_error(LanguageOperator::Agent::TaskValidationError)
+
+        # Should not retry validation errors
+        expect(retry_count).to eq(1)
+      end
+    end
+
+    describe 'race condition scenarios' do
+      it 'timeout wrapper always classifies timeout errors as timeout' do
+        # Test the core fix: timeout wrapper preserves timeout classification
+        # regardless of any nested network errors
+        expect do
+          executor.send(:execute_with_timeout, timeout_then_network_task, :timeout_then_network, {}, 0.1)
+        end.to raise_error(LanguageOperator::Agent::TaskTimeoutError) do |error|
+          # Timeout should always win, even if network error occurs during execution
+          expect(error.message).to include('timed out after 0.1s')
+          expect(error.task_name).to eq(:timeout_then_network)
+        end
+      end
+
+      it 'preserves error context in timeout wrapper' do
+        expect do
+          executor.execute_task(:timeout_then_network, inputs: {}, timeout: 0.1)
+        end.to raise_error(LanguageOperator::Agent::TaskTimeoutError) do |error|
+          # Should include execution time in message
+          expect(error.message).to match(/execution_time: \d+\.\d+s/)
+          expect(error.original_error).to be_a(Timeout::Error)
+          expect(error.task_name).to eq(:timeout_then_network)
+        end
+      end
+    end
+
+    describe 'telemetry integration' do
+      it 'logs timeout precedence information' do
+        logger_double = double('logger')
+        allow(logger_double).to receive(:debug)
+        allow(logger_double).to receive(:info)
+        allow(logger_double).to receive(:warn)
+        allow(logger_double).to receive(:error)
+        allow(logger_double).to receive(:logger).and_return(double(level: 1)) # INFO level
+        allow(executor).to receive(:logger).and_return(logger_double)
+
+        expect do
+          executor.execute_task(:timeout_then_network, inputs: {}, timeout: 0.1)
+        end.to raise_error(LanguageOperator::Agent::TaskTimeoutError)
+
+        # Verify the logger methods were called with timeout precedence info
+        expect(logger_double).to have_received(:warn).with(
+          'Task execution timed out',
+          hash_including(
+            task: :timeout_then_network,
+            timeout: 0.1,
+            timeout_precedence: 'timeout error takes precedence over any nested errors'
+          )
+        )
+      end
+    end
+  end
 end

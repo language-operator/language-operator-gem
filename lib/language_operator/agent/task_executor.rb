@@ -25,6 +25,9 @@ module LanguageOperator
     class TaskTimeoutError < TaskExecutionError
     end
 
+    class TaskNetworkError < TaskExecutionError
+    end
+
     # Task Executor for DSL v1 organic functions
     #
     # Executes both neural (LLM-based) and symbolic (code-based) tasks.
@@ -583,7 +586,11 @@ module LanguageOperator
         raise create_appropriate_error(task_name, last_error)
       end
 
-      # Execute a single attempt of a task with timeout
+      # Execute a single attempt of a task with timeout and error context preservation
+      #
+      # This method implements timeout handling that preserves original error context
+      # while maintaining error precedence hierarchy. Timeout errors always take
+      # precedence over any nested errors (including network errors).
       #
       # @param task [TaskDefinition] The task definition
       # @param task_name [Symbol] Name of the task
@@ -596,9 +603,7 @@ module LanguageOperator
         attempt_start = Time.now
 
         result = if timeout.positive?
-                   Timeout.timeout(timeout) do
-                     execute_task_implementation(task, inputs)
-                   end
+                   execute_with_timeout(task, task_name, inputs, timeout)
                  else
                    execute_task_implementation(task, inputs)
                  end
@@ -615,14 +620,46 @@ module LanguageOperator
         end
 
         result
-      rescue Timeout::Error => e
+      end
+
+      # Execute task with timeout wrapper that preserves error context
+      #
+      # This method ensures that timeout errors always take precedence over
+      # any nested errors (e.g., network errors), solving the race condition
+      # between timeout detection and error classification.
+      #
+      # @param task [TaskDefinition] The task definition
+      # @param task_name [Symbol] Name of the task  
+      # @param inputs [Hash] Input parameters
+      # @param timeout [Numeric] Timeout in seconds
+      # @return [Hash] Task outputs
+      # @raise [TaskTimeoutError] If execution times out (always takes precedence)
+      def execute_with_timeout(task, task_name, inputs, timeout)
+        attempt_start = Time.now
+        
+        Timeout.timeout(timeout) do
+          execute_task_implementation(task, inputs)
+        end
+      rescue Timeout::Error => timeout_error
+        # Timeout always wins - this solves the race condition
         execution_time = Time.now - attempt_start
+        
         logger.warn('Task execution timed out',
                     task: task_name,
-                    attempt: attempt + 1,
                     timeout: timeout,
-                    execution_time: execution_time.round(3))
-        raise TaskTimeoutError.new(task_name, "timed out after #{timeout}s", e)
+                    execution_time: execution_time.round(3),
+                    timeout_precedence: 'timeout error takes precedence over any nested errors')
+        
+        # Always wrap as TaskTimeoutError, preserving original timeout context
+        raise TaskTimeoutError.new(task_name, "timed out after #{timeout}s (execution_time: #{execution_time.round(3)}s)", timeout_error)
+      rescue *RETRYABLE_ERRORS => network_error
+        # Network errors that escape timeout handling (very rare)
+        # These occur outside the timeout window, so they're genuine network errors
+        logger.debug('Network error outside timeout window',
+                     task: task_name,
+                     error: network_error.class.name,
+                     message: network_error.message)
+        raise TaskNetworkError.new(task_name, "network error: #{network_error.message}", network_error)
       end
 
       # Execute the actual task implementation (neural or symbolic)
@@ -662,27 +699,50 @@ module LanguageOperator
       # @param error [Exception] The error that occurred
       # @return [Boolean] Whether the error should be retried
       def retryable_error?(error)
-        RETRYABLE_ERRORS.any? { |error_class| error.is_a?(error_class) }
+        case error
+        when TaskNetworkError
+          # Network errors wrapped in TaskNetworkError are retryable
+          true
+        when TaskTimeoutError, TaskValidationError
+          # Timeout and validation errors are never retryable
+          false
+        when TaskExecutionError
+          # Check the original error for retryability
+          error.original_error ? retryable_error?(error.original_error) : false
+        else
+          # Check against the standard retryable error list
+          RETRYABLE_ERRORS.any? { |error_class| error.is_a?(error_class) }
+        end
       end
 
-      # Categorize error for logging and operator integration
+      # Categorize error for logging and operator integration with precedence hierarchy
+      #
+      # Error precedence (highest to lowest):
+      # 1. Timeout errors (always win, even if wrapping network errors)
+      # 2. Validation errors (argument/input validation failures)
+      # 3. Network errors (connection, socket, DNS issues)
+      # 4. Execution errors (general task execution failures)
+      # 5. System errors (unexpected/unknown errors)
       #
       # @param error [Exception] The error that occurred
       # @return [Symbol] Error category
       def categorize_error(error)
-        case error
-        when ArgumentError, TaskValidationError
-          :validation
-        when Timeout::Error, TaskTimeoutError
-          :timeout
-        when TaskExecutionError
-          # Check the original error for categorization
-          error.original_error ? categorize_error(error.original_error) : :execution
-        when *RETRYABLE_ERRORS
-          :network
-        else
-          :execution
+        # Precedence Level 1: Timeout errors always win
+        return :timeout if error.is_a?(Timeout::Error) || error.is_a?(TaskTimeoutError)
+
+        # Precedence Level 2: Validation errors
+        return :validation if error.is_a?(ArgumentError) || error.is_a?(TaskValidationError)
+
+        # For wrapped errors, check original error but preserve timeout precedence
+        if error.is_a?(TaskExecutionError) && error.original_error
+          return categorize_error(error.original_error)
         end
+
+        # Precedence Level 3: Network errors
+        return :network if error.is_a?(TaskNetworkError) || RETRYABLE_ERRORS.any? { |err_class| error.is_a?(err_class) }
+
+        # Precedence Level 4: General execution errors
+        :execution
       end
 
       # Calculate retry delay with exponential backoff
@@ -694,19 +754,24 @@ module LanguageOperator
         [delay, @config[:retry_delay_max]].min
       end
 
-      # Create appropriate error type based on original error
+      # Create appropriate error type based on original error with precedence hierarchy
       #
       # @param task_name [Symbol] Name of the task
       # @param original_error [Exception] The original error
       # @return [TaskExecutionError] Appropriate error type
       def create_appropriate_error(task_name, original_error)
         case original_error
-        when TaskTimeoutError
+        when TaskTimeoutError, TaskValidationError, TaskNetworkError
+          # Already wrapped in appropriate type
           original_error
         when Timeout::Error
-          TaskTimeoutError.new(task_name, 'timed out', original_error)
+          # Always wrap timeout errors, preserving original context
+          TaskTimeoutError.new(task_name, "timed out after timeout (original: #{original_error.message})", original_error)
         when ArgumentError
           TaskValidationError.new(task_name, original_error.message, original_error)
+        when *RETRYABLE_ERRORS
+          # Wrap network errors for clear categorization
+          TaskNetworkError.new(task_name, "network error: #{original_error.message}", original_error)
         else
           TaskExecutionError.new(task_name, original_error.message, original_error)
         end
