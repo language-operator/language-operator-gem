@@ -166,7 +166,7 @@ module LanguageOperator
               domain = cluster_resource.dig('spec', 'domain')
 
               name_display = cluster[:name]
-              name_display += ' *' if cluster[:name] == current
+              name_display = "#{pastel.bold(cluster[:name])} (selected)" if cluster[:name] == current
 
               {
                 name: name_display,
@@ -209,9 +209,7 @@ module LanguageOperator
 
             Formatters::TableFormatter.clusters(table_data)
 
-            unless current
-              puts "\nNo cluster selected. Use 'aictl use <cluster>' to select one."
-            end
+            puts "\nNo cluster selected. Use 'aictl use <cluster>' to select one." unless current
 
             # Show helpful message if any clusters are not found
             not_found_clusters = table_data.select { |c| c[:status] == 'Not Found' }
@@ -320,8 +318,6 @@ module LanguageOperator
 
             # Clear current cluster if this was it
             Config::ClusterConfig.set_current_cluster(nil) if Config::ClusterConfig.current_cluster == name
-
-            Formatters::ProgressFormatter.success("Cluster '#{name}' deleted successfully")
           end
         end
 

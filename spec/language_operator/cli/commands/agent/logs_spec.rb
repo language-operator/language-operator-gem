@@ -20,7 +20,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
     end
 
     let(:mock_context) do
-      double('ClusterContext', 
+      double('ClusterContext',
              kubectl_prefix: 'kubectl --kubeconfig=/tmp/test --context=test --namespace=default')
     end
 
@@ -65,7 +65,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
 
       it 'builds correct kubectl command' do
         expected_cmd = 'kubectl --kubeconfig=/tmp/test --context=test --namespace=default logs -l app.kubernetes.io/name=test-agent --tail=100  --all-containers'
-        
+
         expect(Open3).to receive(:popen3).with(expected_cmd)
         command.logs('test-agent')
       end
@@ -74,7 +74,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
         it 'includes -f flag in kubectl command' do
           command.instance_variable_set(:@options, { follow: true, tail: 100 })
           expected_cmd = 'kubectl --kubeconfig=/tmp/test --context=test --namespace=default logs -l app.kubernetes.io/name=test-agent --tail=100 -f --all-containers'
-          
+
           expect(Open3).to receive(:popen3).with(expected_cmd)
           command.logs('test-agent')
         end
@@ -95,7 +95,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
         allow(mock_stderr).to receive(:each_line)
         allow(mock_wait_thr).to receive(:value).and_return(double('status', success?: true))
         allow(Open3).to receive(:popen3).and_yield(mock_stdin, mock_stdout, mock_stderr, mock_wait_thr)
-        
+
         # Mock thread creation
         allow(Thread).to receive(:new).and_return(stdout_thread, stderr_thread)
         allow(stdout_thread).to receive(:join)
@@ -107,7 +107,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
       it 'terminates threads in ensure block' do
         expect(stdout_thread).to receive(:terminate)
         expect(stderr_thread).to receive(:terminate)
-        
+
         command.logs('test-agent')
       end
 
@@ -115,10 +115,10 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
         # Mock signal trapping
         original_handler = proc {}
         allow(Signal).to receive(:trap).with('INT').and_return(original_handler)
-        
+
         # Simulate interruption during execution
         allow(Thread).to receive(:new).and_raise(Interrupt)
-        
+
         expect(Signal).to receive(:trap).with('INT', original_handler)
         expect { command.logs('test-agent') }.to raise_error(Interrupt)
       end
@@ -126,7 +126,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
       it 'restores original signal handler' do
         original_handler = proc {}
         allow(Signal).to receive(:trap).with('INT').and_return(original_handler)
-        
+
         expect(Signal).to receive(:trap).with('INT', original_handler)
         command.logs('test-agent')
       end
@@ -147,14 +147,14 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
       it 'handles IOError in stdout thread gracefully' do
         allow(mock_stdout).to receive(:each_line).and_raise(IOError, 'Stream closed')
         allow(mock_stderr).to receive(:each_line)
-        
+
         expect { command.logs('test-agent') }.not_to raise_error
       end
 
       it 'handles IOError in stderr thread gracefully' do
         allow(mock_stdout).to receive(:each_line)
         allow(mock_stderr).to receive(:each_line).and_raise(IOError, 'Stream closed')
-        
+
         expect { command.logs('test-agent') }.not_to raise_error
       end
     end
@@ -175,7 +175,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
       it 'exits with failure status when kubectl command fails' do
         mock_status = double('status', success?: false, exitstatus: 1)
         allow(mock_wait_thr).to receive(:value).and_return(mock_status)
-        
+
         expect(command).to receive(:exit).with(1)
         command.logs('test-agent')
       end
@@ -183,7 +183,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
       it 'does not exit when kubectl command succeeds' do
         mock_status = double('status', success?: true)
         allow(mock_wait_thr).to receive(:value).and_return(mock_status)
-        
+
         expect(command).not_to receive(:exit)
         command.logs('test-agent')
       end
@@ -199,7 +199,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
 
       before do
         allow(command).to receive(:get_resource_or_exit).with(LanguageOperator::Constants::RESOURCE_AGENT, 'test-scheduled').and_return(mock_scheduled_agent)
-        
+
         # Mock the Open3 call to prevent actual execution
         allow(Open3).to receive(:popen3) do |cmd|
           expect(cmd).to include('app.kubernetes.io/name=test-scheduled')

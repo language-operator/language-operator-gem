@@ -25,7 +25,7 @@ module LanguageOperator
             desc 'status NAME', 'Show current learning status and optimization history'
             long_desc <<-DESC
               Display the current learning status and optimization history for an agent.
-              
+
               Shows learned tasks, confidence scores, and automatic optimization progress
               managed by the operator.
 
@@ -52,19 +52,19 @@ module LanguageOperator
               ctx = CLI::Helpers::ClusterContext.from_options(options)
               available_agents = ctx.client.list_resources(RESOURCE_AGENT, namespace: ctx.namespace)
               available_names = available_agents.map { |a| a.dig('metadata', 'name') }
-              
+
               error = K8s::Error::NotFound.new(404, 'Not Found', RESOURCE_AGENT)
               CLI::Errors::Handler.handle_not_found(error,
-                                                   resource_type: RESOURCE_AGENT,
-                                                   resource_name: name,
-                                                   cluster: ctx.name,
-                                                   available_resources: available_names)
+                                                    resource_type: RESOURCE_AGENT,
+                                                    resource_name: name,
+                                                    cluster: ctx.name,
+                                                    available_resources: available_names)
             end
 
             desc 'enable NAME', 'Enable automatic learning for an agent'
             long_desc <<-DESC
               Enable automatic learning for an agent by removing the learning-disabled annotation.
-              
+
               Learning is enabled by default, so this command only needs to be used if learning
               was previously disabled.
 
@@ -100,7 +100,7 @@ module LanguageOperator
             desc 'disable NAME', 'Disable automatic learning for an agent'
             long_desc <<-DESC
               Disable automatic learning for an agent by adding the learning-disabled annotation.
-              
+
               This prevents the operator from automatically optimizing the agent's tasks but
               does not affect existing learned optimizations.
 
@@ -135,7 +135,6 @@ module LanguageOperator
 
             private
 
-
             def get_learning_status(client, name, namespace)
               config_map_name = "#{name}-learning-status"
               begin
@@ -149,14 +148,14 @@ module LanguageOperator
             def display_learning_status(agent, learning_status, cluster_name)
               agent_name = agent.dig('metadata', 'name')
               annotations = agent.dig('metadata', 'annotations') || {}
-              
+
               puts
-              
+
               # Learning enablement status
               learning_enabled = !annotations.key?('langop.io/learning-disabled')
               status_color = learning_enabled ? :green : :yellow
               status_text = learning_enabled ? 'Enabled' : 'Disabled'
-              
+
               highlighted_box(
                 title: 'Learning Status',
                 rows: {
@@ -189,21 +188,29 @@ module LanguageOperator
             end
 
             def display_detailed_learning_status(learning_status)
-              data = learning_status.dig('data') || {}
-              
+              data = learning_status['data'] || {}
+
               # Parse learning data if available
               if data['tasks']
-                tasks_data = JSON.parse(data['tasks']) rescue {}
-                
+                tasks_data = begin
+                  JSON.parse(data['tasks'])
+                rescue StandardError
+                  {}
+                end
+
                 if tasks_data.any?
                   puts pastel.white.bold('Learned Tasks:')
                   tasks_data.each do |task_name, task_info|
                     confidence = task_info['confidence'] || 0
                     executions = task_info['executions'] || 0
                     status = task_info['status'] || 'neural'
-                    
-                    confidence_color = confidence >= 85 ? :green : confidence >= 70 ? :yellow : :red
-                    
+
+                    confidence_color = if confidence >= 85
+                                         :green
+                                       else
+                                         confidence >= 70 ? :yellow : :red
+                                       end
+
                     puts "  #{pastel.cyan(task_name)}"
                     puts "    Status: #{format_task_status(status)}"
                     confidence_text = pastel.send(confidence_color, "#{confidence}%")
@@ -214,21 +221,25 @@ module LanguageOperator
               end
 
               # Show optimization history if available
-              if data['history']
-                history_data = JSON.parse(data['history']) rescue []
-                
-                if history_data.any?
-                  puts pastel.white.bold('Optimization History:')
-                  history_data.last(5).each do |event|
-                    timestamp = event['timestamp'] || 'Unknown'
-                    action = event['action'] || 'Unknown'
-                    task = event['task'] || 'Unknown'
-                    
-                    puts "  #{pastel.dim(timestamp)} - #{action} #{pastel.cyan(task)}"
-                  end
-                  puts
-                end
+              return unless data['history']
+
+              history_data = begin
+                JSON.parse(data['history'])
+              rescue StandardError
+                []
               end
+
+              return unless history_data.any?
+
+              puts pastel.white.bold('Optimization History:')
+              history_data.last(5).each do |event|
+                timestamp = event['timestamp'] || 'Unknown'
+                action = event['action'] || 'Unknown'
+                task = event['task'] || 'Unknown'
+
+                puts "  #{pastel.dim(timestamp)} - #{action} #{pastel.cyan(task)}"
+              end
+              puts
             end
 
             def format_task_status(status)
@@ -247,12 +258,12 @@ module LanguageOperator
             def add_annotation(client, name, namespace, annotation_key, annotation_value)
               # Get current agent
               agent = client.get_resource(RESOURCE_AGENT, name, namespace)
-              
+
               # Add annotation
               annotations = agent.dig('metadata', 'annotations') || {}
               annotations[annotation_key] = annotation_value
               agent['metadata']['annotations'] = annotations
-              
+
               # Update the agent
               client.update_resource(agent)
             end
@@ -260,12 +271,12 @@ module LanguageOperator
             def remove_annotation(client, name, namespace, annotation_key)
               # Get current agent
               agent = client.get_resource(RESOURCE_AGENT, name, namespace)
-              
+
               # Remove annotation
               annotations = agent.dig('metadata', 'annotations') || {}
               annotations.delete(annotation_key)
               agent['metadata']['annotations'] = annotations
-              
+
               # Update the agent
               client.update_resource(agent)
             end

@@ -359,12 +359,12 @@ module LanguageOperator
         #   confirm_deletion('agent', 'bash', 'production')
         #   # Output: Are you sure you want to delete agent bash from cluster production? (y/N)
         def confirm_deletion(resource_type, name, cluster)
-          if resource_type == 'cluster'
-            message = "Are you sure you want to delete #{resource_type} #{pastel.red.bold(name)}?"
-          else
-            message = "Are you sure you want to delete #{resource_type} #{pastel.red.bold(name)} " \
-                      "from cluster #{pastel.red.bold(cluster)}?"
-          end
+          message = if resource_type == 'cluster'
+                      "Are you sure you want to delete #{resource_type} #{pastel.red.bold(name)}?"
+                    else
+                      "Are you sure you want to delete #{resource_type} #{pastel.red.bold(name)} " \
+                        "from cluster #{pastel.red.bold(cluster)}?"
+                    end
           prompt.yes?(message)
         end
 

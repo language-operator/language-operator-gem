@@ -301,8 +301,6 @@ module LanguageOperator
             Formatters::ProgressFormatter.with_spinner("Deleting persona '#{name}'") do
               ctx.client.delete_resource(RESOURCE_PERSONA, name, ctx.namespace)
             end
-
-            Formatters::ProgressFormatter.success("Persona '#{name}' deleted successfully")
           end
         end
       end

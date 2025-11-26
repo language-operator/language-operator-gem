@@ -58,6 +58,7 @@ module LanguageOperator
     class << self
       # Get current cache size limit
       attr_reader :cache_size
+
       # Coerce a value to the specified type
       #
       # @param value [Object] Value to coerce

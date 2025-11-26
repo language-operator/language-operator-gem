@@ -25,7 +25,7 @@ module LanguageOperator
         # Base agent command class
         class Base < BaseCommand
           include Constants
-          include CLI::Helpers::ClusterValidator
+          include ::LanguageOperator::CLI::Helpers::ClusterValidator
           include CLI::Helpers::UxHelper
           include Agent::Helpers::CodeParser
           include Agent::Helpers::SynthesisWatcher
@@ -91,7 +91,7 @@ module LanguageOperator
                 cluster = cluster_name
               else
                 # Validate cluster selection (this will exit if none selected)
-                cluster = Helpers::ClusterValidator.get_cluster(options[:cluster])
+                cluster = CLI::Helpers::ClusterValidator.get_cluster(options[:cluster])
               end
 
               ctx = CLI::Helpers::ClusterContext.from_options(options.merge(cluster: cluster))

@@ -15,7 +15,7 @@ module LanguageOperator
                 handle_command_error('get code') do
                   require_relative '../../formatters/code_formatter'
 
-                  ctx = Helpers::ClusterContext.from_options(options)
+                  ctx = CLI::Helpers::ClusterContext.from_options(options)
 
                   # Get the code ConfigMap for this agent
                   configmap_name = "#{name}-code"
@@ -58,10 +58,10 @@ module LanguageOperator
               option :cluster, type: :string, desc: 'Override current cluster context'
               def edit(name)
                 handle_command_error('edit agent') do
-                  ctx = Helpers::ClusterContext.from_options(options)
+                  ctx = CLI::Helpers::ClusterContext.from_options(options)
 
                   # Get current agent
-                  agent = get_resource_or_exit(RESOURCE_AGENT, name)
+                  agent = get_resource_or_exit(LanguageOperator::Constants::RESOURCE_AGENT, name)
 
                   current_instructions = agent.dig('spec', 'instructions')
 

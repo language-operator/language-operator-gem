@@ -363,7 +363,7 @@ RSpec.describe LanguageOperator::TypeCoercion do
         # Add some entries to cache
         described_class.coerce('123', 'integer')
         described_class.coerce('456', 'integer')
-        
+
         stats_before = described_class.cache_stats
         expect(stats_before[:size]).to eq(2)
 
@@ -379,7 +379,7 @@ RSpec.describe LanguageOperator::TypeCoercion do
     describe 'LRU cache behavior' do
       it 'has bounded cache size' do
         cache_size = described_class.cache_size
-        
+
         # Fill cache beyond its capacity
         (cache_size + 100).times do |i|
           described_class.coerce("value_#{i}", 'string')
@@ -392,7 +392,7 @@ RSpec.describe LanguageOperator::TypeCoercion do
       it 'evicts least recently used entries when cache is full' do
         # Use a predictable pattern that will definitely trigger evictions
         cache_size = described_class.cache_size
-        
+
         # Fill cache to capacity with integer coercions (which are cached)
         (cache_size + 10).times do |i|
           described_class.coerce(i.to_s, 'integer')
@@ -404,19 +404,19 @@ RSpec.describe LanguageOperator::TypeCoercion do
 
       it 'preserves recently accessed entries during eviction' do
         cache_size = described_class.cache_size
-        
+
         # Add an entry that will succeed (using valid integer string)
         described_class.coerce('42', 'integer')
-        
+
         # Fill cache beyond capacity with other entries
         (cache_size + 5).times do |i|
           described_class.coerce(i.to_s, 'integer')
         end
-        
+
         # Access our preserved entry to make it recent
         result = described_class.coerce('42', 'integer')
         expect(result).to eq(42)
-        
+
         # Add more entries to trigger more evictions
         10.times do |i|
           described_class.coerce((i + 2000).to_s, 'integer')
@@ -431,20 +431,20 @@ RSpec.describe LanguageOperator::TypeCoercion do
     describe 'cache key uniqueness' do
       it 'caches different [value, type] combinations separately' do
         described_class.clear_cache
-        
+
         # Same value, different types
         described_class.coerce('123', 'integer')
         described_class.coerce('123', 'string')
         described_class.coerce('123', 'number')
-        
+
         stats = described_class.cache_stats
         expect(stats[:size]).to eq(2) # integer and number are cached, string is not
         expect(stats[:misses]).to eq(2)
-        
+
         # Same type, different values
         described_class.coerce('456', 'integer')
         described_class.coerce('789', 'integer')
-        
+
         stats = described_class.cache_stats
         expect(stats[:size]).to eq(4) # 2 + 2 more integer entries
         expect(stats[:misses]).to eq(4)
@@ -452,19 +452,19 @@ RSpec.describe LanguageOperator::TypeCoercion do
 
       it 'returns cached results for exact [value, type] matches' do
         described_class.clear_cache
-        
+
         # First call - cache miss
         result1 = described_class.coerce('42', 'integer')
         stats1 = described_class.cache_stats
         expect(stats1[:misses]).to eq(1)
         expect(stats1[:hits]).to eq(0)
-        
+
         # Second call - cache hit
         result2 = described_class.coerce('42', 'integer')
         stats2 = described_class.cache_stats
         expect(stats2[:misses]).to eq(1)
         expect(stats2[:hits]).to eq(1)
-        
+
         expect(result1).to eq(result2)
         expect(result1).to eq(42)
       end
@@ -473,13 +473,13 @@ RSpec.describe LanguageOperator::TypeCoercion do
     describe 'error caching' do
       it 'caches failed coercion attempts' do
         described_class.clear_cache
-        
+
         # First failed coercion - cache miss
         expect { described_class.coerce('invalid', 'integer') }.to raise_error(ArgumentError)
         stats1 = described_class.cache_stats
         expect(stats1[:misses]).to eq(1)
         expect(stats1[:hits]).to eq(0)
-        
+
         # Second failed coercion - cache hit (error served from cache)
         expect { described_class.coerce('invalid', 'integer') }.to raise_error(ArgumentError)
         stats2 = described_class.cache_stats
@@ -489,21 +489,21 @@ RSpec.describe LanguageOperator::TypeCoercion do
 
       it 'caches error messages correctly' do
         described_class.clear_cache
-        
+
         # Cache the error
         begin
           described_class.coerce('not_a_number', 'integer')
         rescue ArgumentError => e
           original_message = e.message
         end
-        
+
         # Retrieve from cache
         begin
           described_class.coerce('not_a_number', 'integer')
         rescue ArgumentError => e
           cached_message = e.message
         end
-        
+
         expect(cached_message).to eq(original_message)
         expect(cached_message).to include('Cannot coerce "not_a_number" to integer')
       end

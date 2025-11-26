@@ -12,10 +12,10 @@ module LanguageOperator
               option :cluster, type: :string, desc: 'Override current cluster context'
               def pause(name)
                 handle_command_error('pause agent') do
-                  ctx = Helpers::ClusterContext.from_options(options)
+                  ctx = CLI::Helpers::ClusterContext.from_options(options)
 
                   # Get agent
-                  agent = get_resource_or_exit(RESOURCE_AGENT, name)
+                  agent = get_resource_or_exit(LanguageOperator::Constants::RESOURCE_AGENT, name)
 
                   mode = agent.dig('spec', 'mode') || 'autonomous'
                   unless mode == 'scheduled'
@@ -49,10 +49,10 @@ module LanguageOperator
               option :cluster, type: :string, desc: 'Override current cluster context'
               def resume(name)
                 handle_command_error('resume agent') do
-                  ctx = Helpers::ClusterContext.from_options(options)
+                  ctx = CLI::Helpers::ClusterContext.from_options(options)
 
                   # Get agent
-                  agent = get_resource_or_exit(RESOURCE_AGENT, name)
+                  agent = get_resource_or_exit(LanguageOperator::Constants::RESOURCE_AGENT, name)
 
                   mode = agent.dig('spec', 'mode') || 'autonomous'
                   unless mode == 'scheduled'

@@ -97,7 +97,7 @@ module LanguageOperator
 
                   # Check if already exists
                   begin
-                    ctx.client.get_resource(RESOURCE_TOOL, tool_name, ctx.namespace)
+                    ctx.client.get_resource(LanguageOperator::Constants::RESOURCE_TOOL, tool_name, ctx.namespace)
                     Formatters::ProgressFormatter.warn("Tool '#{tool_name}' already exists in cluster '#{ctx.name}'")
                     puts
                     return unless CLI::Helpers::UserPrompts.confirm('Do you want to update it?')
@@ -111,7 +111,6 @@ module LanguageOperator
                     ctx.client.apply_resource(resource)
                   end
 
-                  Formatters::ProgressFormatter.success("Tool '#{tool_name}' installed successfully")
                   puts
 
                   # Show tool details
