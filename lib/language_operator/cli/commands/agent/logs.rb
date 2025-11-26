@@ -25,10 +25,10 @@ module LanguageOperator
               option :tail, type: :numeric, default: 100, desc: 'Number of lines to show from the end'
               def logs(name)
                 handle_command_error('get logs') do
-                  ctx = Helpers::ClusterContext.from_options(options)
+                  ctx = CLI::Helpers::ClusterContext.from_options(options)
 
                   # Get agent to determine the pod name
-                  agent = get_resource_or_exit(RESOURCE_AGENT, name)
+                  agent = get_resource_or_exit(LanguageOperator::Constants::RESOURCE_AGENT, name)
 
                   mode = agent.dig('spec', 'mode') || 'autonomous'
 
@@ -51,30 +51,66 @@ module LanguageOperator
                   Formatters::ProgressFormatter.info("Streaming logs for agent '#{name}'...")
                   puts
 
-                  # Stream raw logs in real-time without formatting
-                  Open3.popen3(cmd) do |_stdin, stdout, stderr, wait_thr|
-                    # Handle stdout (logs)
-                    stdout_thread = Thread.new do
-                      stdout.each_line do |line|
-                        puts line
-                        $stdout.flush
+                  # Track threads and interruption state for cleanup
+                  stdout_thread = nil
+                  stderr_thread = nil
+                  interrupted = false
+
+                  # Install signal handler for graceful interruption
+                  original_int_handler = Signal.trap('INT') do
+                    interrupted = true
+                    stdout_thread&.terminate
+                    stderr_thread&.terminate
+                    puts "\n[Interrupted]"
+                    exit(0)
+                  end
+
+                  begin
+                    # Stream raw logs in real-time without formatting
+                    Open3.popen3(cmd) do |stdin, stdout, stderr, wait_thr|
+                      # Close unused stdin immediately to prevent resource leak
+                      stdin.close
+
+                      # Handle stdout (logs)
+                      stdout_thread = Thread.new do
+                        stdout.each_line do |line|
+                          break if interrupted
+
+                          puts line
+                          $stdout.flush
+                        end
+                      rescue IOError
+                        # Expected when stream is closed during interruption
+                      end
+
+                      # Handle stderr (errors)
+                      stderr_thread = Thread.new do
+                        stderr.each_line do |line|
+                          break if interrupted
+
+                          warn line
+                        end
+                      rescue IOError
+                        # Expected when stream is closed during interruption
+                      end
+
+                      # Wait for both streams to complete or interruption
+                      stdout_thread.join unless interrupted
+                      stderr_thread.join unless interrupted
+
+                      # Check exit status if not interrupted
+                      unless interrupted
+                        exit_status = wait_thr.value
+                        exit exit_status.exitstatus unless exit_status.success?
                       end
                     end
+                  ensure
+                    # Restore original signal handler
+                    Signal.trap('INT', original_int_handler)
 
-                    # Handle stderr (errors)
-                    stderr_thread = Thread.new do
-                      stderr.each_line do |line|
-                        warn line
-                      end
-                    end
-
-                    # Wait for both streams to complete
-                    stdout_thread.join
-                    stderr_thread.join
-
-                    # Check exit status
-                    exit_status = wait_thr.value
-                    exit exit_status.exitstatus unless exit_status.success?
+                    # Cleanup threads if they're still running
+                    stdout_thread&.terminate
+                    stderr_thread&.terminate
                   end
                 end
               end
