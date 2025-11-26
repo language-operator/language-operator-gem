@@ -168,6 +168,34 @@ module LanguageOperator
         @debug
       end
 
+      # Cleanup all MCP connections and reset client state
+      #
+      # This method properly closes all MCP client connections and clears
+      # the @clients array to prevent resource leaks. Should be called
+      # when the client is no longer needed.
+      #
+      # @return [void]
+      def cleanup_connections
+        return if @clients.empty?
+
+        logger.debug('Cleaning up MCP connections', client_count: @clients.length)
+
+        @clients.each do |client|
+          # Close the client connection if it responds to close
+          client.close if client.respond_to?(:close)
+        rescue StandardError => e
+          logger.warn('Error closing MCP client connection',
+                      client: client.class.name,
+                      error: e.message)
+        end
+
+        # Clear the clients array and chat session
+        @clients.clear
+        @chat = nil
+
+        logger.debug('MCP connections cleanup completed')
+      end
+
       private
 
       def logger_component

@@ -131,7 +131,7 @@ RSpec.describe LanguageOperator::Agent::WebServer do
   end
 
   describe 'concurrent request handling' do
-    it 'creates separate executor instances for concurrent webhook requests' do
+    it 'reuses executor instances from pool for concurrent webhook requests' do
       # Mock the agent to track executor creation
       executor_instances = []
       allow(LanguageOperator::Agent::Executor).to receive(:new) do |_agent|
@@ -159,9 +159,9 @@ RSpec.describe LanguageOperator::Agent::WebServer do
       # Wait for all threads to complete
       threads.each(&:join)
 
-      # Verify that separate executor instances were created for each request
-      expect(executor_instances.length).to eq(3)
-      expect(executor_instances.uniq.length).to eq(3) # All unique instances
+      # Verify that only the pool size number of executors were created (4 in initialization + test setup)
+      # The pool should reuse executors rather than creating new ones for each request
+      expect(executor_instances.length).to eq(4) # Pool size from initialization
     end
 
     it 'isolates executor state between concurrent requests' do
@@ -253,11 +253,130 @@ RSpec.describe LanguageOperator::Agent::WebServer do
       # Wait for all threads to complete
       threads.each(&:join)
 
-      # One executor should have failed, two should have succeeded
-      # But due to error handling in handle_webhook, we might not see raw exceptions
+      # With pooling, we expect the pool size (4) executors to be created during initialization
       # The key is that failures are isolated - other requests still succeed
-      expect(call_count).to eq(3) # Three separate executors created
+      expect(call_count).to eq(4) # Pool size executors created during initialization
     end
+  end
+
+  describe 'executor pool management' do
+    it 'initializes pool with configured size' do
+      # The web_server was created with default pool size of 4
+      # We can't directly access the pool, but we can test behavior
+      expect(web_server.instance_variable_get(:@executor_pool_size)).to eq(4)
+    end
+
+    it 'falls back to temporary executor when pool is exhausted' do
+      # Mock the pool to always be empty
+      allow_any_instance_of(Queue).to receive(:pop).and_raise(ThreadError)
+      
+      # Track executor creation for fallback
+      fallback_executor_created = false
+      allow(LanguageOperator::Agent::Executor).to receive(:new).and_call_original
+      allow(LanguageOperator::Agent::Executor).to receive(:new) do |agent|
+        fallback_executor_created = true
+        instance_double('Executor').tap do |executor_double|
+          allow(executor_double).to receive(:execute_with_context).and_return('fallback result')
+          allow(executor_double).to receive(:cleanup_connections)
+        end
+      end
+
+      context = {
+        method: 'POST',
+        path: '/webhook',
+        body: '{"test": "data"}',
+        headers: {},
+        params: {}
+      }
+
+      result = web_server.send(:handle_webhook, context)
+      
+      expect(fallback_executor_created).to be(true)
+      expect(result[:status]).to eq('processed')
+      expect(result[:result]).to eq('fallback result')
+    end
+
+    it 'properly cleans up executor pool on shutdown' do
+      # Mock executors in the pool
+      mock_executors = 3.times.map do
+        instance_double('Executor').tap do |executor|
+          allow(executor).to receive(:cleanup_connections)
+        end
+      end
+
+      # Mock the pool with our mock executors
+      pool = Queue.new
+      mock_executors.each { |executor| pool << executor }
+      web_server.instance_variable_set(:@executor_pool, pool)
+
+      # Capture stdout to verify cleanup message
+      output = capture_stdout do
+        web_server.cleanup
+      end
+
+      # Verify cleanup was called on each executor
+      mock_executors.each do |executor|
+        expect(executor).to have_received(:cleanup_connections)
+      end
+
+      expect(output).to include('Cleaned up 3 executors from pool')
+    end
+
+    it 'handles cleanup gracefully when pool is nil' do
+      web_server.instance_variable_set(:@executor_pool, nil)
+      
+      # Should not raise an error
+      expect { web_server.cleanup }.not_to raise_error
+    end
+  end
+
+  describe 'resource leak prevention' do
+    it 'prevents MCP connection accumulation through executor reuse' do
+      # This test verifies that executors are reused rather than created fresh
+      executor_creation_count = 0
+      
+      # Track all executor creations
+      allow(LanguageOperator::Agent::Executor).to receive(:new) do |agent|
+        executor_creation_count += 1
+        instance_double('Executor').tap do |executor_double|
+          allow(executor_double).to receive(:execute_with_context).and_return("result #{executor_creation_count}")
+        end
+      end
+
+      # Make multiple requests
+      5.times do |i|
+        context = {
+          method: 'POST',
+          path: '/webhook',
+          body: "{\"request\": #{i}}",
+          headers: {},
+          params: {}
+        }
+        web_server.send(:handle_webhook, context)
+      end
+
+      # Should only create pool size (4) executors, not 4 + 5 = 9
+      expect(executor_creation_count).to eq(4)
+    end
+
+    it 'provides connection cleanup interface through executors' do
+      # Create a real executor to test the cleanup method exists
+      real_executor = LanguageOperator::Agent::Executor.new(agent)
+      
+      # Should not raise an error
+      expect { real_executor.cleanup_connections }.not_to raise_error
+    end
+  end
+
+  private
+
+  def capture_stdout
+    original_stdout = $stdout
+    $stdout = StringIO.new
+    yield
+    $stdout.string
+  ensure
+    $stdout = original_stdout
   end
 
   describe 'integration with webhook authentication' do

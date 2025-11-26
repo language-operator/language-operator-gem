@@ -56,6 +56,16 @@ module LanguageOperator
         execute(enriched_instruction)
       end
 
+      # Cleanup executor resources including MCP connections
+      #
+      # This method delegates to the agent's connection cleanup to prevent
+      # resource leaks when executors are no longer needed.
+      #
+      # @return [void]
+      def cleanup_connections
+        @agent.cleanup_connections if @agent.respond_to?(:cleanup_connections)
+      end
+
       # Execute a single task
       #
       # @param task [String] The task to execute

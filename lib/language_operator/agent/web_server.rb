@@ -3,6 +3,7 @@
 require 'rack'
 require 'rackup'
 require 'mcp'
+require_relative 'executor'
 
 module LanguageOperator
   module Agent
@@ -28,6 +29,10 @@ module LanguageOperator
         @routes = {}
         @mcp_server = nil
         @mcp_transport = nil
+
+        # Initialize executor pool to prevent MCP connection leaks
+        @executor_pool_size = ENV.fetch('EXECUTOR_POOL_SIZE', '4').to_i
+        @executor_pool = setup_executor_pool
 
         setup_default_routes
       end
@@ -163,7 +168,48 @@ module LanguageOperator
         error_response(e)
       end
 
+      # Cleanup executor pool and connections
+      #
+      # Properly closes all executors in the pool and their MCP connections
+      # to prevent resource leaks during server shutdown.
+      #
+      # @return [void]
+      def cleanup
+        return unless @executor_pool
+
+        # Drain and cleanup all executors in the pool
+        executors_cleaned = 0
+        begin
+          loop do
+            executor = @executor_pool.pop(timeout: 0.1)
+            if executor
+              executor.cleanup_connections
+              executors_cleaned += 1
+            end
+          end
+        rescue ThreadError
+          # Pool is empty, we're done
+        end
+
+        puts "Cleaned up #{executors_cleaned} executors from pool"
+      end
+
       private
+
+      # Setup executor pool for connection reuse
+      #
+      # Creates a thread-safe queue pre-populated with executor instances
+      # to prevent creating new MCP connections for each webhook request.
+      #
+      # @return [Queue] Thread-safe executor pool
+      def setup_executor_pool
+        pool = Queue.new
+        @executor_pool_size.times do
+          pool << Executor.new(@agent)
+        end
+        puts "Initialized executor pool with #{@executor_pool_size} executors"
+        pool
+      end
 
       # Build the Rack application
       #
@@ -303,21 +349,48 @@ module LanguageOperator
 
       # Handle webhook request by executing agent
       #
+      # Uses executor pooling to prevent MCP connection resource leaks.
+      # Executors are reused across requests to avoid creating new
+      # connections for each webhook request.
+      #
       # @param context [Hash] Request context
       # @return [Hash] Response data
       def handle_webhook(context)
-        # Create fresh executor per request to avoid shared state
-        executor = Executor.new(@agent)
-        result = executor.execute_with_context(
-          instruction: 'Process incoming webhook request',
-          context: context
-        )
+        executor = nil
+        begin
+          # Get executor from pool with timeout
+          executor = @executor_pool.pop(timeout: 5)
+          result = executor.execute_with_context(
+            instruction: 'Process incoming webhook request',
+            context: context
+          )
 
-        {
-          status: 'processed',
-          result: result,
-          timestamp: Time.now.iso8601
-        }
+          {
+            status: 'processed',
+            result: result,
+            timestamp: Time.now.iso8601
+          }
+        rescue ThreadError
+          # Pool exhausted, create temporary executor as fallback
+          temp_executor = Executor.new(@agent)
+          begin
+            result = temp_executor.execute_with_context(
+              instruction: 'Process incoming webhook request',
+              context: context
+            )
+
+            {
+              status: 'processed',
+              result: result,
+              timestamp: Time.now.iso8601
+            }
+          ensure
+            temp_executor.cleanup_connections
+          end
+        ensure
+          # Return executor to pool if we got one
+          @executor_pool.push(executor) if executor
+        end
       end
 
       # Handle MCP protocol request
