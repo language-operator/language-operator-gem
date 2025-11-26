@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'uri'
+
 module LanguageOperator
   # Common parameter validation utilities
   #
@@ -157,12 +159,62 @@ module LanguageOperator
     # @example Invalid paths
     #   Validators.safe_path('')  # => "Error: Path cannot be empty"
     #   Validators.safe_path('../../../etc/passwd')  # => "Error: Path contains..."
+    #   Validators.safe_path('%2e%2e%2fetc%2fpasswd')  # => "Error: Path contains..."
     #   Validators.safe_path("file\0name")  # => "Error: Path contains..."
     def self.safe_path(path)
       return 'Error: Path cannot be empty' if path.nil? || path.strip.empty?
 
-      # Check for obvious traversal attempts
-      return 'Error: Path contains invalid characters or directory traversal' if path.include?('..') || path.include?("\0")
+      # Check for null bytes first (before any decoding)
+      return 'Error: Path contains invalid characters or directory traversal' if path.include?("\0")
+
+      begin
+        # Decode URL-encoded paths to catch encoded traversal attempts
+        # Handle multiple layers of encoding by repeatedly decoding
+        decoded_path = path
+        3.times do # Limit to prevent infinite loops
+          new_decoded = URI::DEFAULT_PARSER.unescape(decoded_path)
+          break if new_decoded == decoded_path # No more changes
+
+          decoded_path = new_decoded
+        rescue ArgumentError, Encoding::InvalidByteSequenceError, Encoding::UndefinedConversionError
+          # Invalid byte sequence - treat as potential attack
+          return 'Error: Path contains invalid characters or directory traversal'
+        end
+
+        # Check for directory traversal in both original and decoded paths
+        [path, decoded_path].each do |check_path|
+          # Check for obvious traversal patterns
+          return 'Error: Path contains invalid characters or directory traversal' if check_path.include?('..')
+
+          # Check for overlong UTF-8 sequences that decode to dangerous characters
+          # These are common in directory traversal attacks
+          if check_path.include?("\xC0\xAE") || check_path.include?("\xC0\xAF") ||
+             check_path.bytes.each_cons(2).any? { |a, b| a == 0xC0 && (0x80..0xBF).cover?(b) }
+            return 'Error: Path contains invalid characters or directory traversal'
+          end
+
+          # Canonicalize path to detect complex traversal attempts
+          begin
+            # Use current directory as base for relative paths
+            canonical_path = File.expand_path(check_path, Dir.pwd)
+
+            # For relative paths, ensure they don't escape current directory
+            unless check_path.start_with?('/')
+              current_dir_canonical = File.expand_path(Dir.pwd)
+              return 'Error: Path contains invalid characters or directory traversal' unless canonical_path.start_with?(current_dir_canonical)
+            end
+
+            # Additional check: ensure canonical path doesn't contain dangerous patterns
+            return 'Error: Path contains invalid characters or directory traversal' if canonical_path.include?('/../') || canonical_path.end_with?('/..')
+          rescue ArgumentError, Errno::ENOENT
+            # Path canonicalization failed, likely due to invalid characters
+            return 'Error: Path contains invalid characters or directory traversal'
+          end
+        end
+      rescue URI::InvalidURIError
+        # URL decoding failed, path might contain invalid sequences
+        return 'Error: Path contains invalid characters or directory traversal'
+      end
 
       nil
     end

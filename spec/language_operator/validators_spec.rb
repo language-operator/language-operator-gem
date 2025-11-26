@@ -354,6 +354,118 @@ RSpec.describe LanguageOperator::Validators do
       result = described_class.safe_path("file\0name")
       expect(result).to eq('Error: Path contains invalid characters or directory traversal')
     end
+
+    describe 'URL-encoded path traversal attacks' do
+      it 'returns error for URL-encoded parent directory traversal' do
+        result = described_class.safe_path('%2e%2e%2f%2e%2e%2fetc%2fpasswd')
+        expect(result).to eq('Error: Path contains invalid characters or directory traversal')
+      end
+
+      it 'returns error for single URL-encoded parent directory' do
+        result = described_class.safe_path('%2e%2e%2fetc%2fpasswd')
+        expect(result).to eq('Error: Path contains invalid characters or directory traversal')
+      end
+
+      it 'returns error for mixed encoding traversal' do
+        result = described_class.safe_path('../%2e%2e%2fetc%2fpasswd')
+        expect(result).to eq('Error: Path contains invalid characters or directory traversal')
+      end
+
+      it 'returns error for double-encoded traversal' do
+        result = described_class.safe_path('%252e%252e%252fetc%252fpasswd')
+        expect(result).to eq('Error: Path contains invalid characters or directory traversal')
+      end
+    end
+
+    describe 'complex path traversal scenarios' do
+      it 'returns error for traversal with valid path prefix' do
+        result = described_class.safe_path('safe/path/../../etc/passwd')
+        expect(result).to eq('Error: Path contains invalid characters or directory traversal')
+      end
+
+      it 'returns error for traversal hidden in subdirectory' do
+        result = described_class.safe_path('uploads/../../../etc/passwd')
+        expect(result).to eq('Error: Path contains invalid characters or directory traversal')
+      end
+
+      it 'returns error for traversal with trailing slash' do
+        result = described_class.safe_path('../../../etc/')
+        expect(result).to eq('Error: Path contains invalid characters or directory traversal')
+      end
+
+      it 'returns error for relative path escaping current directory' do
+        result = described_class.safe_path('../../escape')
+        expect(result).to eq('Error: Path contains invalid characters or directory traversal')
+      end
+    end
+
+    describe 'Unicode and encoding attacks' do
+      it 'returns error for Unicode normalization attack' do
+        result = described_class.safe_path("..%c0%af%c0%afetc%c0%afpasswd")
+        expect(result).to eq('Error: Path contains invalid characters or directory traversal')
+      end
+
+      it 'returns error for overlong UTF-8 encoding' do
+        result = described_class.safe_path("%c0%ae%c0%ae%c0%af")
+        expect(result).to eq('Error: Path contains invalid characters or directory traversal')
+      end
+    end
+
+    describe 'null byte attacks' do
+      it 'returns error for null byte before traversal' do
+        result = described_class.safe_path("safe\0../../../etc/passwd")
+        expect(result).to eq('Error: Path contains invalid characters or directory traversal')
+      end
+
+      it 'returns error for URL-encoded null byte' do
+        result = described_class.safe_path("safe%00../../../etc/passwd")
+        expect(result).to eq('Error: Path contains invalid characters or directory traversal')
+      end
+    end
+
+    describe 'real-world exploit scenarios' do
+      it 'returns error for accessing /etc/passwd' do
+        result = described_class.safe_path('../../../etc/passwd')
+        expect(result).to eq('Error: Path contains invalid characters or directory traversal')
+      end
+
+      it 'returns error for accessing SSH keys' do
+        result = described_class.safe_path('../../../root/.ssh/id_rsa')
+        expect(result).to eq('Error: Path contains invalid characters or directory traversal')
+      end
+
+      it 'returns error for accessing system configuration' do
+        result = described_class.safe_path('../../../../etc/shadow')
+        expect(result).to eq('Error: Path contains invalid characters or directory traversal')
+      end
+
+      it 'returns error for Windows-style traversal' do
+        result = described_class.safe_path('..\\..\\..\\windows\\system32\\config\\sam')
+        expect(result).to eq('Error: Path contains invalid characters or directory traversal')
+      end
+    end
+
+    describe 'edge cases that should be valid' do
+      it 'returns nil for file with dots in name' do
+        result = described_class.safe_path('file.name.with.dots.txt')
+        expect(result).to be_nil
+      end
+
+      it 'returns nil for hidden files' do
+        result = described_class.safe_path('.hidden_file')
+        expect(result).to be_nil
+      end
+
+      it 'returns nil for path with spaces' do
+        result = described_class.safe_path('path with spaces/file.txt')
+        expect(result).to be_nil
+      end
+
+      it 'returns nil for URL-encoded valid path' do
+        result = described_class.safe_path('valid%2fpath%2ffile.txt')
+        expect(result).to be_nil
+      end
+    end
   end
 
   describe 'real-world usage patterns' do
