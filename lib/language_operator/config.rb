@@ -190,14 +190,22 @@ module LanguageOperator
     # @example
     #   Config.get_int('MAX_WORKERS', default: 4)
     def self.get_int(*keys, default: nil)
-      value = get(*keys)
-      return default if value.nil?
+      keys.each do |key|
+        value = ENV[key.to_s]
+        next unless value
 
-      begin
-        Integer(value)
-      rescue ArgumentError, TypeError => e
-        raise ArgumentError, "Invalid integer value '#{value}' for #{keys.join('/')}: #{e.message}"
+        begin
+          return Integer(value)
+        rescue ArgumentError, TypeError => e
+          suggestion = "Please set #{key} to a valid integer (e.g., export #{key}=4)"
+          raise ArgumentError, "Invalid integer value '#{value}' in environment variable '#{key}'. #{suggestion}. Error: #{e.message}"
+        end
       end
+
+      return default if default
+
+      # No variables found
+      raise ArgumentError, "Missing required integer configuration. Checked environment variables: #{keys.join(', ')}. Please set one of these variables."
     end
 
     # Get environment variable as boolean
@@ -211,10 +219,14 @@ module LanguageOperator
     # @example
     #   Config.get_bool('USE_TLS', 'ENABLE_TLS', default: true)
     def self.get_bool(*keys, default: false)
-      value = get(*keys)
-      return default if value.nil?
+      keys.each do |key|
+        value = ENV[key.to_s]
+        next unless value
 
-      %w[true 1 yes on].include?(value.to_s.downcase)
+        return %w[true 1 yes on].include?(value.to_s.downcase)
+      end
+
+      default
     end
 
     # Get environment variable as array (split by separator)
@@ -227,10 +239,15 @@ module LanguageOperator
     # @example
     #   Config.get_array('ALLOWED_HOSTS', separator: ',')
     def self.get_array(*keys, default: [], separator: ',')
-      value = get(*keys)
-      return default if value.nil? || value.empty?
+      keys.each do |key|
+        value = ENV[key.to_s]
+        next unless value
+        next if value.empty?
 
-      value.split(separator).map(&:strip).reject(&:empty?)
+        return value.split(separator).map(&:strip).reject(&:empty?)
+      end
+
+      default
     end
 
     # Check if environment variable is set (even if empty string)

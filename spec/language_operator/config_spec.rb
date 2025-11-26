@@ -444,44 +444,79 @@ RSpec.describe LanguageOperator::Config do
       expect(result).to eq(42)
     end
 
-    it 'returns nil when no default provided and env var missing' do
-      result = described_class.get_int('NONEXISTENT_VAR')
-      expect(result).to be_nil
+    it 'raises error when no default provided and env var missing' do
+      expect { described_class.get_int('NONEXISTENT_VAR') }
+        .to raise_error(ArgumentError, /Missing required integer configuration/)
     end
 
     it 'raises error for invalid integer strings' do
       ENV['TEST_INVALID'] = 'abc'
       expect { described_class.get_int('TEST_INVALID') }
-        .to raise_error(ArgumentError, /Invalid integer value 'abc' for TEST_INVALID/)
+        .to raise_error(ArgumentError, /Invalid integer value 'abc' in environment variable 'TEST_INVALID'/)
       ENV.delete('TEST_INVALID')
     end
 
     it 'raises error for mixed numeric strings' do
       ENV['TEST_MIXED'] = '123abc'
       expect { described_class.get_int('TEST_MIXED') }
-        .to raise_error(ArgumentError, /Invalid integer value '123abc' for TEST_MIXED/)
+        .to raise_error(ArgumentError, /Invalid integer value '123abc' in environment variable 'TEST_MIXED'/)
       ENV.delete('TEST_MIXED')
     end
 
     it 'raises error for empty strings' do
       ENV['TEST_EMPTY'] = ''
       expect { described_class.get_int('TEST_EMPTY') }
-        .to raise_error(ArgumentError, /Invalid integer value '' for TEST_EMPTY/)
+        .to raise_error(ArgumentError, /Invalid integer value '' in environment variable 'TEST_EMPTY'/)
       ENV.delete('TEST_EMPTY')
     end
 
     it 'raises error for whitespace-only strings' do
       ENV['TEST_WHITESPACE'] = '   '
       expect { described_class.get_int('TEST_WHITESPACE') }
-        .to raise_error(ArgumentError, /Invalid integer value '   ' for TEST_WHITESPACE/)
+        .to raise_error(ArgumentError, /Invalid integer value '   ' in environment variable 'TEST_WHITESPACE'/)
       ENV.delete('TEST_WHITESPACE')
     end
 
     it 'includes all key names in error message when multiple keys provided' do
       ENV['KEY1'] = 'invalid'
       expect { described_class.get_int('KEY1', 'KEY2', 'KEY3') }
-        .to raise_error(ArgumentError, %r{for KEY1/KEY2/KEY3})
+        .to raise_error(ArgumentError, /Invalid integer value 'invalid' in environment variable 'KEY1'/)
       ENV.delete('KEY1')
+    end
+
+    it 'provides helpful error message with specific variable name and suggestion' do
+      ENV['MAX_WORKERS'] = 'auto'
+      expect { described_class.get_int('MAX_WORKERS') }
+        .to raise_error(ArgumentError, /Invalid integer value 'auto' in environment variable 'MAX_WORKERS'.*Please set MAX_WORKERS to a valid integer/)
+      ENV.delete('MAX_WORKERS')
+    end
+
+    it 'identifies correct variable when first fallback fails' do
+      ENV['PRIMARY'] = 'invalid'
+      expect { described_class.get_int('PRIMARY', 'SECONDARY') }
+        .to raise_error(ArgumentError, /environment variable 'PRIMARY'.*Please set PRIMARY to a valid integer/)
+      ENV.delete('PRIMARY')
+    end
+
+    it 'identifies correct variable when second fallback fails' do
+      ENV['SECONDARY'] = 'invalid'
+      expect { described_class.get_int('PRIMARY', 'SECONDARY') }
+        .to raise_error(ArgumentError, /environment variable 'SECONDARY'.*Please set SECONDARY to a valid integer/)
+      ENV.delete('SECONDARY')
+    end
+
+    it 'provides helpful error message when no variables are set and no default' do
+      expect { described_class.get_int('MISSING1', 'MISSING2', 'MISSING3') }
+        .to raise_error(ArgumentError, /Missing required integer configuration.*Checked environment variables: MISSING1, MISSING2, MISSING3/)
+    end
+
+    it 'uses first valid variable and ignores later invalid ones' do
+      ENV['FIRST'] = '42'
+      ENV['SECOND'] = 'invalid'
+      result = described_class.get_int('FIRST', 'SECOND')
+      expect(result).to eq(42)
+      ENV.delete('FIRST')
+      ENV.delete('SECOND')
     end
   end
 
