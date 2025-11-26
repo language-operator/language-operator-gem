@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'open3'
+
 module LanguageOperator
   module CLI
     module Commands
@@ -33,7 +35,13 @@ module LanguageOperator
                   Formatters::ProgressFormatter.with_spinner("Pausing agent '#{name}'") do
                     # Use kubectl to patch the cronjob
                     cmd = "#{ctx.kubectl_prefix} patch cronjob #{cronjob_name} -p '{\"spec\":{\"suspend\":true}}'"
-                    system(cmd)
+                    _, stderr, status = Open3.capture3(cmd)
+
+                    unless status.success?
+                      error_msg = "Failed to pause agent '#{name}': kubectl command failed (exit code: #{status.exitstatus})"
+                      error_msg += "\nError: #{stderr.strip}" unless stderr.nil? || stderr.strip.empty?
+                      raise error_msg
+                    end
                   end
 
                   Formatters::ProgressFormatter.success("Agent '#{name}' paused")
@@ -68,7 +76,13 @@ module LanguageOperator
                   Formatters::ProgressFormatter.with_spinner("Resuming agent '#{name}'") do
                     # Use kubectl to patch the cronjob
                     cmd = "#{ctx.kubectl_prefix} patch cronjob #{cronjob_name} -p '{\"spec\":{\"suspend\":false}}'"
-                    system(cmd)
+                    _, stderr, status = Open3.capture3(cmd)
+
+                    unless status.success?
+                      error_msg = "Failed to resume agent '#{name}': kubectl command failed (exit code: #{status.exitstatus})"
+                      error_msg += "\nError: #{stderr.strip}" unless stderr.nil? || stderr.strip.empty?
+                      raise error_msg
+                    end
                   end
 
                   Formatters::ProgressFormatter.success("Agent '#{name}' resumed")
