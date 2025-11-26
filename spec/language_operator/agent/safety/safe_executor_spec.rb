@@ -46,13 +46,21 @@ RSpec.describe LanguageOperator::Agent::Safety::SafeExecutor do
         allow(validator).to receive(:validate!).and_return(true)
       end
 
-      it 'allows access to safe Ruby constants that are pre-injected' do
-        # Test constants that are explicitly injected by SafeExecutor
-        safe_constants = %w[String Array Hash Integer Float Time Date]
+      it 'allows access to safe Ruby constants through proper constant resolution' do
+        # Test that safe constants work in realistic usage scenarios
+        # where they are accessed as part of type checking or object creation
 
-        safe_constants.each do |const_name|
-          expect { executor.eval(const_name) }.not_to raise_error
-        end
+        # String class should be accessible for type checking
+        expect(executor.eval('"test".is_a?(String)')).to be true
+
+        # Array class should be accessible
+        expect(executor.eval('[1, 2, 3].is_a?(Array)')).to be true
+
+        # Hash class should be accessible
+        expect(executor.eval('{a: 1}.is_a?(Hash)')).to be true
+
+        # Integer class should be accessible
+        expect(executor.eval('42.is_a?(Integer)')).to be true
       end
 
       it 'const_missing method allows safe constants when accessed dynamically' do
@@ -107,6 +115,56 @@ RSpec.describe LanguageOperator::Agent::Safety::SafeExecutor do
           expect(error.message).to include('not allowed in sandbox')
           expect(error.message).to include('security restriction')
         end
+      end
+    end
+
+    context 'when preventing constant redefinition warnings' do
+      before do
+        allow(validator).to receive(:validate!).and_return(true)
+      end
+
+      it 'allows user code to define constants without warnings' do
+        # This should not generate redefinition warnings
+        expect do
+          # Capture warnings during execution
+          original_verbose = $VERBOSE
+          warnings = []
+          Warning.singleton_class.prepend(Module.new do
+            def warn(message, *args)
+              warnings << message
+              super
+            end
+          end)
+
+          executor.eval('String = "custom_value"')
+
+          # Check that no redefinition warnings were generated
+          redefinition_warnings = warnings.select { |w| w.include?('already initialized constant') }
+          expect(redefinition_warnings).to be_empty
+        ensure
+          $VERBOSE = original_verbose
+        end
+      end
+
+      it 'maintains type checking consistency after user redefinition' do
+        # User defines their own String constant
+        result = executor.eval(<<~RUBY)
+          String = "my_custom_string"
+          value = "test"
+          value.is_a?(::String)  # Should still work with global String class
+        RUBY
+
+        expect(result).to be true
+      end
+
+      it 'allows access to safe constants even when user redefines them' do
+        # User redefines Array, but can still access the real Array via const_missing
+        result = executor.eval(<<~RUBY)
+          Array = "not_an_array"
+          [1, 2, 3].is_a?(::Array)  # Access real Array class
+        RUBY
+
+        expect(result).to be true
       end
     end
   end

@@ -34,32 +34,26 @@ module LanguageOperator
           # Step 2: Execute in sandboxed context
           sandbox = SandboxProxy.new(@context, self)
 
-          # Step 3: Prepend safe constant definitions to the code
-          # This makes Ruby type constants available in the evaluated scope
-          safe_constants_code = <<~RUBY
-            Numeric = ::Numeric
-            Integer = ::Integer
-            Float = ::Float
-            String = ::String
-            Array = ::Array
-            Hash = ::Hash
-            TrueClass = ::TrueClass
-            FalseClass = ::FalseClass
-            Time = ::Time
-            Date = ::Date
-          RUBY
+          # Step 3: Execute using instance_eval with smart constant injection
+          # Only inject constants that won't conflict with user-defined ones
+          safe_constants = %w[Numeric Integer Float String Array Hash TrueClass FalseClass Time Date]
 
-          # Step 4: Execute using instance_eval with safe constants prepended
-          # Note: We still use instance_eval but with validated code
-          # and wrapped context
-          #
-          # The string interpolation below evaluates to:
-          #   sandbox.instance_eval("Numeric = ::Numeric\nInteger = ::Integer\nFloat = ::Float\n
-          #     String = ::String\nArray = ::Array\nHash = ::Hash\nTrueClass = ::TrueClass\n
-          #     FalseClass = ::FalseClass\nTime = ::Time\nDate = ::Date\n<user code>", __FILE__, __LINE__)
-          # rubocop:disable Style/DocumentDynamicEvalDefinition
-          sandbox.instance_eval("#{safe_constants_code}\n#{code}", __FILE__, __LINE__)
-          # rubocop:enable Style/DocumentDynamicEvalDefinition
+          # Find which constants user code defines to avoid redefinition warnings
+          user_defined_constants = safe_constants.select { |const| code.include?("#{const} =") }
+
+          # Only inject constants that user code doesn't define
+          constants_to_inject = safe_constants - user_defined_constants
+
+          if constants_to_inject.any?
+            # Inject only safe constants that won't conflict
+            safe_setup = constants_to_inject.map { |name| "#{name} = ::#{name}" }.join("\n")
+            # rubocop:disable Style/DocumentDynamicEvalDefinition
+            sandbox.instance_eval("#{safe_setup}\n#{code}", __FILE__, __LINE__)
+            # rubocop:enable Style/DocumentDynamicEvalDefinition
+          else
+            # User defines all constants, just run their code
+            sandbox.instance_eval(code, file_path, 1)
+          end
         rescue ASTValidator::SecurityError => e
           # Re-raise validation errors as executor errors for clarity
           raise SecurityError, "Code validation failed: #{e.message}"
