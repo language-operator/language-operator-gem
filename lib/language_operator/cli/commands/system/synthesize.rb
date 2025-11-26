@@ -55,6 +55,9 @@ module LanguageOperator
               option :model, type: :string, desc: 'Model to use for synthesis (defaults to first available in cluster)'
               option :dry_run, type: :boolean, default: false, desc: 'Show prompt without calling LLM'
               option :raw, type: :boolean, default: false, desc: 'Output only the raw code without formatting'
+              
+              include Helpers::UxHelper
+              
               def synthesize(instructions = nil)
                 handle_command_error('synthesize agent') do
                   # Read instructions from STDIN if not provided as argument
@@ -137,10 +140,7 @@ module LanguageOperator
                   end
 
                   # Display formatted code
-                  require 'rouge'
-                  formatter = Rouge::Formatters::Terminal256.new
-                  lexer = Rouge::Lexers::Ruby.new
-                  highlighted_code = formatter.format(lexer.lex(generated_code))
+                  highlighted_code = highlight_ruby_code(generated_code)
 
                   puts highlighted_code
                 end

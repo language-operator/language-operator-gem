@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
-require 'rouge'
-require_relative '../helpers/pastel_helper'
+require_relative '../helpers/ux_helper'
 
 module LanguageOperator
   module CLI
@@ -17,10 +16,6 @@ module LanguageOperator
           # @param title [String, nil] Optional title to display above the code
           # @param max_lines [Integer, nil] Maximum number of lines to display (nil for all)
           def display_ruby_code(code_content, title: nil, max_lines: nil)
-            # Use Rouge to highlight the code
-            formatter = Rouge::Formatters::Terminal256.new
-            lexer = Rouge::Lexers::Ruby.new
-
             # Truncate if max_lines specified
             lines = code_content.lines
             truncated = false
@@ -33,7 +28,7 @@ module LanguageOperator
             end
 
             # Highlight and print the code
-            highlighted = formatter.format(lexer.lex(code_to_display))
+            highlighted = highlight_ruby_code(code_to_display)
             puts highlighted
 
             # Show truncation notice if applicable
@@ -53,9 +48,7 @@ module LanguageOperator
             puts pastel.dim(description) if description
             puts
 
-            formatter = Rouge::Formatters::Terminal256.new
-            lexer = Rouge::Lexers::Ruby.new
-            highlighted = formatter.format(lexer.lex(code_content))
+            highlighted = highlight_ruby_code(code_content)
 
             puts highlighted
             puts

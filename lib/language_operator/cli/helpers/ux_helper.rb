@@ -132,6 +132,17 @@ module LanguageOperator
           TTY::Box.frame(message, **options)
         end
 
+        # Highlights Ruby code with syntax highlighting for terminal display
+        #
+        # @param code_content [String] The Ruby code to highlight
+        # @return [String] Syntax-highlighted code ready for terminal output
+        # @example
+        #   puts highlight_ruby_code("puts 'Hello, world!'")
+        def highlight_ruby_code(code_content)
+          highlighted = rouge_formatter.format(rouge_lexer.lex(code_content))
+          highlighted
+        end
+
         def logo(title: nil, sparkle: false)
           puts
 
@@ -146,6 +157,26 @@ module LanguageOperator
         end
 
         private
+
+        # Returns a memoized Rouge formatter for syntax highlighting
+        #
+        # @return [Rouge::Formatters::Terminal256] Terminal formatter instance
+        def rouge_formatter
+          @rouge_formatter ||= begin
+            require 'rouge'
+            Rouge::Formatters::Terminal256.new
+          end
+        end
+
+        # Returns a memoized Rouge lexer for Ruby code
+        #
+        # @return [Rouge::Lexers::Ruby] Ruby lexer instance
+        def rouge_lexer
+          @rouge_lexer ||= begin
+            require 'rouge'
+            Rouge::Lexers::Ruby.new
+          end
+        end
 
         def animate_sparkle_logo
           text = 'LANGUAGE OPERATOR'
