@@ -83,16 +83,8 @@ module LanguageOperator
               deployment = ctx.client.get_resource('Deployment', model_name, ctx.namespace)
               labels = deployment.dig('spec', 'selector', 'matchLabels')
 
-              raise "Deployment '#{model_name}' has no selector labels" if labels.nil?
-
-              # Convert to hash if needed
-              labels_hash = labels.respond_to?(:to_h) ? labels.to_h : labels
-              raise "Deployment '#{model_name}' has empty selector labels" if labels_hash.empty?
-
-              label_selector = labels_hash.map { |k, v| "#{k}=#{v}" }.join(',')
-
-              # Find a running pod
-              pods = ctx.client.list_resources('Pod', namespace: ctx.namespace, label_selector: label_selector)
+              # Find matching pods using centralized utility
+              pods = CLI::Helpers::LabelUtils.find_pods_by_deployment_labels(ctx, model_name, labels)
               raise "No pods found for model '#{model_name}'" if pods.empty?
 
               running_pod = pods.find do |pod|

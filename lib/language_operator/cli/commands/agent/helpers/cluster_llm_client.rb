@@ -63,16 +63,9 @@ module LanguageOperator
               raise "Deployment '#{@model_name}' not found in namespace '#{@ctx.namespace}'" if deployment.nil?
 
               labels = deployment.dig('spec', 'selector', 'matchLabels')
-              raise "Deployment '#{@model_name}' has no selector labels" if labels.nil?
 
-              # Convert to hash if needed (K8s API may return K8s::Resource)
-              labels_hash = labels.respond_to?(:to_h) ? labels.to_h : labels
-              raise "Deployment '#{@model_name}' has empty selector labels" if labels_hash.empty?
-
-              label_selector = labels_hash.map { |k, v| "#{k}=#{v}" }.join(',')
-
-              # Find a running pod
-              pods = @ctx.client.list_resources('Pod', namespace: @ctx.namespace, label_selector: label_selector)
+              # Find matching pods using centralized utility
+              pods = CLI::Helpers::LabelUtils.find_pods_by_deployment_labels(@ctx, @model_name, labels)
               raise "No pods found for model '#{@model_name}'" if pods.empty?
 
               running_pods = pods.select { |p| p.dig('status', 'phase') == 'Running' }

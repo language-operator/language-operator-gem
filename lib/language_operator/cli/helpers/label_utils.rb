@@ -65,6 +65,30 @@ module LanguageOperator
             valid_label_value: valid_label_value?(agent_name)
           }
         end
+
+        # Convert deployment labels to pod selector and find matching pods
+        #
+        # This method handles the common pattern of extracting selector labels from a deployment,
+        # converting them to a label selector string, and finding matching pods.
+        #
+        # @param ctx [ClusterContext] Kubernetes context with client and namespace
+        # @param deployment_name [String] Name of the deployment (for error messages)
+        # @param labels [Hash, Object] Deployment selector labels (may be K8s::Resource or Hash)
+        # @return [Array] Array of pod resources matching the labels
+        # @raise [RuntimeError] If labels are nil, empty, or no pods found
+        def self.find_pods_by_deployment_labels(ctx, deployment_name, labels)
+          raise "Deployment '#{deployment_name}' has no selector labels" if labels.nil?
+
+          # Convert to hash if needed (K8s API may return K8s::Resource objects)
+          labels_hash = labels.respond_to?(:to_h) ? labels.to_h : labels
+          raise "Deployment '#{deployment_name}' has empty selector labels" if labels_hash.empty?
+
+          # Convert labels to Kubernetes label selector format
+          label_selector = labels_hash.map { |k, v| "#{k}=#{v}" }.join(',')
+
+          # Find matching pods
+          ctx.client.list_resources('Pod', namespace: ctx.namespace, label_selector: label_selector)
+        end
       end
     end
   end

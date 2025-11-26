@@ -62,15 +62,9 @@ module LanguageOperator
               def check_pod_status(name, deployment)
                 Formatters::ProgressFormatter.with_spinner('Verifying pod') do
                   labels = deployment.dig('spec', 'selector', 'matchLabels')
-                  raise "Deployment '#{name}' has no selector labels" if labels.nil?
 
-                  # Convert K8s::Resource to hash if needed
-                  labels_hash = labels.respond_to?(:to_h) ? labels.to_h : labels
-                  raise "Deployment '#{name}' has empty selector labels" if labels_hash.empty?
-
-                  label_selector = labels_hash.map { |k, v| "#{k}=#{v}" }.join(',')
-
-                  pods = ctx.client.list_resources('Pod', namespace: ctx.namespace, label_selector: label_selector)
+                  # Find matching pods using centralized utility
+                  pods = CLI::Helpers::LabelUtils.find_pods_by_deployment_labels(ctx, name, labels)
                   raise "No pods found for model '#{name}'" if pods.empty?
 
                   # Find a running pod
@@ -81,6 +75,9 @@ module LanguageOperator
 
                   if running_pod.nil?
                     pod_phases = pods.map { |p| p.dig('status', 'phase') }.join(', ')
+                    # Get label selector for error message
+                    labels_hash = labels.respond_to?(:to_h) ? labels.to_h : labels
+                    label_selector = labels_hash.map { |k, v| "#{k}=#{v}" }.join(',')
                     raise "No running pods found. Pod phases: #{pod_phases}. " \
                           "Run 'kubectl get pods -l #{label_selector} -n #{ctx.namespace}' for details."
                   end
