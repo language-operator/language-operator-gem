@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative '../helpers/pastel_helper'
+require_relative '../helpers/ux_helper'
 
 module LanguageOperator
   module CLI
@@ -17,19 +17,8 @@ module LanguageOperator
         # @return [String] Formatted status with colored dot
         def self.format(status)
           status_str = status.to_s
-
-          case status_str.downcase
-          when 'ready', 'running', 'active'
-            "#{pastel.green('●')} #{status_str}"
-          when 'pending', 'creating', 'synthesizing'
-            "#{pastel.yellow('●')} #{status_str}"
-          when 'failed', 'error'
-            "#{pastel.red('●')} #{status_str}"
-          when 'paused', 'stopped', 'suspended'
-            "#{pastel.dim('●')} #{status_str}"
-          else
-            "#{pastel.dim('●')} #{status_str}"
-          end
+          color = status_color(status_str)
+          "#{pastel.send(color, '●')} #{status_str}"
         end
 
         # Format just the status indicator dot (without text)
@@ -37,21 +26,30 @@ module LanguageOperator
         # @param status [String, Symbol] The status to format
         # @return [String] Just the colored dot
         def self.dot(status)
-          status_str = status.to_s
+          color = status_color(status.to_s)
+          pastel.send(color, '●')
+        end
 
+        # Determine the appropriate color for a status
+        #
+        # @param status_str [String] The status string
+        # @return [Symbol] Color method name for pastel
+        def self.status_color(status_str)
           case status_str.downcase
           when 'ready', 'running', 'active'
-            pastel.green('●')
+            :green
           when 'pending', 'creating', 'synthesizing'
-            pastel.yellow('●')
+            :yellow
           when 'failed', 'error'
-            pastel.red('●')
+            :red
           when 'paused', 'stopped', 'suspended'
-            pastel.dim('●')
+            :dim
           else
-            pastel.dim('●')
+            :dim
           end
         end
+
+        private_class_method :status_color
       end
     end
   end
