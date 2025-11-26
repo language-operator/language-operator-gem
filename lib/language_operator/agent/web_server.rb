@@ -611,15 +611,36 @@ module LanguageOperator
       class MockStream
         def initialize(buffer)
           @buffer = buffer
+          @closed = false
         end
 
         def write(data)
+          raise IOError, 'closed stream' if @closed
+
           @buffer.write(data)
         end
 
-        def close
-          # No-op
+        def flush
+          @buffer.flush if @buffer.respond_to?(:flush)
         end
+
+        def close
+          @closed = true
+        end
+
+        def closed?
+          @closed
+        end
+
+        def sync=(value)
+          # No-op for compatibility
+        end
+
+        # rubocop:disable Naming/PredicateMethod
+        def sync
+          true
+        end
+        # rubocop:enable Naming/PredicateMethod
       end
 
       # Called by Rack to stream the response

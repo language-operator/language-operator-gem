@@ -269,11 +269,11 @@ RSpec.describe LanguageOperator::Agent::WebServer do
     it 'falls back to temporary executor when pool is exhausted' do
       # Mock the pool to always be empty
       allow_any_instance_of(Queue).to receive(:pop).and_raise(ThreadError)
-      
+
       # Track executor creation for fallback
       fallback_executor_created = false
       allow(LanguageOperator::Agent::Executor).to receive(:new).and_call_original
-      allow(LanguageOperator::Agent::Executor).to receive(:new) do |agent|
+      allow(LanguageOperator::Agent::Executor).to receive(:new) do |_agent|
         fallback_executor_created = true
         instance_double('Executor').tap do |executor_double|
           allow(executor_double).to receive(:execute_with_context).and_return('fallback result')
@@ -290,7 +290,7 @@ RSpec.describe LanguageOperator::Agent::WebServer do
       }
 
       result = web_server.send(:handle_webhook, context)
-      
+
       expect(fallback_executor_created).to be(true)
       expect(result[:status]).to eq('processed')
       expect(result[:result]).to eq('fallback result')
@@ -324,7 +324,7 @@ RSpec.describe LanguageOperator::Agent::WebServer do
 
     it 'handles cleanup gracefully when pool is nil' do
       web_server.instance_variable_set(:@executor_pool, nil)
-      
+
       # Should not raise an error
       expect { web_server.cleanup }.not_to raise_error
     end
@@ -334,9 +334,9 @@ RSpec.describe LanguageOperator::Agent::WebServer do
     it 'prevents MCP connection accumulation through executor reuse' do
       # This test verifies that executors are reused rather than created fresh
       executor_creation_count = 0
-      
+
       # Track all executor creations
-      allow(LanguageOperator::Agent::Executor).to receive(:new) do |agent|
+      allow(LanguageOperator::Agent::Executor).to receive(:new) do |_agent|
         executor_creation_count += 1
         instance_double('Executor').tap do |executor_double|
           allow(executor_double).to receive(:execute_with_context).and_return("result #{executor_creation_count}")
@@ -362,7 +362,7 @@ RSpec.describe LanguageOperator::Agent::WebServer do
     it 'provides connection cleanup interface through executors' do
       # Create a real executor to test the cleanup method exists
       real_executor = LanguageOperator::Agent::Executor.new(agent)
-      
+
       # Should not raise an error
       expect { real_executor.cleanup_connections }.not_to raise_error
     end
@@ -479,6 +479,100 @@ RSpec.describe LanguageOperator::Agent::WebServer do
 
         # All should have access to the same body content
         expect([context1[:body], context2[:body], context3[:body]]).to all(eq(body_content))
+      end
+    end
+  end
+
+  describe LanguageOperator::Agent::StreamingBody::MockStream do
+    let(:buffer) { StringIO.new }
+    let(:mock_stream) { described_class.new(buffer) }
+
+    describe '#initialize' do
+      it 'sets up buffer and closed state' do
+        expect(mock_stream.closed?).to be false
+      end
+    end
+
+    describe '#write' do
+      it 'writes data to buffer when open' do
+        mock_stream.write('test data')
+        expect(buffer.string).to eq('test data')
+      end
+
+      it 'raises IOError when stream is closed' do
+        mock_stream.close
+        expect { mock_stream.write('data') }.to raise_error(IOError, 'closed stream')
+      end
+    end
+
+    describe '#flush' do
+      it 'flushes buffer if buffer supports it' do
+        allow(buffer).to receive(:flush)
+        mock_stream.flush
+        expect(buffer).to have_received(:flush)
+      end
+
+      it 'does nothing if buffer does not support flush' do
+        buffer = double('buffer')
+        allow(buffer).to receive(:respond_to?).with(:flush).and_return(false)
+        mock_stream = described_class.new(buffer)
+
+        expect { mock_stream.flush }.not_to raise_error
+      end
+    end
+
+    describe '#close' do
+      it 'marks stream as closed' do
+        expect(mock_stream.closed?).to be false
+        mock_stream.close
+        expect(mock_stream.closed?).to be true
+      end
+    end
+
+    describe '#closed?' do
+      it 'returns false for new stream' do
+        expect(mock_stream.closed?).to be false
+      end
+
+      it 'returns true after close' do
+        mock_stream.close
+        expect(mock_stream.closed?).to be true
+      end
+    end
+
+    describe '#sync=' do
+      it 'accepts any value without error' do
+        expect { mock_stream.sync = true }.not_to raise_error
+        expect { mock_stream.sync = false }.not_to raise_error
+        expect { mock_stream.sync = nil }.not_to raise_error
+      end
+    end
+
+    describe '#sync' do
+      it 'always returns true' do
+        expect(mock_stream.sync).to be true
+      end
+    end
+
+    describe 'middleware compatibility' do
+      it 'implements common IO methods expected by middleware' do
+        methods = %i[write flush close closed? sync= sync]
+        methods.each do |method|
+          expect(mock_stream).to respond_to(method)
+        end
+      end
+
+      it 'works with middleware that calls multiple methods' do
+        # Simulate middleware that checks state and flushes
+        mock_stream.write('data')
+        expect(mock_stream.closed?).to be false
+
+        mock_stream.flush
+        mock_stream.sync = true
+        expect(mock_stream.sync).to be true
+
+        mock_stream.close
+        expect(mock_stream.closed?).to be true
       end
     end
   end
