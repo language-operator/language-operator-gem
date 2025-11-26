@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'lru_redux'
+
 module LanguageOperator
   # Type coercion system for task inputs and outputs
   #
@@ -40,8 +42,11 @@ module LanguageOperator
   #   TypeCoercion.coerce([1, 2], "array")    # => [1, 2]
   #   TypeCoercion.coerce({a: 1}, "array")    # raises ArgumentError
   module TypeCoercion
-    # Performance optimization: Cache for expensive coercions
-    @coercion_cache = {}
+    # Performance optimization: LRU cache for expensive coercions with bounded size
+    # Default cache size can be overridden via TYPE_COERCION_CACHE_SIZE environment variable
+    DEFAULT_CACHE_SIZE = 1000
+    @cache_size = ENV.fetch('TYPE_COERCION_CACHE_SIZE', DEFAULT_CACHE_SIZE).to_i
+    @coercion_cache = LruRedux::Cache.new(@cache_size)
     @cache_mutex = Mutex.new
     @cache_hits = 0
     @cache_misses = 0
@@ -49,8 +54,10 @@ module LanguageOperator
     # Boolean patterns - pre-compiled for performance
     TRUTHY_PATTERNS = %w[true 1 yes t y].freeze
     FALSY_PATTERNS = %w[false 0 no f n].freeze
-    
+
     class << self
+      # Get current cache size limit
+      attr_reader :cache_size
       # Coerce a value to the specified type
       #
       # @param value [Object] Value to coerce
@@ -63,12 +70,13 @@ module LanguageOperator
       #   TypeCoercion.coerce("true", "boolean") # => true
       def coerce(value, type)
         # Fast path - check cache first for expensive string coercions
-        if value.is_a?(String) && (type == 'integer' || type == 'number' || type == 'boolean')
+        if value.is_a?(String) && %w[integer number boolean].include?(type)
           cache_key = [value, type]
           cached = @cache_mutex.synchronize { @coercion_cache[cache_key] }
           if cached
             @cache_hits += 1
             return cached[:result] if cached[:success]
+
             raise ArgumentError, cached[:error_message]
           end
           @cache_misses += 1
@@ -95,7 +103,7 @@ module LanguageOperator
                  end
 
         # Cache successful string coercion results
-        if value.is_a?(String) && (type == 'integer' || type == 'number' || type == 'boolean')
+        if value.is_a?(String) && %w[integer number boolean].include?(type)
           cache_entry = { success: true, result: result }
           @cache_mutex.synchronize { @coercion_cache[[value, type]] = cache_entry }
         end
@@ -103,7 +111,7 @@ module LanguageOperator
         result
       rescue ArgumentError => e
         # Cache failed coercion attempts to avoid repeating expensive failures
-        if value.is_a?(String) && (type == 'integer' || type == 'number' || type == 'boolean')
+        if value.is_a?(String) && %w[integer number boolean].include?(type)
           cache_entry = { success: false, error_message: e.message }
           @cache_mutex.synchronize { @coercion_cache[[value, type]] = cache_entry }
         end
@@ -114,7 +122,8 @@ module LanguageOperator
       def cache_stats
         @cache_mutex.synchronize do
           {
-            size: @coercion_cache.size,
+            size: @coercion_cache.count,
+            max_size: @cache_size,
             hits: @cache_hits,
             misses: @cache_misses,
             hit_rate: @cache_hits.zero? ? 0.0 : @cache_hits.to_f / (@cache_hits + @cache_misses)

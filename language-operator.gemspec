@@ -45,6 +45,9 @@ Gem::Specification.new do |spec|
   # Agent dependencies
   spec.add_dependency 'parallel', '~> 1.26'
 
+  # Cache dependencies
+  spec.add_dependency 'lru_redux', '~> 1.1'
+
   # HTTP client for synthesis and external APIs
   spec.add_dependency 'faraday', '~> 2.0'
 
@@ -66,7 +69,9 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'tty-table', '~> 0.12'
 
   # Development dependencies
+  spec.add_development_dependency 'benchmark', '~> 0.4'
   spec.add_development_dependency 'bundler', '~> 2.0'
+  spec.add_development_dependency 'memory_profiler', '~> 1.0'
   spec.add_development_dependency 'rack-test', '~> 2.1'
   spec.add_development_dependency 'rake', '~> 13.0'
   spec.add_development_dependency 'rspec', '~> 3.0'
@@ -74,6 +79,4 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency 'rubocop-performance', '~> 1.20'
   spec.add_development_dependency 'webmock', '~> 3.23'
   spec.add_development_dependency 'yard', '~> 0.9.37'
-  spec.add_development_dependency 'benchmark', '~> 0.4'
-  spec.add_development_dependency 'memory_profiler', '~> 1.0'
 end
