@@ -107,6 +107,45 @@ module LanguageOperator
             time.strftime('%Y-%m-%d %H:%M')
           end
         end
+
+        # Format Time object as HH:MM:SS for logs
+        #
+        # @param time [Time] The time to format
+        # @return [String] Formatted string like "14:30:25"
+        #
+        # @example
+        #   ValueFormatter.log_time(Time.now) # => "14:30:25"
+        def self.log_time(time)
+          time.strftime('%H:%M:%S')
+        end
+
+        # Parse timestamp string and format as HH:MM:SS
+        #
+        # @param timestamp_str [String] ISO or text format timestamp
+        # @return [String] Formatted time or empty string on parse error
+        #
+        # @example
+        #   ValueFormatter.parse_and_format_time("2025-01-15T14:30:25Z") # => "14:30:25"
+        def self.parse_and_format_time(timestamp_str)
+          return '' unless timestamp_str
+
+          time = Time.parse(timestamp_str)
+          log_time(time)
+        rescue StandardError
+          ''
+        end
+
+        # Format time components as HH:MM for schedules
+        #
+        # @param hours [Integer] Hours (0-23)
+        # @param minutes [Integer] Minutes (0-59)
+        # @return [String] Formatted string like "14:30"
+        #
+        # @example
+        #   ValueFormatter.schedule_time(14, 30) # => "14:30"
+        def self.schedule_time(hours, minutes)
+          format('%<hours>02d:%<minutes>02d', hours: hours, minutes: minutes)
+        end
       end
     end
   end

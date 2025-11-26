@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
-require_relative '../helpers/pastel_helper'
+require_relative '../helpers/ux_helper'
 require_relative 'log_style'
+require_relative 'value_formatter'
 require 'json'
 require 'time'
 
@@ -207,27 +208,19 @@ module LanguageOperator
 
           # Format timestamp from ISO8601 format
           def format_timestamp_from_iso(timestamp_str)
-            return '' unless timestamp_str
-
-            time = Time.parse(timestamp_str)
-            format_time(time)
-          rescue StandardError
-            ''
+            time_str = ValueFormatter.parse_and_format_time(timestamp_str)
+            time_str.empty? ? '' : pastel.dim(time_str)
           end
 
           # Format timestamp from text format (YYYY-MM-DD HH:MM:SS)
           def format_timestamp_from_text(timestamp_str)
-            return '' unless timestamp_str
-
-            time = Time.parse(timestamp_str)
-            format_time(time)
-          rescue StandardError
-            ''
+            time_str = ValueFormatter.parse_and_format_time(timestamp_str)
+            time_str.empty? ? '' : pastel.dim(time_str)
           end
 
           # Format Time object as HH:MM:SS
           def format_time(time)
-            pastel.dim(time.strftime('%H:%M:%S'))
+            pastel.dim(ValueFormatter.log_time(time))
           end
         end
       end

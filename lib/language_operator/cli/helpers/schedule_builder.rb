@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative '../formatters/value_formatter'
+
 module LanguageOperator
   module CLI
     module Helpers
@@ -101,7 +103,7 @@ module LanguageOperator
           end
 
           def format_time(hours, minutes)
-            format('%<hours>02d:%<minutes>02d', hours: hours, minutes: minutes)
+            Formatters::ValueFormatter.schedule_time(hours, minutes)
           end
 
           def validate_interval(interval, unit)

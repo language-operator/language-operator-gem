@@ -5,12 +5,11 @@
 QA_PROMPT := "/task test"
 ITERATE_PROMPT := "/task iterate"
 PRIORITIZE_PROMPT := "/task prioritize"
+DISTILL_PROMPT := "/task distill"
 
-help: ## Show this help message
-	@echo 'Usage: make [target]'
-	@echo ''
-	@echo 'Available targets:'
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+# Distill Claude's SCRATCH.md file
+distill:
+	@claude --dangerously-skip-permissions $(DISTILL_PROMPT)
 
 # Use claude to prioritize the backlog
 prioritize:
@@ -18,11 +17,19 @@ prioritize:
 
 # Use claude to iterate on the backlog
 iterate:
-	@claude $(ITERATE_PROMPT)
+	@claude --dangerously-skip-permissions $(ITERATE_PROMPT)
 
 # Use claude to find bugs
 qa:
 	@claude --dangerously-skip-permissions $(QA_PROMPT)
+
+
+help: ## Show this help message
+	@echo 'Usage: make [target]'
+	@echo ''
+	@echo 'Available targets:'
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
 
 schema: ## Generate schema artifacts (JSON Schema and OpenAPI)
 	@echo "Generating schema artifacts..."
@@ -108,7 +115,3 @@ dev-setup: ## Install development dependencies
 
 dev-watch: ## Run tests in watch mode
 	@bundle exec guard
-
-# Autopilot
-iterate:
-	claude "read and execute requirements/tasks/iterate.md"
