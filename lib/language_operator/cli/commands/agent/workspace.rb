@@ -2,6 +2,7 @@
 
 require 'open3'
 require 'shellwords'
+require_relative '../../helpers/label_utils'
 
 module LanguageOperator
   module CLI
@@ -59,20 +60,43 @@ module LanguageOperator
               private
 
               def get_agent_pod(ctx, agent_name)
-                # Find pod for this agent using label selector
-                label_selector = "app.kubernetes.io/name=#{agent_name}"
+                # Validate agent name for label compatibility
+                unless CLI::Helpers::LabelUtils.valid_label_value?(agent_name)
+                  Formatters::ProgressFormatter.error("Agent name '#{agent_name}' is not valid for Kubernetes labels")
+                  puts
+                  puts 'Agent names must:'
+                  puts '  - Be 63 characters or less'
+                  puts '  - Contain only lowercase letters, numbers, hyphens, and dots'
+                  puts '  - Start and end with alphanumeric characters'
+                  exit 1
+                end
+
+                # Find pod for this agent using normalized label selector
+                label_selector = CLI::Helpers::LabelUtils.agent_pod_selector(agent_name)
                 pods = ctx.client.list_resources('Pod', namespace: ctx.namespace, label_selector: label_selector)
 
                 if pods.empty?
+                  debug_info = CLI::Helpers::LabelUtils.debug_pod_search(ctx, agent_name)
+
                   Formatters::ProgressFormatter.error("No running pods found for agent '#{agent_name}'")
                   puts
                   puts 'Possible reasons:'
                   puts '  - Agent pod has not started yet'
                   puts '  - Agent is paused or stopped'
                   puts '  - Agent failed to deploy'
+                  puts '  - Label mismatch (debugging info below)'
+                  puts
+                  puts 'Debug information:'
+                  puts "  Agent name: #{debug_info[:agent_name]}"
+                  puts "  Normalized: #{debug_info[:normalized_name]}"
+                  puts "  Label selector: #{debug_info[:label_selector]}"
+                  puts "  Namespace: #{debug_info[:namespace]}"
                   puts
                   puts 'Check agent status with:'
                   puts "  aictl agent inspect #{agent_name}"
+                  puts
+                  puts 'List all pods in namespace:'
+                  puts "  kubectl get pods -n #{ctx.namespace} -l app.kubernetes.io/component=agent"
                   exit 1
                 end
 

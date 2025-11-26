@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'open3'
+require_relative '../../helpers/label_utils'
 
 module LanguageOperator
   module CLI
@@ -43,7 +44,8 @@ module LanguageOperator
                   else
                     # Get pod from deployment
                   end
-                  label_selector = "app.kubernetes.io/name=#{name}"
+                  # Use normalized label selector for pod discovery
+                  label_selector = CLI::Helpers::LabelUtils.agent_pod_selector(name)
 
                   # Use kubectl logs with label selector
                   cmd = "#{ctx.kubectl_prefix} logs -l #{label_selector} #{tail_arg} #{follow_arg} --all-containers"

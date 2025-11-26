@@ -3,6 +3,7 @@
 require 'yaml'
 require 'json'
 require_relative '../../command_loader'
+require_relative '../../helpers/label_utils'
 
 # Include all tool subcommand modules
 require_relative 'install'
@@ -234,7 +235,7 @@ module LanguageOperator
             # This is a fallback approach since we can't directly connect from CLI
             begin
               # Try to find a pod for this tool
-              label_selector = "app.kubernetes.io/name=#{name}"
+              label_selector = CLI::Helpers::LabelUtils.agent_pod_selector(name)
               pods = ctx.client.list_resources('Pod', namespace: namespace, label_selector: label_selector)
 
               return nil if pods.empty?
