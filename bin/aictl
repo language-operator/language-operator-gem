@@ -4,4 +4,11 @@
 require_relative '../lib/language_operator'
 require_relative '../lib/language_operator/cli/main'
 
-LanguageOperator::CLI::Main.start(ARGV)
+begin
+  LanguageOperator::CLI::Main.start(ARGV)
+rescue LanguageOperator::CLI::Errors::ThorCompatibleError => e
+  exit e.exit_code
+rescue Thor::Error
+  # Standard Thor error (exit code 1)
+  exit 1
+end

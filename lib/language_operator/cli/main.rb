@@ -17,6 +17,7 @@ require_relative 'formatters/progress_formatter'
 require_relative 'helpers/ux_helper'
 require_relative '../config/cluster_config'
 require_relative '../kubernetes/client'
+require_relative 'errors/thor_errors'
 
 module LanguageOperator
   module CLI
@@ -155,10 +156,11 @@ module LanguageOperator
         when 'fish'
           install_fish_completion
         else
-          Formatters::ProgressFormatter.error("Unsupported shell: #{shell}")
+          message = "Unsupported shell: #{shell}"
+          Formatters::ProgressFormatter.error(message)
           puts
           puts 'Supported shells: bash, zsh, fish'
-          exit 1
+          raise Errors::ValidationError, message
         end
       end
 

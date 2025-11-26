@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'suggestions'
+require_relative 'thor_errors'
 require_relative '../formatters/progress_formatter'
 require_relative '../helpers/ux_helper'
 
@@ -53,31 +54,33 @@ module LanguageOperator
             suggestions = Suggestions.for_error(error_type, context)
             display_suggestions(suggestions) if suggestions.any?
 
-            # Re-raise if in debug mode, otherwise exit
+            # Re-raise if in debug mode, otherwise raise Thor error
             raise error if ENV['DEBUG']
 
-            exit 1
+            raise NotFoundError, message
           end
 
           # Handle generic errors
           def handle_generic(error, context)
             operation = context[:operation] || 'operation'
+            message = "Failed to #{operation}: #{error.message}"
 
-            Formatters::ProgressFormatter.error("Failed to #{operation}: #{error.message}")
+            Formatters::ProgressFormatter.error(message)
             puts
 
             # Display suggestions if provided in context
             display_suggestions(context[:suggestions]) if context[:suggestions]
 
-            # Re-raise if in debug mode, otherwise exit
+            # Re-raise if in debug mode, otherwise raise Thor error
             raise error if ENV['DEBUG']
 
-            exit 1
+            raise Thor::Error, message
           end
 
           # Handle specific error scenarios with custom suggestions
           def handle_no_cluster_selected
-            Formatters::ProgressFormatter.error('No cluster selected')
+            message = 'No cluster selected'
+            Formatters::ProgressFormatter.error(message)
             puts
 
             puts 'You must connect to a cluster first:'
@@ -86,27 +89,29 @@ module LanguageOperator
             suggestions = Suggestions.for_error(:no_cluster_selected)
             suggestions.each { |line| puts line }
 
-            exit 1
+            raise ValidationError, message
           end
 
           def handle_no_models_available(context = {})
-            Formatters::ProgressFormatter.error('No models found in cluster')
+            message = 'No models found in cluster'
+            Formatters::ProgressFormatter.error(message)
             puts
 
             suggestions = Suggestions.for_error(:no_models_available, context)
             suggestions.each { |line| puts line }
 
-            exit 1
+            raise ValidationError, message
           end
 
           def handle_synthesis_failed(message)
-            Formatters::ProgressFormatter.error("Synthesis failed: #{message}")
+            error_message = "Synthesis failed: #{message}"
+            Formatters::ProgressFormatter.error(error_message)
             puts
 
             suggestions = Suggestions.for_error(:synthesis_failed)
             suggestions.each { |line| puts line }
 
-            exit 1
+            raise SynthesisError, error_message
           end
 
           def handle_already_exists(context = {})
@@ -126,7 +131,7 @@ module LanguageOperator
             suggestions = Suggestions.for_error(:already_exists, context)
             display_suggestions(suggestions) if suggestions.any?
 
-            exit 1
+            raise ValidationError, message
           end
 
           private
