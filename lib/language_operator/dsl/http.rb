@@ -4,6 +4,8 @@ require 'English'
 require 'net/http'
 require 'uri'
 require 'json'
+require 'ipaddr'
+require 'socket'
 
 module LanguageOperator
   module Dsl
@@ -20,8 +22,10 @@ module LanguageOperator
     class HTTP
       # Perform a GET request
       def self.get(url, headers: {}, follow_redirects: true, timeout: 30)
-        uri = parse_uri(url)
-        return { error: "Invalid URL: #{url}" } unless uri
+        validation_result = validate_url(url)
+        return validation_result unless validation_result[:success]
+
+        uri = validation_result[:uri]
 
         http = build_http(uri, timeout: timeout)
         request = Net::HTTP::Get.new(uri)
@@ -32,8 +36,10 @@ module LanguageOperator
 
       # Perform a POST request
       def self.post(url, body: nil, json: nil, headers: {}, auth: nil, timeout: 30)
-        uri = parse_uri(url)
-        return { error: "Invalid URL: #{url}" } unless uri
+        validation_result = validate_url(url)
+        return validation_result unless validation_result[:success]
+
+        uri = validation_result[:uri]
 
         http = build_http(uri, timeout: timeout)
         request = Net::HTTP::Post.new(uri)
@@ -54,8 +60,10 @@ module LanguageOperator
 
       # Perform a PUT request
       def self.put(url, body: nil, json: nil, headers: {}, auth: nil, timeout: 30)
-        uri = parse_uri(url)
-        return { error: "Invalid URL: #{url}" } unless uri
+        validation_result = validate_url(url)
+        return validation_result unless validation_result[:success]
+
+        uri = validation_result[:uri]
 
         http = build_http(uri, timeout: timeout)
         request = Net::HTTP::Put.new(uri)
@@ -75,8 +83,10 @@ module LanguageOperator
 
       # Perform a DELETE request
       def self.delete(url, headers: {}, auth: nil, timeout: 30)
-        uri = parse_uri(url)
-        return { error: "Invalid URL: #{url}" } unless uri
+        validation_result = validate_url(url)
+        return validation_result unless validation_result[:success]
+
+        uri = validation_result[:uri]
 
         http = build_http(uri, timeout: timeout)
         request = Net::HTTP::Delete.new(uri)
@@ -89,8 +99,10 @@ module LanguageOperator
 
       # Get just the headers from a URL
       def self.head(url, headers: {}, timeout: 30)
-        uri = parse_uri(url)
-        return { error: "Invalid URL: #{url}" } unless uri
+        validation_result = validate_url(url)
+        return validation_result unless validation_result[:success]
+
+        uri = validation_result[:uri]
 
         http = build_http(uri, timeout: timeout)
         request = Net::HTTP::Head.new(uri)
@@ -111,10 +123,115 @@ module LanguageOperator
       class << self
         private
 
+        def validate_url(url)
+          return { error: 'URL cannot be nil', success: false } if url.nil?
+
+          begin
+            uri = URI.parse(url)
+          rescue URI::InvalidURIError
+            return { error: 'Invalid URL format', success: false }
+          end
+
+          return { error: 'URL cannot be empty', success: false } if uri.nil?
+
+          # Validate URL scheme
+          unless %w[http https].include?(uri.scheme&.downcase)
+            return {
+              error: "URL scheme '#{uri.scheme}' not allowed. Only HTTP and HTTPS are permitted for security reasons.",
+              success: false
+            }
+          end
+
+          # Validate host
+          host_validation = validate_host(uri.host)
+          return host_validation unless host_validation[:success]
+
+          { success: true, uri: uri }
+        end
+
         def parse_uri(url)
           URI.parse(url)
         rescue URI::InvalidURIError
           nil
+        end
+
+        def validate_host(host)
+          return { error: 'Host cannot be empty', success: false } if host.nil? || host.empty?
+
+          # Resolve hostname to IP if needed
+          begin
+            ip_addr = IPAddr.new(host)
+          rescue IPAddr::InvalidAddressError
+            # If it's a hostname, resolve it to IP
+            begin
+              resolved_ips = Addrinfo.getaddrinfo(host, nil, nil, :STREAM)
+              # Check all resolved IPs - if any are blocked, reject the request
+              resolved_ips.each do |addr_info|
+                ip_addr = IPAddr.new(addr_info.ip_address)
+                safe_result = safe_ip(ip_addr)
+                unless safe_result[:success]
+                  return {
+                    error: "Host '#{host}' resolves to blocked IP address #{ip_addr}: #{safe_result[:error]}",
+                    success: false
+                  }
+                end
+              end
+              return { success: true }
+            rescue SocketError
+              return { error: "Unable to resolve hostname: #{host}", success: false }
+            end
+          end
+
+          safe_result = safe_ip(ip_addr)
+          unless safe_result[:success]
+            return {
+              error: "IP address #{ip_addr} is blocked: #{safe_result[:error]}",
+              success: false
+            }
+          end
+
+          { success: true }
+        end
+
+        def safe_ip(ip_addr)
+          # Block private IP ranges (RFC 1918)
+          private_ranges = [
+            { range: IPAddr.new('10.0.0.0/8'), description: 'private IP range (RFC 1918)' },
+            { range: IPAddr.new('172.16.0.0/12'), description: 'private IP range (RFC 1918)' },
+            { range: IPAddr.new('192.168.0.0/16'), description: 'private IP range (RFC 1918)' }
+          ]
+
+          # Block loopback addresses
+          loopback_ranges = [
+            { range: IPAddr.new('127.0.0.0/8'), description: 'loopback address' },
+            { range: IPAddr.new('::1/128'), description: 'IPv6 loopback address' }
+          ]
+
+          # Block link-local addresses
+          link_local_ranges = [
+            { range: IPAddr.new('169.254.0.0/16'), description: 'link-local address (AWS metadata endpoint)' },
+            { range: IPAddr.new('fe80::/10'), description: 'IPv6 link-local address' }
+          ]
+
+          # Block broadcast address
+          broadcast_ranges = [
+            { range: IPAddr.new('255.255.255.255/32'), description: 'broadcast address' }
+          ]
+
+          # Check if IP is in any blocked range
+          all_blocked_ranges = private_ranges + loopback_ranges + link_local_ranges + broadcast_ranges
+          all_blocked_ranges.each do |blocked_range|
+            if blocked_range[:range].include?(ip_addr)
+              return {
+                error: "access to #{blocked_range[:description]} not allowed for security reasons",
+                success: false
+              }
+            end
+          end
+
+          { success: true }
+        rescue IPAddr::InvalidAddressError
+          { error: 'invalid IP address format', success: false }
         end
 
         def build_http(uri, timeout: 30)
