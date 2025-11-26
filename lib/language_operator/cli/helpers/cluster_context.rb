@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'shellwords'
 require_relative 'cluster_validator'
 
 module LanguageOperator
@@ -41,12 +42,13 @@ module LanguageOperator
         end
 
         # Build kubectl command args for this cluster context
+        # All user-controlled inputs are properly escaped to prevent command injection
         # @return [Hash] kubectl arguments
         def kubectl_args
           {
-            kubeconfig: config[:kubeconfig] ? "--kubeconfig=#{config[:kubeconfig]}" : '',
-            context: config[:context] ? "--context=#{config[:context]}" : '',
-            namespace: "-n #{namespace}"
+            kubeconfig: config[:kubeconfig] ? "--kubeconfig=#{Shellwords.escape(config[:kubeconfig])}" : '',
+            context: config[:context] ? "--context=#{Shellwords.escape(config[:context])}" : '',
+            namespace: "-n #{Shellwords.escape(namespace)}"
           }
         end
 
