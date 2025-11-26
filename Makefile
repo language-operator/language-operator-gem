@@ -2,11 +2,27 @@
 
 .DEFAULT_GOAL := help
 
+QA_PROMPT := "/task test"
+ITERATE_PROMPT := "/task iterate"
+PRIORITIZE_PROMPT := "/task prioritize"
+
 help: ## Show this help message
 	@echo 'Usage: make [target]'
 	@echo ''
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+# Use claude to prioritize the backlog
+prioritize:
+	@claude --dangerously-skip-permissions $(PRIORITIZE_PROMPT)
+
+# Use claude to iterate on the backlog
+iterate:
+	@claude $(ITERATE_PROMPT)
+
+# Use claude to find bugs
+qa:
+	@claude --dangerously-skip-permissions $(QA_PROMPT)
 
 schema: ## Generate schema artifacts (JSON Schema and OpenAPI)
 	@echo "Generating schema artifacts..."

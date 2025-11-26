@@ -18,10 +18,9 @@ Adopt the `requirements/personas/:persona.md` persona while executing these inst
 - Use the `gh` command to select issues labeled "bug", so you do not file a duplicate issue.
 - Ignore these folders:
   - requirements/
-  - synth/
-- Find a bug that a user of this gem is likely to encounter.
-- Using the `gh` command, file a bug against this repository labeled "bug".
+- Find up to 5 bugs that a user of this gem is likely to encounter.
+- Using the `gh` command, file issues against this repository (language-operator/language-operator-gem) labeled "bug".
 
 ## Output
 
-A GitHub issue ID.
+Up to five GitHub issues.

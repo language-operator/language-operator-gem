@@ -119,7 +119,6 @@ merged = execute_task(:merge, inputs: { s1: s1 })
 
 **P1 - Critical Security Issues (READY):**
 - #98 - Shell injection vulnerability in exec_in_pod method
-- #89 - Command injection in kubectl_prefix generation
 
 **P2 - Memory/Resource Leaks:**
 - #99 - TypeCoercion cache memory leak
@@ -151,6 +150,8 @@ merged = execute_task(:merge, inputs: { s1: s1 })
 - #41 - Comprehensive test suite
 
 **Recently Completed (Major Issues):**
+- ✅ #103 - File descriptor leak in agent logs command (2025-11-26) - **SECURITY & RESOURCE FIX**: Eliminated file descriptor and thread resource leaks in agent logs command by implementing proper signal handling, thread cleanup, and resource management. Added INT signal trap for graceful Ctrl+C interruption, ensure blocks for thread termination, and IOError handling for closed streams. Added 16 comprehensive test cases covering normal operation, interruption scenarios, and resource cleanup. Prevents resource exhaustion and system instability from uncleaned resources during log streaming interruption.
+- ✅ #89 - Command injection in kubectl_prefix generation (2025-11-26) - **CRITICAL SECURITY FIX**: Eliminated command injection vulnerability in ClusterContext.kubectl_prefix by adding proper shell escaping using Shellwords.escape() for all user-controlled inputs (kubeconfig, context, namespace). Prevents injection via malicious paths, context names, and namespaces. Added 16 comprehensive security tests covering all attack scenarios. Zero breaking changes for legitimate use cases.
 - ✅ #94 - HTTP client SSRF attacks (2025-11-26) - **CRITICAL SECURITY FIX**: Eliminated SSRF vulnerability in HTTP client by adding comprehensive URL scheme and IP validation. Blocks non-HTTP/HTTPS schemes (file://, ftp://, etc.), private IP ranges (RFC 1918), localhost/loopback, link-local (AWS metadata), and broadcast addresses. Includes hostname resolution validation to prevent DNS rebinding. Added 30 comprehensive tests covering all security scenarios. Zero breaking changes for legitimate requests.
 - ✅ #98 - Shell injection vulnerability in exec_in_pod method (2025-11-25) - **CRITICAL SECURITY FIX**: Eliminated shell injection vulnerability in workspace command by replacing string concatenation with array-based command construction using Shellwords.shellsplit and Open3.capture3(*array). Added comprehensive test coverage (16 tests) covering security attack scenarios, edge cases, and real-world exploit prevention.
 - ✅ #86 - aictl cluster create should support --domain option (2025-11-25) - Added --domain CLI option for webhook routing configuration, updated ResourceBuilder to accept domain parameter, comprehensive test coverage, maintains backward compatibility
