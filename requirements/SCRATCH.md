@@ -115,30 +115,30 @@ merged = execute_task(:merge, inputs: { s1: s1 })
 10. **WebMock Timing:** Stub HTTP calls before object initialization if constructor makes requests
 11. **Wizard Pattern:** Always use `UxHelper` for TTY components, never instantiate directly
 
-## Current Priorities (2025-11-25)
+## Current Priorities (2025-11-26)
 
-**P1 - Critical Security Issues (READY):**
-- #98 - Shell injection vulnerability in exec_in_pod method
+**P1 - Critical Security Issues:**
+- ✅ #96 - Kubeconfig path injection vulnerability (RESOLVED 2025-11-26)
+- ✅ #95 - Path traversal validation too permissive (RESOLVED 2025-11-26)
 
-**P2 - Memory/Resource Leaks:**
-- #99 - TypeCoercion cache memory leak
-- #88 - TypeCoercion cache unbounded growth (duplicate of #99)
-- #103 - File descriptor leak in agent logs
+**P2 - Resource Leaks (COMPLETED - 2025-11-26):**
+- ✅ #107 - WebServer creates new Executor per request causing MCP connection resource leaks (COMPLETED 2025-11-26)
+- ✅ #106 - Parallel task execution loses OpenTelemetry trace context across threads (COMPLETED 2025-11-26)
+- ✅ #99 - TypeCoercion cache memory leak (resolved by #88 fix)
+- ✅ #88 - TypeCoercion cache unbounded growth (duplicate of #99)
 
-**P3 - File System Security:**
-- #104 - File.expand_path unsafe expansion
-- #96 - Kubeconfig path injection
-- #95 - Path traversal validation too permissive
+**P3 - Runtime Stability (ACTIVE - 2025-11-26):**
+- ✅ #97 - SafeExecutor constant redefinition creates inconsistent execution environment (COMPLETED 2025-11-26)
+- 🔥 #91 - Race condition in TaskExecutor timeout handling and error classification [READY] 
+- 🔥 #93 - Schedule validation accepts invalid cron intervals causing runtime failures [READY] (HIGHEST PRIORITY)
 
-**P4 - Runtime Stability:**
-- #97 - SafeExecutor constant redefinition
-- #93 - Schedule validation accepts invalid cron intervals
-- #91 - Race condition in TaskExecutor timeout handling
-- #101 - AgentWizard time parsing allows invalid times
-- #100 - Agent pause/resume commands fail silently
-- #102 - Agent workspace validation fails for legitimate pod names
-- #92 - CLI error handler exit(1) bypasses Thor error handling
-- #90 - Silent failure in Config.get_int
+**P4 - UX/Operational Issues (ACTIVE - 2025-11-26):**
+- 🔥 #90 - Silent failure in Config.get_int with misleading error messages [READY] (foundational config issue)
+- #101 - AgentWizard time parsing allows invalid times but generates broken cron expressions (related to #93)
+- #100 - Agent pause/resume commands fail silently on kubectl errors
+- #102 - Agent workspace validation fails for legitimate pod names with special characters
+- #92 - CLI error handler exit(1) bypasses Thor error handling and testing
+- #105 - StreamingBody MockStream incomplete IO interface may break middleware compatibility
 
 **P5 - Legacy Cleanup:**
 - #78 - Remove dead code tool.rb file (645 lines, cleanup)
@@ -150,6 +150,8 @@ merged = execute_task(:merge, inputs: { s1: s1 })
 - #41 - Comprehensive test suite
 
 **Recently Completed (Major Issues):**
+- ✅ #104 - File.expand_path unsafe expansion in kubeconfig detection (2025-11-26) - **CRITICAL SECURITY FIX**: Eliminated path traversal vulnerability in home directory expansion by replacing unsafe File.expand_path('~/.kube/config') usage across 11 locations with secure SecurePath utility. Prevents attacks via malicious HOME environment variable (HOME=/etc, HOME=../../../etc). Added comprehensive validation blocking dangerous system directories, path traversal sequences, and relative paths. Falls back to /tmp for suspicious HOME values. Added 11 security test cases covering all attack scenarios. Zero breaking changes for legitimate usage.
+- ✅ #98 - Shell injection vulnerability in exec_in_pod method (2025-11-25) - **CRITICAL SECURITY FIX**: Eliminated shell injection vulnerability in workspace command by replacing string concatenation with array-based command construction using Shellwords.shellsplit and Open3.capture3(*array). Added comprehensive test coverage (16 tests) covering security attack scenarios, edge cases, and real-world exploit prevention.
 - ✅ #103 - File descriptor leak in agent logs command (2025-11-26) - **SECURITY & RESOURCE FIX**: Eliminated file descriptor and thread resource leaks in agent logs command by implementing proper signal handling, thread cleanup, and resource management. Added INT signal trap for graceful Ctrl+C interruption, ensure blocks for thread termination, and IOError handling for closed streams. Added 16 comprehensive test cases covering normal operation, interruption scenarios, and resource cleanup. Prevents resource exhaustion and system instability from uncleaned resources during log streaming interruption.
 - ✅ #89 - Command injection in kubectl_prefix generation (2025-11-26) - **CRITICAL SECURITY FIX**: Eliminated command injection vulnerability in ClusterContext.kubectl_prefix by adding proper shell escaping using Shellwords.escape() for all user-controlled inputs (kubeconfig, context, namespace). Prevents injection via malicious paths, context names, and namespaces. Added 16 comprehensive security tests covering all attack scenarios. Zero breaking changes for legitimate use cases.
 - ✅ #94 - HTTP client SSRF attacks (2025-11-26) - **CRITICAL SECURITY FIX**: Eliminated SSRF vulnerability in HTTP client by adding comprehensive URL scheme and IP validation. Blocks non-HTTP/HTTPS schemes (file://, ftp://, etc.), private IP ranges (RFC 1918), localhost/loopback, link-local (AWS metadata), and broadcast addresses. Includes hostname resolution validation to prevent DNS rebinding. Added 30 comprehensive tests covering all security scenarios. Zero breaking changes for legitimate requests.

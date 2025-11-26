@@ -389,6 +389,51 @@ RSpec.describe LanguageOperator::TypeCoercion do
         expect(stats[:size]).to be <= cache_size
       end
 
+      it 'prevents unbounded memory growth by enforcing cache size limits' do
+        cache_size = described_class.cache_size
+        described_class.clear_cache
+
+        # Simulate heavy usage that would cause memory leak without bounds
+        # Generate many unique cache entries (integer coercions are cached)
+        large_number = cache_size * 10
+        large_number.times do |i|
+          described_class.coerce(i.to_s, 'integer')  # Use valid integers
+        end
+
+        stats = described_class.cache_stats
+        # Cache size should never exceed the configured limit
+        expect(stats[:size]).to be <= cache_size
+        expect(stats[:size]).to be > 0 # Should have some entries
+        
+        # Verify we've processed more entries than the cache can hold
+        total_operations = stats[:hits] + stats[:misses]
+        expect(total_operations).to eq(large_number)
+        expect(total_operations).to be > cache_size
+      end
+
+      it 'maintains performance with constant memory usage under sustained load' do
+        cache_size = described_class.cache_size
+        described_class.clear_cache
+
+        # Simulate sustained load over time periods
+        3.times do |round|
+          # Each iteration processes more entries than cache capacity
+          (cache_size + 50).times do |i|
+            # Use unique values across rounds to test eviction
+            unique_value = (round * (cache_size + 50)) + i
+            described_class.coerce(unique_value.to_s, 'integer')
+          end
+
+          # Memory usage (cache size) should remain bounded
+          stats = described_class.cache_stats
+          expect(stats[:size]).to be <= cache_size
+        end
+
+        # Final verification: cache is still bounded after sustained load
+        final_stats = described_class.cache_stats
+        expect(final_stats[:size]).to be <= cache_size
+      end
+
       it 'evicts least recently used entries when cache is full' do
         # Use a predictable pattern that will definitely trigger evictions
         cache_size = described_class.cache_size

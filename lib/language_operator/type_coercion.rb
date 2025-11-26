@@ -11,8 +11,9 @@ module LanguageOperator
   #
   # Performance optimizations:
   # - Fast-path checks for already-correct types
-  # - Memoization cache for expensive string coercions
+  # - Bounded LRU memoization cache for expensive string coercions (prevents memory leaks)
   # - Pre-compiled regexes for boolean parsing
+  # - Thread-safe cache operations with mutex protection
   #
   # Supported types:
   # - integer: Coerces String, Integer, Float to Integer
@@ -42,8 +43,11 @@ module LanguageOperator
   #   TypeCoercion.coerce([1, 2], "array")    # => [1, 2]
   #   TypeCoercion.coerce({a: 1}, "array")    # raises ArgumentError
   module TypeCoercion
-    # Performance optimization: LRU cache for expensive coercions with bounded size
-    # Default cache size can be overridden via TYPE_COERCION_CACHE_SIZE environment variable
+    # Memory-safe LRU cache for expensive coercions with bounded size to prevent memory leaks
+    # - Cache automatically evicts least recently used entries when limit is reached
+    # - Default cache size: 1000 entries (configurable via TYPE_COERCION_CACHE_SIZE environment variable)
+    # - Thread-safe operations protected by mutex
+    # - Caches both successful and failed coercion attempts to avoid repeated expensive operations
     DEFAULT_CACHE_SIZE = 1000
     @cache_size = ENV.fetch('TYPE_COERCION_CACHE_SIZE', DEFAULT_CACHE_SIZE).to_i
     @coercion_cache = LruRedux::Cache.new(@cache_size)

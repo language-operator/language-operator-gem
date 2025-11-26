@@ -401,12 +401,12 @@ RSpec.describe LanguageOperator::Validators do
 
     describe 'Unicode and encoding attacks' do
       it 'returns error for Unicode normalization attack' do
-        result = described_class.safe_path("..%c0%af%c0%afetc%c0%afpasswd")
+        result = described_class.safe_path('..%c0%af%c0%afetc%c0%afpasswd')
         expect(result).to eq('Error: Path contains invalid characters or directory traversal')
       end
 
       it 'returns error for overlong UTF-8 encoding' do
-        result = described_class.safe_path("%c0%ae%c0%ae%c0%af")
+        result = described_class.safe_path('%c0%ae%c0%ae%c0%af')
         expect(result).to eq('Error: Path contains invalid characters or directory traversal')
       end
     end
@@ -418,7 +418,7 @@ RSpec.describe LanguageOperator::Validators do
       end
 
       it 'returns error for URL-encoded null byte' do
-        result = described_class.safe_path("safe%00../../../etc/passwd")
+        result = described_class.safe_path('safe%00../../../etc/passwd')
         expect(result).to eq('Error: Path contains invalid characters or directory traversal')
       end
     end

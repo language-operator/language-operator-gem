@@ -7,7 +7,7 @@ RSpec.describe LanguageOperator::Utils::SecurePath do
   describe '.expand_home_path' do
     context 'with safe HOME directory' do
       it 'expands paths relative to HOME' do
-        original_home = ENV['HOME']
+        original_home = ENV.fetch('HOME', nil)
         ENV['HOME'] = '/home/testuser'
 
         # Mock the file system checks
@@ -21,7 +21,7 @@ RSpec.describe LanguageOperator::Utils::SecurePath do
       end
 
       it 'handles nested paths' do
-        original_home = ENV['HOME']
+        original_home = ENV.fetch('HOME', nil)
         ENV['HOME'] = '/home/testuser'
 
         # Mock the file system checks
@@ -49,7 +49,7 @@ RSpec.describe LanguageOperator::Utils::SecurePath do
 
       it 'falls back to safe directory for all traversal attacks' do
         attack_scenarios.each do |malicious_home|
-          original_home = ENV['HOME']
+          original_home = ENV.fetch('HOME', nil)
           ENV['HOME'] = malicious_home
 
           result = described_class.expand_home_path('.kube/config')
@@ -78,7 +78,7 @@ RSpec.describe LanguageOperator::Utils::SecurePath do
 
       it 'blocks access to system directories' do
         dangerous_homes.each do |dangerous_home|
-          original_home = ENV['HOME']
+          original_home = ENV.fetch('HOME', nil)
           ENV['HOME'] = dangerous_home
 
           result = described_class.expand_home_path('.kube/config')
@@ -95,7 +95,7 @@ RSpec.describe LanguageOperator::Utils::SecurePath do
         relative_homes = ['user', 'home/user', '../user', './user']
 
         relative_homes.each do |relative_home|
-          original_home = ENV['HOME']
+          original_home = ENV.fetch('HOME', nil)
           ENV['HOME'] = relative_home
 
           result = described_class.expand_home_path('.kube/config')
@@ -118,7 +118,7 @@ RSpec.describe LanguageOperator::Utils::SecurePath do
       end
 
       it 'falls back for empty HOME' do
-        original_home = ENV['HOME']
+        original_home = ENV.fetch('HOME', nil)
         ENV['HOME'] = ''
 
         result = described_class.expand_home_path('.kube/config')
@@ -131,7 +131,7 @@ RSpec.describe LanguageOperator::Utils::SecurePath do
 
   describe '.secure_home_directory' do
     it 'returns validated home directory' do
-      original_home = ENV['HOME']
+      original_home = ENV.fetch('HOME', nil)
       ENV['HOME'] = '/home/testuser'
 
       # Mock the file system checks
@@ -145,7 +145,7 @@ RSpec.describe LanguageOperator::Utils::SecurePath do
     end
 
     it 'returns fallback for unsafe directories' do
-      original_home = ENV['HOME']
+      original_home = ENV.fetch('HOME', nil)
       ENV['HOME'] = '/etc'
 
       result = described_class.secure_home_directory
@@ -164,7 +164,7 @@ RSpec.describe LanguageOperator::Utils::SecurePath do
       ]
 
       tricky_homes.each do |tricky_home|
-        original_home = ENV['HOME']
+        original_home = ENV.fetch('HOME', nil)
         ENV['HOME'] = tricky_home
 
         result = described_class.expand_home_path('.config/app.conf')
@@ -176,7 +176,7 @@ RSpec.describe LanguageOperator::Utils::SecurePath do
     end
 
     it 'blocks paths with null bytes' do
-      original_home = ENV['HOME']
+      original_home = ENV.fetch('HOME', nil)
       malicious_path = "/home/user\x00/../../etc"
 
       # Mock ENV.fetch instead of setting the actual environment variable
