@@ -2,6 +2,7 @@
 
 require 'k8s-ruby'
 require 'yaml'
+require_relative '../utils/secure_path'
 
 module LanguageOperator
   module Kubernetes
@@ -30,7 +31,7 @@ module LanguageOperator
 
       def initialize(kubeconfig: nil, context: nil, in_cluster: false)
         @in_cluster = in_cluster
-        @kubeconfig = kubeconfig || ENV.fetch('KUBECONFIG', File.expand_path('~/.kube/config'))
+        @kubeconfig = kubeconfig || ENV.fetch('KUBECONFIG', LanguageOperator::Utils::SecurePath.expand_home_path('.kube/config'))
         @context = context
         @client = build_client
       end

@@ -2,12 +2,13 @@
 
 require 'yaml'
 require 'fileutils'
+require_relative '../utils/secure_path'
 
 module LanguageOperator
   module Config
     # Manages cluster configuration in ~/.aictl/config.yaml
     class ClusterConfig
-      CONFIG_DIR = File.expand_path('~/.aictl')
+      CONFIG_DIR = LanguageOperator::Utils::SecurePath.expand_home_path('.aictl')
       CONFIG_PATH = File.join(CONFIG_DIR, 'config.yaml')
 
       class << self

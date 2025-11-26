@@ -2,6 +2,7 @@
 
 require 'yaml'
 require_relative '../command_loader'
+require_relative '../../utils/secure_path'
 
 module LanguageOperator
   module CLI
@@ -78,7 +79,7 @@ module LanguageOperator
               Config::ClusterConfig.add_cluster(
                 name,
                 namespace,
-                kubeconfig || ENV.fetch('KUBECONFIG', File.expand_path('~/.kube/config')),
+                kubeconfig || ENV.fetch('KUBECONFIG', LanguageOperator::Utils::SecurePath.expand_home_path('.kube/config')),
                 actual_context
               )
             end

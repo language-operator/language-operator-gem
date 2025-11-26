@@ -6,6 +6,7 @@ require_relative '../helpers/ux_helper'
 require_relative '../../config/cluster_config'
 require_relative '../../kubernetes/client'
 require_relative '../../kubernetes/resource_builder'
+require_relative '../../utils/secure_path'
 
 module LanguageOperator
   module CLI
@@ -79,7 +80,7 @@ module LanguageOperator
         end
 
         def get_kubectl_contexts
-          kubeconfig_path = ENV.fetch('KUBECONFIG', File.expand_path('~/.kube/config'))
+          kubeconfig_path = ENV.fetch('KUBECONFIG', LanguageOperator::Utils::SecurePath.expand_home_path('.kube/config'))
 
           return [] unless File.exist?(kubeconfig_path)
 
@@ -91,7 +92,7 @@ module LanguageOperator
         end
 
         def create_cluster_config(name, context)
-          kubeconfig_path = ENV.fetch('KUBECONFIG', File.expand_path('~/.kube/config'))
+          kubeconfig_path = ENV.fetch('KUBECONFIG', LanguageOperator::Utils::SecurePath.expand_home_path('.kube/config'))
 
           Formatters::ProgressFormatter.with_spinner("Creating cluster '#{name}'") do
             # Create Kubernetes client to verify connection

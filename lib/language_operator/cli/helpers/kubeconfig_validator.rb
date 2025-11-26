@@ -2,6 +2,7 @@
 
 require_relative '../formatters/progress_formatter'
 require_relative '../../kubernetes/client'
+require_relative '../../utils/secure_path'
 
 module LanguageOperator
   module CLI
@@ -59,7 +60,7 @@ module LanguageOperator
           private
 
           def default_kubeconfig_path
-            File.expand_path('~/.kube/config')
+            LanguageOperator::Utils::SecurePath.expand_home_path('.kube/config')
           end
 
           def kubeconfig_missing_message(path)

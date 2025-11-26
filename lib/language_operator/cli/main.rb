@@ -2,6 +2,7 @@
 
 require 'thor'
 require 'fileutils'
+require_relative '../utils/secure_path'
 require_relative 'commands/cluster'
 require_relative 'commands/use'
 require_relative 'commands/agent/base'
@@ -181,7 +182,7 @@ module LanguageOperator
           return
         end
 
-        target = File.expand_path('~/.bash_completion.d/aictl')
+        target = LanguageOperator::Utils::SecurePath.expand_home_path('.bash_completion.d/aictl')
         FileUtils.mkdir_p(File.dirname(target))
         FileUtils.cp(completion_file, target)
 
@@ -203,7 +204,7 @@ module LanguageOperator
         end
 
         # Check if user has a custom fpath directory
-        fpath_dir = File.expand_path('~/.zsh/completions')
+        fpath_dir = LanguageOperator::Utils::SecurePath.expand_home_path('.zsh/completions')
         FileUtils.mkdir_p(fpath_dir)
 
         target = File.join(fpath_dir, '_aictl')
@@ -227,7 +228,7 @@ module LanguageOperator
           return
         end
 
-        target = File.expand_path('~/.config/fish/completions/aictl.fish')
+        target = LanguageOperator::Utils::SecurePath.expand_home_path('.config/fish/completions/aictl.fish')
         FileUtils.mkdir_p(File.dirname(target))
         FileUtils.cp(completion_file, target)
 

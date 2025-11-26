@@ -392,7 +392,7 @@ RSpec.describe LanguageOperator::Config do
 
       config = described_class.from_env(
         { kubeconfig: 'KUBECONFIG' },
-        defaults: { kubeconfig: File.expand_path('~/.kube/config') }
+        defaults: { kubeconfig: '/safe/default/kube/config' }
       )
 
       expect(config[:kubeconfig]).to eq('/custom/path/config')
@@ -403,10 +403,10 @@ RSpec.describe LanguageOperator::Config do
     it 'uses default kubeconfig when env var not set' do
       config = described_class.from_env(
         { kubeconfig: 'KUBECONFIG' },
-        defaults: { kubeconfig: File.expand_path('~/.kube/config') }
+        defaults: { kubeconfig: '/safe/default/kube/config' }
       )
 
-      expect(config[:kubeconfig]).to eq(File.expand_path('~/.kube/config'))
+      expect(config[:kubeconfig]).to eq('/safe/default/kube/config')
     end
   end
 
