@@ -45,6 +45,8 @@ module LanguageOperator
 
           # Build a cron expression for interval-based execution
           def interval_cron(interval, unit)
+            validate_interval(interval, unit)
+
             case unit.downcase
             when 'minutes', 'minute'
               "*/#{interval} * * * *"
@@ -100,6 +102,22 @@ module LanguageOperator
 
           def format_time(hours, minutes)
             format('%<hours>02d:%<minutes>02d', hours: hours, minutes: minutes)
+          end
+
+          def validate_interval(interval, unit)
+            raise ArgumentError, "Interval must be a positive integer, got: #{interval}" unless interval.is_a?(Integer) && interval.positive?
+
+            case unit.downcase
+            when 'minutes', 'minute'
+              raise ArgumentError, "Minutes interval must be between 1-59, got: #{interval}" if interval >= 60
+            when 'hours', 'hour'
+              raise ArgumentError, "Hours interval must be between 1-23, got: #{interval}" if interval >= 24
+            when 'days', 'day'
+              raise ArgumentError, "Days interval must be between 1-31, got: #{interval}" if interval >= 32
+            else
+              # Will be caught by the existing case statement
+              nil
+            end
           end
         end
       end
