@@ -1,7 +1,8 @@
 .PHONY: create code logs clean
 
-AGENT := synth-001
+AGENT := s001
 AICTL := bundle exec ../../bin/aictl agent
+TOOLS := workspace
 
 create:
 	cat agent.txt | $(AICTL) create --name $(AGENT)
@@ -13,4 +14,8 @@ logs:
 	$(AICTL) logs $(AGENT)
 
 clean:
-	$(AICTL) delete $(AGENT) --force
+	$(AICTL) delete $(AGENT)
+
+save:
+	$(AICTL) code $(AGENT) --raw > agent.rb
+	$(AICTL) logs $(AGENT) > output.log
