@@ -303,13 +303,19 @@ module LanguageOperator
       def execute_parallel(tasks, in_threads: 4)
         require 'parallel'
 
+        # Capture current OpenTelemetry context before parallel execution
+        current_context = OpenTelemetry::Context.current
+
         logger.info('Executing tasks in parallel', count: tasks.size, threads: in_threads)
 
         results = Parallel.map(tasks, in_threads: in_threads) do |task_spec|
-          task_name = task_spec[:name]
-          task_inputs = task_spec[:inputs] || {}
+          # Restore OpenTelemetry context in worker thread
+          OpenTelemetry::Context.with_current(current_context) do
+            task_name = task_spec[:name]
+            task_inputs = task_spec[:inputs] || {}
 
-          execute_task(task_name, inputs: task_inputs)
+            execute_task(task_name, inputs: task_inputs)
+          end
         end
 
         logger.info('Parallel execution complete', results_count: results.size)
