@@ -115,20 +115,47 @@ merged = execute_task(:merge, inputs: { s1: s1 })
 10. **WebMock Timing:** Stub HTTP calls before object initialization if constructor makes requests
 11. **Wizard Pattern:** Always use `UxHelper` for TTY components, never instantiate directly
 
-## Current Priorities (2025-11-24)
+## Current Priorities (2025-11-25)
 
-**P1 - User-Facing Bugs (READY):**
+**P1 - Critical Security Issues (READY):**
+- #98 - Shell injection vulnerability in exec_in_pod method
+- #89 - Command injection in kubectl_prefix generation
+
+**P2 - Memory/Resource Leaks:**
+- #99 - TypeCoercion cache memory leak
+- #88 - TypeCoercion cache unbounded growth (duplicate of #99)
+- #103 - File descriptor leak in agent logs
+
+**P3 - File System Security:**
+- #104 - File.expand_path unsafe expansion
+- #96 - Kubeconfig path injection
+- #95 - Path traversal validation too permissive
+
+**P4 - Runtime Stability:**
+- #97 - SafeExecutor constant redefinition
+- #93 - Schedule validation accepts invalid cron intervals
+- #91 - Race condition in TaskExecutor timeout handling
+- #101 - AgentWizard time parsing allows invalid times
+- #100 - Agent pause/resume commands fail silently
+- #102 - Agent workspace validation fails for legitimate pod names
+- #92 - CLI error handler exit(1) bypasses Thor error handling
+- #90 - Silent failure in Config.get_int
+
+**P5 - Legacy Cleanup:**
 - #78 - Remove dead code tool.rb file (645 lines, cleanup)
-
-**P2 - Minor Bug Fixes:**
 - #76 - Dead code: unused expression in model test
 
-**P3 - Enhancements:**
+**P6 - Enhancements:**
 - #51 - Include complete MCP tool schemas
 - #40 - Performance optimization
 - #41 - Comprehensive test suite
 
 **Recently Completed (Major Issues):**
+- ✅ #94 - HTTP client SSRF attacks (2025-11-26) - **CRITICAL SECURITY FIX**: Eliminated SSRF vulnerability in HTTP client by adding comprehensive URL scheme and IP validation. Blocks non-HTTP/HTTPS schemes (file://, ftp://, etc.), private IP ranges (RFC 1918), localhost/loopback, link-local (AWS metadata), and broadcast addresses. Includes hostname resolution validation to prevent DNS rebinding. Added 30 comprehensive tests covering all security scenarios. Zero breaking changes for legitimate requests.
+- ✅ #98 - Shell injection vulnerability in exec_in_pod method (2025-11-25) - **CRITICAL SECURITY FIX**: Eliminated shell injection vulnerability in workspace command by replacing string concatenation with array-based command construction using Shellwords.shellsplit and Open3.capture3(*array). Added comprehensive test coverage (16 tests) covering security attack scenarios, edge cases, and real-world exploit prevention.
+- ✅ #86 - aictl cluster create should support --domain option (2025-11-25) - Added --domain CLI option for webhook routing configuration, updated ResourceBuilder to accept domain parameter, comprehensive test coverage, maintains backward compatibility
+- ✅ #85 - Creating new resources should have consistent UX (2025-11-25) - Implemented DRY formatters in UxHelper for consistent ❚-formatted resource display across all creation commands (cluster, agent, model, tool) and their inspection contexts
+- ✅ #84 - Add logo to aictl help output when called with no arguments (2025-11-25) - Overrode Thor's help method to display Language Operator logo before command list when aictl called without arguments or with explicit help command, specific command help remains unchanged
 - ✅ #79 - Invalid Kubernetes resource names in agent creation (2025-11-24) - Fixed generate_agent_name to ensure K8s-compliant names by prepending 'agent-' when name doesn't start with letter, added comprehensive test coverage for all edge cases
 - ✅ #80 - Config.get_int silent conversion bug (2025-11-24) - Replaced permissive to_i with strict Integer() conversion, added comprehensive tests for get_int/get_bool/get_array, clear error messages prevent misconfigurations
 - ✅ #70 - Dead code: useless statements in agent pause and resume commands (2025-11-24) - Removed two useless ctx.namespace statements that had no effect, verified with full test suite and manual testing
