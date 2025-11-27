@@ -280,7 +280,7 @@ module LanguageOperator
           'v1'
         when 'deployment', 'statefulset'
           'apps/v1'
-        when 'cronjob'
+        when 'cronjob', 'job'
           'batch/v1'
         else
           'v1'

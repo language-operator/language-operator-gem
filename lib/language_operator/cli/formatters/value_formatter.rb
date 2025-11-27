@@ -42,6 +42,42 @@ module LanguageOperator
           end
         end
 
+        # Format time elapsed since past time (opposite of time_until)
+        #
+        # @param past_time [Time] Past timestamp
+        # @return [String] Formatted string like "5m ago" or "2h 15m ago"
+        #
+        # @example
+        #   ValueFormatter.time_ago(Time.now - 300) # => "5m ago"
+        def self.time_ago(past_time)
+          diff = Time.now - past_time
+          
+          if diff < 0
+            'in the future' # Edge case for clock skew
+          elsif diff < SECONDS_PER_MINUTE
+            "#{diff.to_i}s ago"
+          elsif diff < SECONDS_PER_HOUR
+            minutes = (diff / SECONDS_PER_MINUTE).to_i
+            "#{minutes}m ago"
+          elsif diff < SECONDS_PER_DAY
+            hours = (diff / SECONDS_PER_HOUR).to_i
+            minutes = ((diff % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE).to_i
+            if minutes > 0
+              "#{hours}h #{minutes}m ago"
+            else
+              "#{hours}h ago"
+            end
+          else
+            days = (diff / SECONDS_PER_DAY).to_i
+            hours = ((diff % SECONDS_PER_DAY) / SECONDS_PER_HOUR).to_i
+            if hours > 0
+              "#{days}d #{hours}h ago"
+            else
+              "#{days}d ago"
+            end
+          end
+        end
+
         # Format a duration in seconds
         #
         # @param seconds [Numeric] Duration in seconds

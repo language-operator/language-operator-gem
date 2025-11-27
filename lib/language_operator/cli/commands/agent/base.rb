@@ -188,15 +188,13 @@ module LanguageOperator
               # Execution stats (only for scheduled agents)
               mode = agent.dig('spec', 'executionMode') || 'autonomous'
               if mode == 'scheduled'
-                execution_count = agent.dig('status', 'executionCount') || 0
-                last_execution = agent.dig('status', 'lastExecution')
-                next_run = agent.dig('status', 'nextRun')
-
+                exec_data = get_execution_data(name, ctx)
+                
                 exec_rows = {
-                  'Total Runs' => execution_count,
-                  'Last Run' => last_execution || 'Never'
+                  'Total Runs' => exec_data[:total_runs],
+                  'Last Run' => exec_data[:last_run] || 'Never'
                 }
-                exec_rows['Next Run'] = next_run || 'N/A' if agent.dig('spec', 'schedule')
+                exec_rows['Next Run'] = exec_data[:next_run] || 'N/A' if agent.dig('spec', 'schedule')
 
                 highlighted_box(title: 'Executions', rows: exec_rows, color: :blue)
                 puts
@@ -729,6 +727,108 @@ module LanguageOperator
             puts pastel.white.bold('Available Commands:')
             puts pastel.dim("  aictl agent learning status #{agent_name}")
             puts pastel.dim("  aictl agent inspect #{agent_name}")
+          end
+
+          def get_execution_data(agent_name, ctx)
+            execution_data = {
+              total_runs: 0,
+              last_run: nil,
+              next_run: nil
+            }
+
+            # Get data from CronJob
+            begin
+              # Get CronJob to find last execution time and next run
+              cronjob = ctx.client.get_resource('CronJob', agent_name, ctx.namespace)
+              
+              # Get last successful execution time
+              last_successful = cronjob.dig('status', 'lastSuccessfulTime')
+              if last_successful
+                last_time = Time.parse(last_successful)
+                execution_data[:last_run] = Formatters::ValueFormatter.time_ago(last_time)
+              end
+
+              # Calculate next run time from schedule
+              schedule = cronjob.dig('spec', 'schedule')
+              if schedule
+                execution_data[:next_run] = calculate_next_run(schedule)
+              end
+            rescue K8s::Error::NotFound, StandardError
+              # CronJob not found or parsing error, continue with job counting
+            end
+
+            # Count completed jobs (separate from CronJob processing)
+            begin
+              # Count total completed jobs for this agent
+              jobs = ctx.client.list_resources('Job', namespace: ctx.namespace)
+              
+              agent_jobs = jobs.select do |job|
+                labels = job.dig('metadata', 'labels') || {}
+                labels['app.kubernetes.io/name'] == agent_name
+              end
+
+              # Count successful completions
+              successful_jobs = agent_jobs.select do |job|
+                conditions = job.dig('status', 'conditions') || []
+                conditions.any? { |c| c['type'] == 'Complete' && c['status'] == 'True' }
+              end
+              
+              execution_data[:total_runs] = successful_jobs.length
+            rescue StandardError
+              # If job listing fails, keep default count of 0
+            end
+
+            execution_data
+          end
+
+          def calculate_next_run(schedule)
+            # Simple next run calculation for common cron patterns
+            # Handle the most common case: */N * * * * (every N minutes)
+            
+            parts = schedule.split
+            return schedule unless parts.length == 5 # Not a valid cron expression
+            
+            minute, hour, day, month, weekday = parts
+            current_time = Time.now
+            
+            # Handle every-N-minutes pattern: */10 * * * *
+            if minute.start_with?('*/') && hour == '*' && day == '*' && month == '*' && weekday == '*'
+              interval = minute[2..].to_i
+              if interval > 0 && interval < 60
+                current_minute = current_time.min
+                current_second = current_time.sec
+                
+                # Find the next occurrence
+                next_minute_mark = ((current_minute / interval) + 1) * interval
+                
+                if next_minute_mark < 60
+                  # Same hour
+                  next_time = Time.new(current_time.year, current_time.month, current_time.day, 
+                                       current_time.hour, next_minute_mark, 0)
+                else
+                  # Next hour
+                  next_hour = current_time.hour + 1
+                  next_minute = next_minute_mark - 60
+                  
+                  if next_hour < 24
+                    next_time = Time.new(current_time.year, current_time.month, current_time.day,
+                                         next_hour, next_minute, 0)
+                  else
+                    # Next day
+                    next_day = current_time + (24 * 60 * 60) # Add one day
+                    next_time = Time.new(next_day.year, next_day.month, next_day.day,
+                                         0, next_minute, 0)
+                  end
+                end
+                
+                return Formatters::ValueFormatter.time_until(next_time)
+              end
+            end
+            
+            # For other patterns, show the schedule (could add more patterns later)
+            schedule
+          rescue StandardError
+            schedule
           end
         end
       end
