@@ -4,6 +4,9 @@ metadata:
   name: <%= name %>
   namespace: <%= namespace %>
 spec:
+<% if cluster_ref -%>
+  clusterRef: <%= cluster_ref %>
+<% end -%>
   type: <%= type || 'mcp' %>
   image: <%= image || "changeme/#{name}-tool:latest" %>
   imagePullPolicy: Always

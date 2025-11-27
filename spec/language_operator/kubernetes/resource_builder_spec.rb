@@ -108,4 +108,96 @@ RSpec.describe LanguageOperator::Kubernetes::ResourceBuilder do
       end
     end
   end
+
+  describe '.language_agent' do
+    it 'creates agent resource without clusterRef when not provided' do
+      resource = described_class.language_agent(
+        'test-agent',
+        instructions: 'Test instructions'
+      )
+
+      expect(resource).to include(
+        'apiVersion' => 'langop.io/v1alpha1',
+        'kind' => 'LanguageAgent'
+      )
+      expect(resource.dig('metadata', 'name')).to eq('test-agent')
+      expect(resource.dig('spec', 'instructions')).to eq('Test instructions')
+      expect(resource.dig('spec', 'clusterRef')).to be_nil
+    end
+
+    it 'includes clusterRef in spec when provided' do
+      resource = described_class.language_agent(
+        'test-agent',
+        instructions: 'Test instructions',
+        cluster_ref: 'test-cluster'
+      )
+
+      expect(resource.dig('spec', 'clusterRef')).to eq('test-cluster')
+      expect(resource.dig('spec', 'instructions')).to eq('Test instructions')
+    end
+  end
+
+  describe '.language_model' do
+    it 'creates model resource without clusterRef when not provided' do
+      resource = described_class.language_model(
+        'test-model',
+        provider: 'openai',
+        model: 'gpt-4'
+      )
+
+      expect(resource).to include(
+        'apiVersion' => 'langop.io/v1alpha1',
+        'kind' => 'LanguageModel'
+      )
+      expect(resource.dig('metadata', 'name')).to eq('test-model')
+      expect(resource.dig('spec', 'provider')).to eq('openai')
+      expect(resource.dig('spec', 'modelName')).to eq('gpt-4')
+      expect(resource.dig('spec', 'clusterRef')).to be_nil
+    end
+
+    it 'includes clusterRef in spec when provided' do
+      resource = described_class.language_model(
+        'test-model',
+        provider: 'openai',
+        model: 'gpt-4',
+        cluster_ref: 'test-cluster'
+      )
+
+      expect(resource.dig('spec', 'clusterRef')).to eq('test-cluster')
+      expect(resource.dig('spec', 'provider')).to eq('openai')
+      expect(resource.dig('spec', 'modelName')).to eq('gpt-4')
+    end
+  end
+
+  describe '.language_tool' do
+    it 'creates tool resource without clusterRef when not provided' do
+      resource = described_class.language_tool(
+        'test-tool',
+        type: 'mcp',
+        config: { 'key' => 'value' }
+      )
+
+      expect(resource).to include(
+        'apiVersion' => 'langop.io/v1alpha1',
+        'kind' => 'LanguageTool'
+      )
+      expect(resource.dig('metadata', 'name')).to eq('test-tool')
+      expect(resource.dig('spec', 'type')).to eq('mcp')
+      expect(resource.dig('spec', 'config')).to eq({ 'key' => 'value' })
+      expect(resource.dig('spec', 'clusterRef')).to be_nil
+    end
+
+    it 'includes clusterRef in spec when provided' do
+      resource = described_class.language_tool(
+        'test-tool',
+        type: 'mcp',
+        config: { 'key' => 'value' },
+        cluster_ref: 'test-cluster'
+      )
+
+      expect(resource.dig('spec', 'clusterRef')).to eq('test-cluster')
+      expect(resource.dig('spec', 'type')).to eq('mcp')
+      expect(resource.dig('spec', 'config')).to eq({ 'key' => 'value' })
+    end
+  end
 end

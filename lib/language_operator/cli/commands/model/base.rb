@@ -86,7 +86,8 @@ module LanguageOperator
                 provider: options[:provider],
                 model: options[:model],
                 endpoint: options[:endpoint],
-                cluster: ctx.namespace
+                cluster: ctx.namespace,
+                cluster_ref: ctx.name
               )
 
               # Handle dry-run: output manifest and exit

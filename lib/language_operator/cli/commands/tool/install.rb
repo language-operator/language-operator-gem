@@ -53,6 +53,7 @@ module LanguageOperator
                   vars = {
                     name: tool_name,
                     namespace: namespace,
+                    cluster_ref: cluster_name,
                     deployment_mode: options[:deployment_mode] || tool_config['deploymentMode'],
                     replicas: options[:replicas] || 1,
                     auth_secret: nil, # Will be set by auth command

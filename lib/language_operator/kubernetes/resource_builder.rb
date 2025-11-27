@@ -20,7 +20,7 @@ module LanguageOperator
         end
 
         # Build a LanguageAgent resource
-        def language_agent(name, instructions:, cluster: nil, schedule: nil, persona: nil, tools: [], models: [],
+        def language_agent(name, instructions:, cluster: nil, cluster_ref: nil, schedule: nil, persona: nil, tools: [], models: [],
                            mode: nil, workspace: true, labels: {})
           # Determine mode: reactive, scheduled, or autonomous
           spec_mode = mode || (schedule ? 'scheduled' : 'autonomous')
@@ -40,26 +40,26 @@ module LanguageOperator
           # Enable workspace by default for state persistence
           spec['workspace'] = { 'enabled' => workspace } if workspace
 
-          build_resource('LanguageAgent', name, spec, namespace: cluster, labels: labels)
+          build_resource('LanguageAgent', name, spec, namespace: cluster, cluster_ref: cluster_ref, labels: labels)
         end
 
         # Build a LanguageTool resource
-        def language_tool(name, type:, config: {}, cluster: nil, labels: {})
+        def language_tool(name, type:, config: {}, cluster: nil, cluster_ref: nil, labels: {})
           build_resource('LanguageTool', name, {
                            'type' => type,
                            'config' => config
-                         }, namespace: cluster, labels: labels)
+                         }, namespace: cluster, cluster_ref: cluster_ref, labels: labels)
         end
 
         # Build a LanguageModel resource
-        def language_model(name, provider:, model:, endpoint: nil, cluster: nil, labels: {})
+        def language_model(name, provider:, model:, endpoint: nil, cluster: nil, cluster_ref: nil, labels: {})
           spec = {
             'provider' => provider,
             'modelName' => model
           }
           spec['endpoint'] = endpoint if endpoint
 
-          build_resource('LanguageModel', name, spec, namespace: cluster, labels: labels)
+          build_resource('LanguageModel', name, spec, namespace: cluster, cluster_ref: cluster_ref, labels: labels)
         end
 
         # Build a LanguagePersona resource
@@ -121,9 +121,12 @@ module LanguageOperator
         # @param name [String] The resource name
         # @param spec [Hash] The resource spec
         # @param namespace [String, nil] The namespace (defaults to 'default')
+        # @param cluster_ref [String, nil] The cluster reference for lifecycle management
         # @param labels [Hash] Additional labels to merge with defaults
         # @return [Hash] Complete Kubernetes resource manifest
-        def build_resource(kind, name, spec, namespace: nil, labels: {})
+        def build_resource(kind, name, spec, namespace: nil, cluster_ref: nil, labels: {})
+          # Add clusterRef to spec if provided for proper lifecycle management
+          spec = spec.merge('clusterRef' => cluster_ref) if cluster_ref
           {
             'apiVersion' => 'langop.io/v1alpha1',
             'kind' => kind,

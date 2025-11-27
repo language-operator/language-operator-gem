@@ -113,6 +113,7 @@ module LanguageOperator
                 agent_name,
                 instructions: description,
                 cluster: ctx.namespace,
+                cluster_ref: ctx.name,
                 persona: options[:persona],
                 tools: options[:tools] || [],
                 models: models,
