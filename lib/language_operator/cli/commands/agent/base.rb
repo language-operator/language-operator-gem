@@ -185,19 +185,22 @@ module LanguageOperator
               )
               puts
 
-              # Execution stats
-              execution_count = agent.dig('status', 'executionCount') || 0
-              last_execution = agent.dig('status', 'lastExecution')
-              next_run = agent.dig('status', 'nextRun')
+              # Execution stats (only for scheduled agents)
+              mode = agent.dig('spec', 'mode') || 'autonomous'
+              if mode == 'scheduled'
+                execution_count = agent.dig('status', 'executionCount') || 0
+                last_execution = agent.dig('status', 'lastExecution')
+                next_run = agent.dig('status', 'nextRun')
 
-              exec_rows = {
-                'Total Runs' => execution_count,
-                'Last Run' => last_execution || 'Never'
-              }
-              exec_rows['Next Run'] = next_run || 'N/A' if agent.dig('spec', 'schedule')
+                exec_rows = {
+                  'Total Runs' => execution_count,
+                  'Last Run' => last_execution || 'Never'
+                }
+                exec_rows['Next Run'] = next_run || 'N/A' if agent.dig('spec', 'schedule')
 
-              highlighted_box(title: 'Executions', rows: exec_rows, color: :blue)
-              puts
+                highlighted_box(title: 'Executions', rows: exec_rows, color: :blue)
+                puts
+              end
 
               # Resources
               resources = agent.dig('spec', 'resources')
