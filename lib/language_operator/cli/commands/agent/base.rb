@@ -180,7 +180,7 @@ module LanguageOperator
                 status: format_status(status),
                 mode: agent.dig('spec', 'executionMode') || 'autonomous',
                 schedule: agent.dig('spec', 'schedule'),
-                persona: agent.dig('spec', 'persona') || '(auto-selected)',
+                persona: agent.dig('spec', 'persona'),
                 created: agent.dig('metadata', 'creationTimestamp')
               )
               puts
