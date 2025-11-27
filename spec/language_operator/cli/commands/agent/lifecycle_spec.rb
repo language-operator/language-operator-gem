@@ -17,7 +17,7 @@ RSpec.describe 'Agent Lifecycle Commands' do
           # Get agent
           agent = get_resource_or_exit(LanguageOperator::Constants::RESOURCE_AGENT, name)
 
-          mode = agent.dig('spec', 'mode') || 'autonomous'
+          mode = agent.dig('spec', 'executionMode') || 'autonomous'
           unless mode == 'scheduled'
             LanguageOperator::CLI::Formatters::ProgressFormatter.warn("Agent '#{name}' is not a scheduled agent (mode: #{mode})")
             puts
@@ -52,7 +52,7 @@ RSpec.describe 'Agent Lifecycle Commands' do
           # Get agent
           agent = get_resource_or_exit(LanguageOperator::Constants::RESOURCE_AGENT, name)
 
-          mode = agent.dig('spec', 'mode') || 'autonomous'
+          mode = agent.dig('spec', 'executionMode') || 'autonomous'
           unless mode == 'scheduled'
             LanguageOperator::CLI::Formatters::ProgressFormatter.warn("Agent '#{name}' is not a scheduled agent (mode: #{mode})")
             puts
@@ -89,7 +89,7 @@ RSpec.describe 'Agent Lifecycle Commands' do
         # Mock agent resource for testing
         {
           'metadata' => { 'name' => name },
-          'spec' => { 'mode' => 'scheduled' }
+          'spec' => { 'executionMode' => 'scheduled' }
         }
       end
     end

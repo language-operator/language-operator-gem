@@ -178,7 +178,7 @@ module LanguageOperator
                 namespace: ctx.namespace,
                 cluster: ctx.name,
                 status: format_status(status),
-                mode: agent.dig('spec', 'mode') || 'autonomous',
+                mode: agent.dig('spec', 'executionMode') || 'autonomous',
                 schedule: agent.dig('spec', 'schedule'),
                 persona: agent.dig('spec', 'persona') || '(auto-selected)',
                 created: agent.dig('metadata', 'creationTimestamp')
@@ -186,7 +186,7 @@ module LanguageOperator
               puts
 
               # Execution stats (only for scheduled agents)
-              mode = agent.dig('spec', 'mode') || 'autonomous'
+              mode = agent.dig('spec', 'executionMode') || 'autonomous'
               if mode == 'scheduled'
                 execution_count = agent.dig('status', 'executionCount') || 0
                 last_execution = agent.dig('status', 'lastExecution')
@@ -372,7 +372,7 @@ module LanguageOperator
               namespace: ctx.namespace,
               cluster: ctx.name,
               status: format_status(status),
-              mode: agent.dig('spec', 'mode') || 'autonomous',
+              mode: agent.dig('spec', 'executionMode') || 'autonomous',
               schedule: agent.dig('spec', 'schedule'),
               persona: agent.dig('spec', 'persona') || '(auto-selected)',
               created: Time.now.strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -442,7 +442,7 @@ module LanguageOperator
             tools = agent_resource.dig('spec', 'tools') || []
             model_refs = agent_resource.dig('spec', 'modelRefs') || []
             models = model_refs.map { |ref| ref['name'] }
-            mode = agent_resource.dig('spec', 'mode') || 'autonomous'
+            mode = agent_resource.dig('spec', 'executionMode') || 'autonomous'
             schedule = agent_resource.dig('spec', 'schedule')
 
             # Display summary
@@ -531,7 +531,7 @@ module LanguageOperator
               {
                 name: agent.dig('metadata', 'name'),
                 namespace: agent.dig('metadata', 'namespace') || context.namespace,
-                mode: agent.dig('spec', 'mode') || 'autonomous',
+                mode: agent.dig('spec', 'executionMode') || 'autonomous',
                 status: agent.dig('status', 'phase') || 'Unknown'
               }
             end
@@ -561,7 +561,7 @@ module LanguageOperator
                 all_agents << {
                   cluster: cluster[:name],
                   name: agent.dig('metadata', 'name'),
-                  mode: agent.dig('spec', 'mode') || 'autonomous',
+                  mode: agent.dig('spec', 'executionMode') || 'autonomous',
                   status: agent.dig('status', 'phase') || 'Unknown',
                   next_run: agent.dig('status', 'nextRun') || 'N/A',
                   executions: agent.dig('status', 'executionCount') || 0

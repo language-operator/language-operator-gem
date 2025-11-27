@@ -194,7 +194,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
       let(:mock_scheduled_agent) do
         {
           'metadata' => { 'name' => 'test-scheduled', 'namespace' => 'default' },
-          'spec' => { 'mode' => 'scheduled' }
+          'spec' => { 'executionMode' => 'scheduled' }
         }
       end
 

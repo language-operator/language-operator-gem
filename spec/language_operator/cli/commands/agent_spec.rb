@@ -35,7 +35,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
             'namespace' => 'default'
           },
           'spec' => {
-            'mode' => 'scheduled'
+            'executionMode' => 'scheduled'
           },
           'status' => {
             'phase' => 'Running',
@@ -49,7 +49,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
             'namespace' => 'default'
           },
           'spec' => {
-            'mode' => 'autonomous'
+            'executionMode' => 'autonomous'
           },
           'status' => {
             'phase' => 'Running',

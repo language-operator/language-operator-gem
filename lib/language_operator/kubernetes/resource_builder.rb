@@ -27,7 +27,7 @@ module LanguageOperator
 
           spec = {
             'instructions' => instructions,
-            'mode' => spec_mode,
+            'executionMode' => spec_mode,
             'image' => 'ghcr.io/language-operator/agent:latest'
           }
 

@@ -13,6 +13,9 @@ code:
 logs:
 	$(AICTL) logs $(AGENT)
 
+inspect:
+	$(AICTL) inspect $(AGENT)
+
 clean:
 	$(AICTL) delete $(AGENT)
 
