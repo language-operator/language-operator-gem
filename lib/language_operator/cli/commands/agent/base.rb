@@ -240,7 +240,7 @@ module LanguageOperator
               model_refs = agent.dig('spec', 'modelRefs') || []
               unless model_refs.empty?
                 model_names = model_refs.map { |ref| ref['name'] }
-                list_box(title: 'Models', items: model_names)
+                list_box(title: 'Models', items: model_names, bullet: '⛁')
                 puts
               end
 
