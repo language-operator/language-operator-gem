@@ -106,6 +106,9 @@ module LanguageOperator
       def execute_task(task_name, inputs: {}, timeout: nil, max_retries: nil)
         execution_start = Time.now
         max_retries ||= @config[:max_retries]
+        
+        # Reset JSON parsing retry flag for this task
+        @parsing_retry_attempted = false
 
         with_span('task_executor.execute_task', attributes: {
                     'task.name' => task_name.to_s,
@@ -211,7 +214,7 @@ module LanguageOperator
               parse_neural_response(response_text, task)
             rescue RuntimeError => e
               # If parsing fails and this is a JSON parsing error, try one more time with clarified prompt
-              raise e unless e.message.include?('returned invalid JSON') && !defined?(@parsing_retry_attempted)
+              raise e unless e.message.include?('returned invalid JSON') && !@parsing_retry_attempted
 
               @parsing_retry_attempted = true
 
@@ -237,11 +240,6 @@ module LanguageOperator
 
               # Try parsing the retry response
               parse_neural_response(retry_response_text, task)
-
-            # Re-raise original error if not a JSON parsing error or already retried
-            ensure
-              # Reset retry flag for next task
-              @parsing_retry_attempted = nil
             end
           end
 

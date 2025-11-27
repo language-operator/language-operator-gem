@@ -165,6 +165,49 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
         end.to raise_error(LanguageOperator::Agent::TaskExecutionError, /returned invalid JSON/)
       end
 
+      it 'retries LLM call when JSON parsing fails initially' do
+        # First call returns invalid JSON, second call returns valid JSON
+        call_count = 0
+        allow(agent).to receive(:send_message) do
+          call_count += 1
+          if call_count == 1
+            instance_double(RubyLLM::Message,
+                           content: 'Not JSON at all',
+                           is_a?: false)
+          else
+            instance_double(RubyLLM::Message,
+                           content: '{"summary": "Retry successful"}',
+                           is_a?: false)
+          end
+        end
+
+        result = executor.execute_task(:summarize_text, inputs: { text: 'Text' })
+        expect(result).to eq({ summary: 'Retry successful' })
+        expect(call_count).to eq(2)
+      end
+
+      it 'only retries JSON parsing once per task' do
+        # Track calls to verify parsing retry behavior
+        call_count = 0
+        allow(agent).to receive(:send_message) do
+          call_count += 1
+          # First call gets parsing retry (call 2), then normal task retries (calls 3-5)
+          instance_double(RubyLLM::Message,
+                          content: 'Not JSON at all',
+                          is_a?: false)
+        end
+
+        expect do
+          executor.execute_task(:summarize_text, inputs: { text: 'Text' })
+        end.to raise_error(LanguageOperator::Agent::TaskExecutionError, /returned invalid JSON/)
+
+        # Should make 5 calls total: 
+        # Call 1: Original attempt
+        # Call 2: JSON parsing retry with clarified prompt  
+        # Calls 3-5: Normal task retries (max_retries = 3)
+        expect(call_count).to eq(5)
+      end
+
       it 'validates neural task outputs against schema' do
         # LLM returns wrong field
         allow(agent).to receive(:send_message).and_return(
