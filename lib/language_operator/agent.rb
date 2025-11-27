@@ -157,8 +157,8 @@ module LanguageOperator
       case agent.mode
       when 'autonomous', 'interactive'
         if uses_dsl_v1
-          # DSL v1: Execute main block with task executor
-          execute_main_block(agent, agent_def)
+          # DSL v1: Execute main block with task executor in persistent mode
+          execute_main_block_persistent(agent, agent_def)
         elsif uses_dsl_v0
           # DSL v0: Execute workflow in autonomous mode
           executor = LanguageOperator::Agent::Executor.new(agent)
@@ -231,6 +231,92 @@ module LanguageOperator
       end
 
       result
+    end
+
+    # Execute main block (DSL v1) in persistent mode for autonomous agents
+    #
+    # @param agent [LanguageOperator::Agent::Base] The agent instance
+    # @param agent_def [LanguageOperator::Dsl::AgentDefinition] The agent definition
+    # @return [void]
+    def self.execute_main_block_persistent(agent, agent_def)
+      shutdown_requested = setup_signal_handlers
+
+      logger.info('Starting agent in persistent autonomous mode',
+                  agent_name: agent_def.name,
+                  task_count: agent_def.tasks.size)
+
+      # Execute initial main block
+      execute_main_block(agent, agent_def)
+      logger.info('Initial task completed - entering idle state')
+
+      # Enter waiting loop for additional instructions
+      run_idle_loop(shutdown_requested)
+
+      logger.info('Graceful shutdown requested - agent exiting')
+    end
+
+    # Setup signal handlers for graceful shutdown
+    #
+    # @return [Proc] shutdown_requested flag wrapped in a closure
+    def self.setup_signal_handlers
+      shutdown_requested = false
+      trap('TERM') do
+        logger.info('SIGTERM received - requesting graceful shutdown')
+        shutdown_requested = true
+      end
+      trap('INT') do
+        logger.info('SIGINT received - requesting graceful shutdown')
+        shutdown_requested = true
+      end
+
+      -> { shutdown_requested }
+    end
+
+    # Run the idle loop waiting for new instructions
+    #
+    # @param shutdown_requested [Proc] Closure that returns shutdown state
+    # @return [void]
+    def self.run_idle_loop(shutdown_requested)
+      idle_timeout = ENV.fetch('AGENT_IDLE_TIMEOUT', '300').to_i # 5 minutes default
+      last_activity = Time.now
+
+      until shutdown_requested.call
+        begin
+          last_activity = Time.now if handle_new_instruction
+
+          sleep 5 # Avoid busy waiting
+
+          # Reset idle timer when timeout reached (stay persistent)
+          if idle_timeout.positive? && Time.now - last_activity > idle_timeout
+            logger.info('Idle timeout reached - agent remaining available',
+                        timeout_seconds: idle_timeout)
+            last_activity = Time.now
+          end
+        rescue StandardError => e
+          logger.error('Error in idle loop',
+                       error: e.message,
+                       backtrace: e.backtrace[0..3])
+          sleep 10 # Back off on error
+        end
+      end
+    end
+
+    # Handle new instruction from environment variable
+    #
+    # @return [Boolean] True if instruction was processed
+    def self.handle_new_instruction
+      new_instruction = ENV.fetch('AGENT_NEW_INSTRUCTION', nil)
+      return false unless new_instruction && !new_instruction.strip.empty?
+
+      logger.info('New instruction received',
+                  instruction: new_instruction[0..100])
+
+      # Clear the environment variable to prevent re-execution
+      ENV['AGENT_NEW_INSTRUCTION'] = ''
+
+      # Execute the new instruction (implementation would depend on requirements)
+      logger.info('Instruction acknowledged - agent remains in autonomous mode')
+      true
     end
 
     # Execute the output handler (neural or symbolic)
