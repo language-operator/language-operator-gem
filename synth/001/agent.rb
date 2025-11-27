@@ -1,26 +1,27 @@
-# frozen_string_literal: true
-
 require 'language_operator'
 
-agent '001' do
-  description 'Continuously logs a message to stdout'
+agent "s001" do
+  description "Log a message continuously"
 
-  task :generate_message do |inputs|
-    { message: "Agent 001 active at iteration #{inputs[:iteration]}" }
-  end
+  task :generate_message,
+    instructions: "Generate a short message to log to stdout",
+    inputs: {},
+    outputs: { message: 'string' }
+
+  task :log_message,
+    instructions: "Output the message to stdout as a log entry",
+    inputs: { message: 'string' },
+    outputs: { success: 'boolean' }
 
   main do |inputs|
-    current_iteration = inputs[:iteration] || 0
-    message_data = execute_task(:generate_message, inputs: { iteration: current_iteration })
-    {
-      iteration: current_iteration + 1,
-      message: message_data[:message]
-    }
+    message_data = execute_task(:generate_message)
+    execute_task(:log_message, inputs: message_data)
+    message_data
   end
 
   constraints do
-    max_iterations 999_999
-    timeout '10m'
+    max_iterations 999999
+    timeout "10m"
   end
 
   output do |outputs|

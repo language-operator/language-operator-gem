@@ -64,12 +64,30 @@ Critical insights and patterns for the language-operator Ruby gem.
 7. **WebMock:** Stub HTTP before object initialization if constructor makes requests
 8. **UX:** Always use `UxHelper` for TTY components
 
-## Current Active Issues (2025-11-26)
+## Current Active Issues (2025-11-27)
 
 **P1 - UX/Operational Issues:**
 - #100 - Agent pause/resume commands fail silently on kubectl errors  
 - #102 - Agent workspace validation fails for legitimate pod names with special characters
 - #105 - StreamingBody MockStream incomplete IO interface may break middleware compatibility
+
+**Recently Resolved (2025-11-27):**
+- #109 - ✅ Agent runtime exits after task completion instead of waiting for further instructions
+  - Implemented persistent mode for autonomous agents with DSL v1 (task/main model)
+  - Added `execute_main_block_persistent` method with signal handling (SIGTERM/SIGINT)
+  - Agent now enters idle state after initial task completion instead of exiting
+  - Configurable idle timeout via `AGENT_IDLE_TIMEOUT` environment variable
+  - Support for new instructions via `AGENT_NEW_INSTRUCTION` environment variable
+  - Backward compatibility maintained - scheduled mode still exits after execution
+  - Fixes CrashLoopBackOff in Kubernetes deployments for autonomous agents
+
+- #108 - ✅ Universal cluster association for all resource types (tools, agents, models)
+  - Added clusterRef field to all resource specs for proper cluster lifecycle management
+  - Updated ResourceBuilder.build_resource() to accept cluster_ref parameter
+  - Modified all CLI commands (agent create, model create, tool install) to pass cluster reference
+  - Added comprehensive test coverage for cluster association
+  - Maintains backward compatibility for existing resources
+  - Fixes cluster finalizer cleanup issue for all aictl-created resources
 
 **Recently Resolved (2025-11-26):**
 - #92 - ✅ CLI error handler exit(1) bypasses Thor error handling and testing
