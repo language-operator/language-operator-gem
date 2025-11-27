@@ -54,6 +54,13 @@ end
 code_path = ENV.fetch('AGENT_CODE_PATH', '/etc/agent/code/agent.rb')
 fallback_mode = ENV.fetch('AGENT_FALLBACK_MODE', 'error') # error | autonomous | interactive
 
+# Ensure the agent code directory is allowed for security validation
+# Set LANGOP_ALLOWED_PATHS to include the directory containing the agent code
+unless ENV['LANGOP_ALLOWED_PATHS']
+  code_dir = File.dirname(code_path)
+  ENV['LANGOP_ALLOWED_PATHS'] = code_dir
+end
+
 # Check if synthesized code exists
 if File.exist?(code_path)
   begin
