@@ -2,7 +2,7 @@
 
 require 'json'
 require_relative '../../command_loader'
-require_relative '../../constants/kubernetes_labels'
+require_relative '../../../constants/kubernetes_labels'
 
 module LanguageOperator
   module CLI

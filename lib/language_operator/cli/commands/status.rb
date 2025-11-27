@@ -20,21 +20,48 @@ module LanguageOperator
             if current_cluster
               cluster_config = Config::ClusterConfig.get_cluster(current_cluster)
 
-              puts "\nCluster Details"
-              puts '----------------'
-              puts "Name: #{pastel.bold.white(current_cluster)}"
-              puts "Namespace: #{pastel.bold.white(cluster_config[:namespace])}"
-              puts
-
               # Check cluster health
               k8s = Helpers::ClusterValidator.kubernetes_client(current_cluster)
 
-              # Operator status
+              # Try to get actual cluster resource from Kubernetes
+              cluster_resource = nil
               if k8s.operator_installed?
-                version = k8s.operator_version || 'installed'
-                Formatters::ProgressFormatter.success("Operator: #{version}")
+                begin
+                  cluster_resource = k8s.get_resource('LanguageCluster', current_cluster, cluster_config[:namespace])
+                rescue StandardError
+                  # Cluster resource might not exist yet
+                end
+              end
+
+              # Format cluster info using UxHelper
+              logo(title: 'cluster status')
+              
+              if cluster_resource
+                # Use actual cluster resource data
+                status = cluster_resource.dig('status', 'phase') || 'Unknown'
+                domain = cluster_resource.dig('spec', 'domain')
+                created = cluster_resource.dig('metadata', 'creationTimestamp')
+                
+                format_cluster_details(
+                  name: current_cluster,
+                  namespace: cluster_config[:namespace],
+                  context: cluster_config[:context],
+                  status: status,
+                  domain: domain,
+                  created: created
+                )
               else
-                Formatters::ProgressFormatter.error('Operator: not installed')
+                # Fallback to local config and operator status
+                format_cluster_details(
+                  name: current_cluster,
+                  namespace: cluster_config[:namespace],
+                  context: cluster_config[:context],
+                  status: k8s.operator_installed? ? (k8s.operator_version || 'installed') : 'operator not installed'
+                )
+              end
+
+              # Early exit if operator not installed
+              unless k8s.operator_installed?
                 puts
                 puts 'Install the operator with:'
                 puts '  aictl install'
@@ -42,54 +69,75 @@ module LanguageOperator
                 return
               end
 
+              puts
+
               # Agent statistics
               agents = k8s.list_resources(RESOURCE_AGENT, namespace: cluster_config[:namespace])
               agent_stats = categorize_by_status(agents)
+              agent_items = agent_stats.map { |status, count| "#{format_status(status)}: #{count}" }
+              
+              list_box(
+                title: 'Agents',
+                items: agent_items,
+                empty_message: 'none',
+                bullet: ''
+              )
 
               puts
-              puts "Agents (#{agents.count} total):"
-              agent_stats.each do |status, count|
-                puts "  #{format_status(status)}: #{count}"
-              end
 
               # Tool statistics
               tools = k8s.list_resources('LanguageTool', namespace: cluster_config[:namespace])
-              puts
-              puts "Tools (#{tools.count} total):"
               if tools.any?
                 tool_types = tools.group_by { |t| t.dig('spec', 'type') }
-                tool_types.each do |type, items|
-                  puts "  #{type}: #{items.count}"
-                end
+                tool_items = tool_types.map { |type, items| "#{type}: #{items.count}" }
               else
-                puts '  (none)'
+                tool_items = []
               end
+              
+              list_box(
+                title: 'Tools',
+                items: tool_items,
+                empty_message: 'none',
+                bullet: ''
+              )
+
+              puts
 
               # Model statistics
               models = k8s.list_resources(RESOURCE_MODEL, namespace: cluster_config[:namespace])
-              puts
-              puts "Models (#{models.count} total):"
               if models.any?
                 model_providers = models.group_by { |m| m.dig('spec', 'provider') }
-                model_providers.each do |provider, items|
-                  puts "  #{provider}: #{items.count}"
-                end
+                model_items = model_providers.map { |provider, items| "#{provider}: #{items.count}" }
               else
-                puts '  (none)'
+                model_items = []
               end
+              
+              list_box(
+                title: 'Models',
+                items: model_items,
+                empty_message: 'none',
+                bullet: ''
+              )
+
+              puts
 
               # Persona statistics
               personas = k8s.list_resources('LanguagePersona', namespace: cluster_config[:namespace])
-              puts
-              puts "Personas (#{personas.count} total):"
               if personas.any?
-                personas.each do |persona|
+                persona_items = personas.map do |persona|
                   tone = persona.dig('spec', 'tone')
-                  puts "  - #{persona.dig('metadata', 'name')} (#{tone})"
+                  "#{persona.dig('metadata', 'name')} (#{tone})"
                 end
               else
-                puts '  (none)'
+                persona_items = []
               end
+              
+              list_box(
+                title: 'Personas',
+                items: persona_items,
+                empty_message: 'none',
+                bullet: ''
+              )
             else
               Formatters::ProgressFormatter.warn('No cluster selected')
               puts

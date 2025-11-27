@@ -3,7 +3,7 @@
 require 'open3'
 require 'shellwords'
 require_relative '../../helpers/label_utils'
-require_relative '../../constants/kubernetes_labels'
+require_relative '../../../constants/kubernetes_labels'
 
 module LanguageOperator
   module CLI

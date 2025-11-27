@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative '../../../constants/kubernetes_labels'
+require_relative '../../../../constants/kubernetes_labels'
 
 module LanguageOperator
   module CLI
