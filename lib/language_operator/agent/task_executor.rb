@@ -203,10 +203,46 @@ module LanguageOperator
           logger.info('Parsing neural task response',
                       task: task.name)
 
-          # Parse response within child span
+          # Parse response within child span with retry logic
           parsed_outputs = tracer.in_span('task_executor.parse_response') do |parse_span|
             record_parse_metadata(response_text, parse_span)
-            parse_neural_response(response_text, task)
+
+            begin
+              parse_neural_response(response_text, task)
+            rescue RuntimeError => e
+              # If parsing fails and this is a JSON parsing error, try one more time with clarified prompt
+              raise e unless e.message.include?('returned invalid JSON') && !defined?(@parsing_retry_attempted)
+
+              @parsing_retry_attempted = true
+
+              logger.warn('JSON parsing failed, retrying with clarified prompt',
+                          task: task.name,
+                          original_error: e.message,
+                          response_preview: response_text[0..300])
+
+              # Build retry prompt with clearer instructions
+              retry_prompt = build_parsing_retry_prompt(task, validated_inputs, response_text, e.message)
+
+              logger.info('Retrying LLM call with clarified prompt',
+                          task: task.name,
+                          retry_prompt_length: retry_prompt.length)
+
+              # Retry LLM call
+              retry_response = @agent.send_message(retry_prompt)
+              retry_response_text = retry_response.is_a?(String) ? retry_response : retry_response.content
+
+              logger.info('Parsing retry response',
+                          task: task.name,
+                          retry_response_length: retry_response_text.length)
+
+              # Try parsing the retry response
+              parse_neural_response(retry_response_text, task)
+
+            # Re-raise original error if not a JSON parsing error or already retried
+            ensure
+              # Reset retry flag for next task
+              @parsing_retry_attempted = nil
+            end
           end
 
           logger.info('Response parsed successfully',
@@ -409,6 +445,63 @@ module LanguageOperator
         prompt
       end
 
+      # Build retry prompt when JSON parsing fails
+      #
+      # @param task [TaskDefinition] The task definition
+      # @param inputs [Hash] Validated input parameters
+      # @param failed_response [String] The previous response that failed to parse
+      # @param error_message [String] The parsing error message
+      # @return [String] Prompt for LLM retry
+      def build_parsing_retry_prompt(task, inputs, failed_response, error_message)
+        prompt = "# Task: #{task.name} (RETRY - JSON Parsing Failed)\n\n"
+        prompt += "## Instructions\n#{task.instructions_text}\n\n"
+
+        if inputs.any?
+          prompt += "## Inputs\n"
+          inputs.each do |key, value|
+            prompt += "- #{key}: #{value.inspect}\n"
+          end
+          prompt += "\n"
+        end
+
+        prompt += "## Previous Response (Failed to Parse)\n"
+        prompt += "Your previous response caused a parsing error: #{error_message}\n"
+        prompt += "Previous response preview:\n```\n#{failed_response[0..500]}#{'...' if failed_response.length > 500}\n```\n\n"
+
+        prompt += "## Output Schema (CRITICAL)\n"
+        prompt += "You MUST return valid JSON with exactly these fields:\n"
+        task.outputs_schema.each do |key, type|
+          prompt += "- #{key} (#{type})\n"
+        end
+        prompt += "\n"
+
+        prompt += "## Response Format (CRITICAL)\n"
+        prompt += "IMPORTANT: Your response must be ONLY valid JSON. No other text.\n"
+        prompt += "Do NOT use [THINK] tags or any other text.\n"
+        prompt += "Do NOT include code blocks like ```json.\n"
+        prompt += "Return ONLY the JSON object, nothing else.\n"
+        prompt += "The JSON must match the output schema exactly.\n\n"
+
+        prompt += "Example correct format:\n"
+        prompt += "{\n"
+        task.outputs_schema.each_with_index do |(key, type), index|
+          value_example = case type
+                          when 'string' then '"example"'
+                          when 'integer' then '42'
+                          when 'number' then '3.14'
+                          when 'boolean' then 'true'
+                          when 'array' then '[]'
+                          when 'hash' then '{}'
+                          else '"value"'
+                          end
+          comma = index < task.outputs_schema.length - 1 ? ',' : ''
+          prompt += "  \"#{key}\": #{value_example}#{comma}\n"
+        end
+        prompt += "}\n"
+
+        prompt
+      end
+
       # Parse LLM response to extract output values
       #
       # @param response_text [String] LLM response
@@ -435,6 +528,23 @@ module LanguageOperator
                                     .gsub(/\[THINK\].*?(?=\{)/m, '')
                                     .strip
 
+        # If cleaned text is empty or still contains unclosed [THINK], try more aggressive cleaning
+        if cleaned_text.empty? || cleaned_text.start_with?('[THINK]')
+          # Strip everything from [THINK] to end if no [/THINK] found
+          cleaned_text = response_text.gsub(/\[THINK\].*$/m, '').strip
+
+          # If still no JSON found, extract everything after the last [THINK] block
+          if cleaned_text.empty? && response_text.include?('{')
+            last_think = response_text.rindex('[THINK]')
+            if last_think
+              after_think = response_text[last_think..]
+              # Find first JSON-like structure after [THINK]
+              json_start = after_think.index('{')
+              cleaned_text = after_think[json_start..] if json_start
+            end
+          end
+        end
+
         logger.debug('After stripping THINK tags', cleaned_length: cleaned_text.length, cleaned_start: cleaned_text[0..100])
 
         # Try to extract JSON from response
@@ -443,9 +553,17 @@ module LanguageOperator
         json_text = if json_match
                       json_match[1]
                     else
-                      # Try to find raw JSON object
+                      # Try to find raw JSON object - be more aggressive about finding JSON
                       json_object_match = cleaned_text.match(/\{.*\}/m)
-                      json_object_match ? json_object_match[0] : cleaned_text
+                      if json_object_match
+                        json_object_match[0]
+                      elsif cleaned_text.include?('{')
+                        # Extract from first { to end of string (handles incomplete responses)
+                        json_start = cleaned_text.index('{')
+                        cleaned_text[json_start..]
+                      else
+                        cleaned_text
+                      end
                     end
 
         logger.debug('Extracted JSON text', json_length: json_text.length, json_start: json_text[0..100])
@@ -629,37 +747,37 @@ module LanguageOperator
       # between timeout detection and error classification.
       #
       # @param task [TaskDefinition] The task definition
-      # @param task_name [Symbol] Name of the task  
+      # @param task_name [Symbol] Name of the task
       # @param inputs [Hash] Input parameters
       # @param timeout [Numeric] Timeout in seconds
       # @return [Hash] Task outputs
       # @raise [TaskTimeoutError] If execution times out (always takes precedence)
       def execute_with_timeout(task, task_name, inputs, timeout)
         attempt_start = Time.now
-        
+
         Timeout.timeout(timeout) do
           execute_task_implementation(task, inputs)
         end
-      rescue Timeout::Error => timeout_error
+      rescue Timeout::Error => e
         # Timeout always wins - this solves the race condition
         execution_time = Time.now - attempt_start
-        
+
         logger.warn('Task execution timed out',
                     task: task_name,
                     timeout: timeout,
                     execution_time: execution_time.round(3),
                     timeout_precedence: 'timeout error takes precedence over any nested errors')
-        
+
         # Always wrap as TaskTimeoutError, preserving original timeout context
-        raise TaskTimeoutError.new(task_name, "timed out after #{timeout}s (execution_time: #{execution_time.round(3)}s)", timeout_error)
-      rescue *RETRYABLE_ERRORS => network_error
+        raise TaskTimeoutError.new(task_name, "timed out after #{timeout}s (execution_time: #{execution_time.round(3)}s)", e)
+      rescue *RETRYABLE_ERRORS => e
         # Network errors that escape timeout handling (very rare)
         # These occur outside the timeout window, so they're genuine network errors
         logger.debug('Network error outside timeout window',
                      task: task_name,
-                     error: network_error.class.name,
-                     message: network_error.message)
-        raise TaskNetworkError.new(task_name, "network error: #{network_error.message}", network_error)
+                     error: e.class.name,
+                     message: e.message)
+        raise TaskNetworkError.new(task_name, "network error: #{e.message}", e)
       end
 
       # Execute the actual task implementation (neural or symbolic)
@@ -709,6 +827,9 @@ module LanguageOperator
         when TaskExecutionError
           # Check the original error for retryability
           error.original_error ? retryable_error?(error.original_error) : false
+        when RuntimeError
+          # JSON parsing errors from neural tasks are retryable
+          error.message.include?('returned invalid JSON')
         else
           # Check against the standard retryable error list
           RETRYABLE_ERRORS.any? { |error_class| error.is_a?(error_class) }
@@ -734,9 +855,7 @@ module LanguageOperator
         return :validation if error.is_a?(ArgumentError) || error.is_a?(TaskValidationError)
 
         # For wrapped errors, check original error but preserve timeout precedence
-        if error.is_a?(TaskExecutionError) && error.original_error
-          return categorize_error(error.original_error)
-        end
+        return categorize_error(error.original_error) if error.is_a?(TaskExecutionError) && error.original_error
 
         # Precedence Level 3: Network errors
         return :network if error.is_a?(TaskNetworkError) || RETRYABLE_ERRORS.any? { |err_class| error.is_a?(err_class) }
