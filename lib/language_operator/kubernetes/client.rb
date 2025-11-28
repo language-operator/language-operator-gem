@@ -3,6 +3,7 @@
 require 'k8s-ruby'
 require 'yaml'
 require_relative '../utils/secure_path'
+require_relative '../agent/event_config'
 
 module LanguageOperator
   module Kubernetes
@@ -163,6 +164,72 @@ module LanguageOperator
         create_resource(resource)
       end
 
+      # Create a Kubernetes Event
+      # @param event [Hash] Event resource hash
+      # @return [K8s::Resource] Created event resource
+      def create_event(event)
+        # Ensure proper apiVersion and kind for events
+        event = event.merge({
+          'apiVersion' => 'v1',
+          'kind' => 'Event'
+        })
+        create_resource(event)
+      end
+
+      # Emit an execution event for agent task completion
+      # @param task_name [String] Name of the executed task
+      # @param success [Boolean] Whether task succeeded
+      # @param duration_ms [Float] Execution duration in milliseconds
+      # @param metadata [Hash] Additional metadata to include
+      # @return [K8s::Resource, nil] Created event resource or nil if disabled
+      def emit_execution_event(task_name, success:, duration_ms:, metadata: {})
+        # Check if events are enabled based on configuration
+        event_config = Agent::EventConfig.load
+        event_type = success ? :success : :failure
+        return nil unless Agent::EventConfig.should_emit?(event_type, event_config)
+
+        agent_name = ENV.fetch('AGENT_NAME', nil)
+        agent_namespace = ENV.fetch('AGENT_NAMESPACE', current_namespace)
+
+        return nil unless agent_name && agent_namespace
+
+        timestamp = Time.now.to_i
+        event_name = "#{agent_name}-task-#{task_name}-#{timestamp}"
+
+        event = {
+          'metadata' => {
+            'name' => event_name,
+            'namespace' => agent_namespace,
+            'labels' => {
+              'app.kubernetes.io/name' => 'language-operator',
+              'app.kubernetes.io/component' => 'agent',
+              'langop.io/agent-name' => agent_name,
+              'langop.io/task-name' => task_name.to_s
+            }
+          },
+          'involvedObject' => {
+            'kind' => 'LanguageAgent',
+            'name' => agent_name,
+            'namespace' => agent_namespace,
+            'apiVersion' => 'langop.io/v1alpha1'
+          },
+          'reason' => success ? 'TaskCompleted' : 'TaskFailed',
+          'message' => build_event_message(task_name, success, duration_ms, metadata, event_config),
+          'type' => success ? 'Normal' : 'Warning',
+          'firstTimestamp' => Time.now.utc.iso8601,
+          'lastTimestamp' => Time.now.utc.iso8601,
+          'source' => {
+            'component' => 'language-operator-agent'
+          }
+        }
+
+        create_event(event)
+      rescue StandardError => e
+        # Log error but don't fail task execution
+        warn "Failed to emit execution event: #{e.message}"
+        nil
+      end
+
       # Check if operator is installed
       def operator_installed?
         # Check if LanguageCluster CRD exists
@@ -183,6 +250,48 @@ module LanguageOperator
       end
 
       private
+
+      # Build event message for task execution
+      # @param task_name [String] Task name
+      # @param success [Boolean] Whether task succeeded
+      # @param duration_ms [Float] Execution duration in milliseconds
+      # @param metadata [Hash] Additional metadata
+      # @param event_config [Hash] Event configuration
+      # @return [String] Formatted event message
+      def build_event_message(task_name, success, duration_ms, metadata = {}, event_config = nil)
+        event_config ||= Agent::EventConfig.load
+        content_config = Agent::EventConfig.content_config(event_config)
+        
+        status = success ? 'completed successfully' : 'failed'
+        message = "Task '#{task_name}' #{status} in #{duration_ms.round(2)}ms"
+        
+        # Include metadata if configured
+        if content_config[:include_task_metadata] && metadata.any?
+          # Filter metadata based on configuration
+          filtered_metadata = metadata.dup
+          
+          # Remove error details if not configured to include them
+          unless content_config[:include_error_details]
+            filtered_metadata.delete('error_type')
+            filtered_metadata.delete('error_category')
+          end
+          
+          if filtered_metadata.any?
+            details = filtered_metadata.map { |k, v| "#{k}: #{v}" }.join(', ')
+            message += " (#{details})"
+          end
+        end
+        
+        # Truncate if configured and message is too long
+        if content_config[:truncate_long_messages] && 
+           message.length > content_config[:max_message_length]
+          max_length = content_config[:max_message_length]
+          truncated_length = message.length - max_length
+          message = message[0...max_length] + "... (truncated #{truncated_length} chars)"
+        end
+        
+        message
+      end
 
       # Build singleton instance with automatic config detection
       def self.build_singleton
@@ -266,6 +375,8 @@ module LanguageOperator
           'statefulsets'
         when 'cronjob'
           'cronjobs'
+        when 'event'
+          'events'
         else
           # Generic pluralization - add 's'
           "#{kind.downcase}s"

@@ -170,4 +170,53 @@ RSpec.describe LanguageOperator::Agent::Base do
       end
     end
   end
+
+  describe 'Kubernetes client initialization' do
+    after do
+      ENV.delete('KUBERNETES_SERVICE_HOST')
+    end
+
+    context 'when in Kubernetes environment' do
+      before do
+        ENV['KUBERNETES_SERVICE_HOST'] = 'kubernetes.default.svc'
+        allow(LanguageOperator::Kubernetes::Client).to receive(:instance)
+          .and_return(instance_double(LanguageOperator::Kubernetes::Client))
+      end
+
+      it 'initializes Kubernetes client' do
+        expect(LanguageOperator::Kubernetes::Client).to receive(:instance)
+        agent = described_class.new(config)
+        expect(agent.kubernetes_client).not_to be_nil
+      end
+    end
+
+    context 'when not in Kubernetes environment' do
+      before do
+        ENV.delete('KUBERNETES_SERVICE_HOST')
+      end
+
+      it 'does not initialize Kubernetes client' do
+        expect(LanguageOperator::Kubernetes::Client).not_to receive(:instance)
+        agent = described_class.new(config)
+        expect(agent.kubernetes_client).to be_nil
+      end
+    end
+
+    context 'when Kubernetes client initialization fails' do
+      before do
+        ENV['KUBERNETES_SERVICE_HOST'] = 'kubernetes.default.svc'
+        allow(LanguageOperator::Kubernetes::Client).to receive(:instance)
+          .and_raise(StandardError.new('K8s client error'))
+      end
+
+      it 'handles the error gracefully and logs warning' do
+        logger = instance_double(Logger)
+        allow(Logger).to receive(:new).and_return(logger)
+        expect(logger).to receive(:warn).with('Failed to initialize Kubernetes client', error: 'K8s client error')
+        
+        agent = described_class.new(config)
+        expect(agent.kubernetes_client).to be_nil
+      end
+    end
+  end
 end

@@ -2,6 +2,7 @@
 
 require_relative '../client'
 require_relative '../constants'
+require_relative '../kubernetes/client'
 require_relative 'telemetry'
 require_relative 'instrumentation'
 
@@ -21,7 +22,7 @@ module LanguageOperator
     class Base < LanguageOperator::Client::Base
       include Instrumentation
 
-      attr_reader :workspace_path, :mode
+      attr_reader :workspace_path, :mode, :kubernetes_client
 
       # Initialize the agent
       #
@@ -40,6 +41,14 @@ module LanguageOperator
         @workspace_path = ENV.fetch('WORKSPACE_PATH', '/workspace')
         @mode = agent_mode_with_default
         @executor = nil
+        
+        # Initialize Kubernetes client for event emission (only in K8s environments)
+        @kubernetes_client = begin
+          LanguageOperator::Kubernetes::Client.instance if ENV.fetch('KUBERNETES_SERVICE_HOST', nil)
+        rescue StandardError => e
+          logger.warn('Failed to initialize Kubernetes client', error: e.message)
+          nil
+        end
       end
 
       # Run the agent in its configured mode
