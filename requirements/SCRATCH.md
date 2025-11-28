@@ -71,6 +71,15 @@ Critical insights and patterns for the language-operator Ruby gem.
 - #102 - Agent workspace validation fails for legitimate pod names with special characters
 - #105 - StreamingBody MockStream incomplete IO interface may break middleware compatibility
 
+**Recently Resolved (2025-11-28):**
+- #117 - ✅ Update SCHEMA_CHANGELOG.md for version 0.1.64
+  - Added version 0.1.64 entry documenting learning status & observability improvements
+  - Documented new features: semantic OpenTelemetry attributes, Kubernetes event emission, real execution metrics
+  - Documented improvements: enhanced learning-status command, better formatting, color-coded boxes
+  - Documented bug fixes: handle empty lastExecution, SigNoz Query Builder v5, K8s::Resource annotations, hanging tests
+  - Test now passes: schema changelog contains current gem version
+  - Documentation-only change, no code modifications
+
 **Recently Resolved (2025-11-27):**
 - #109 - ✅ Agent runtime exits after task completion instead of waiting for further instructions
   - Implemented persistent mode for autonomous agents with DSL v1 (task/main model)
