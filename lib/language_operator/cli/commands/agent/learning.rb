@@ -171,17 +171,6 @@ module LanguageOperator
                 display_learning_explanation(learning_enabled)
               end
 
-              # Show next steps
-              puts pastel.white.bold('Available Commands:')
-              learning_enabled = !annotations.key?(Constants::KubernetesLabels::LEARNING_DISABLED_LABEL)
-              if learning_enabled
-                puts pastel.dim("  aictl agent learning disable #{agent_name}    # Disable automatic learning")
-              else
-                puts pastel.dim("  aictl agent learning enable #{agent_name}     # Enable automatic learning")
-              end
-              puts pastel.dim("  aictl agent inspect #{agent_name}               # View agent configuration")
-              puts pastel.dim("  aictl agent logs #{agent_name}                 # View execution logs")
-              puts pastel.dim("  aictl agent versions #{agent_name}             # View synthesis history")
             end
 
             def display_detailed_learning_status(learning_status)
