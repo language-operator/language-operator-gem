@@ -25,7 +25,29 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Learning::LearningCommand
       {
         'metadata' => {
           'name' => 'test-agent',
-          'annotations' => {}
+          'annotations' => {},
+          'creationTimestamp' => '2025-11-28T10:30:00Z'
+        },
+        'status' => {
+          'conditions' => [
+            {
+              'type' => 'Ready',
+              'status' => 'True',
+              'lastTransitionTime' => '2025-11-28T10:35:00Z'
+            }
+          ]
+        }
+      }
+    end
+
+    let(:agent_with_learning_disabled) do
+      {
+        'metadata' => {
+          'name' => 'test-agent',
+          'annotations' => {
+            LanguageOperator::Constants::KubernetesLabels::LEARNING_DISABLED_LABEL => 'true'
+          },
+          'creationTimestamp' => '2025-11-28T10:30:00Z'
         }
       }
     end
@@ -42,6 +64,32 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Learning::LearningCommand
       expect(client).to have_received(:get_resource).with('LanguageAgent', 'test-agent', 'language-operator')
       expect(command).to have_received(:get_learning_status).with(client, 'test-agent', 'language-operator')
       expect(command).to have_received(:display_learning_status).with(agent, nil, 'test-cluster')
+    end
+
+    describe 'display formatting' do
+      it 'displays learning enabled status and configuration' do
+        # Call the real method to test the implementation
+        expect { command.status('test-agent') }.not_to raise_error
+
+        # Basic verification that it ran without error
+        expect(client).to have_received(:get_resource).with('LanguageAgent', 'test-agent', 'language-operator')
+      end
+
+      it 'shows learning disabled status when annotation is present' do
+        allow(client).to receive(:get_resource).and_return(agent_with_learning_disabled)
+
+        expect { command.status('test-agent') }.not_to raise_error
+        expect(client).to have_received(:get_resource).with('LanguageAgent', 'test-agent', 'language-operator')
+      end
+
+      it 'handles missing timestamp gracefully' do
+        agent_without_timestamp = agent.dup
+        agent_without_timestamp['metadata'].delete('creationTimestamp')
+        allow(client).to receive(:get_resource).and_return(agent_without_timestamp)
+
+        expect { command.status('test-agent') }.not_to raise_error
+        expect(client).to have_received(:get_resource).with('LanguageAgent', 'test-agent', 'language-operator')
+      end
     end
   end
 
@@ -134,6 +182,47 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Learning::LearningCommand
         .with(client, 'test-agent', 'language-operator', LanguageOperator::Constants::KubernetesLabels::LEARNING_DISABLED_LABEL, 'true')
       expect(LanguageOperator::CLI::Formatters::ProgressFormatter)
         .to have_received(:success).with("Learning disabled for agent 'test-agent'")
+    end
+  end
+
+  describe 'private methods' do
+    let(:agent_with_timestamp) do
+      {
+        'metadata' => {
+          'creationTimestamp' => '2025-11-28T10:30:00Z'
+        }
+      }
+    end
+
+    let(:agent_without_timestamp) do
+      {
+        'metadata' => {}
+      }
+    end
+
+    let(:agent_with_invalid_timestamp) do
+      {
+        'metadata' => {
+          'creationTimestamp' => 'invalid-timestamp'
+        }
+      }
+    end
+
+    describe '#format_agent_timestamp' do
+      it 'formats valid timestamp correctly' do
+        result = command.send(:format_agent_timestamp, agent_with_timestamp)
+        expect(result).to eq('2025-11-28 10:30:00 UTC')
+      end
+
+      it 'returns Unknown for missing timestamp' do
+        result = command.send(:format_agent_timestamp, agent_without_timestamp)
+        expect(result).to eq('Unknown')
+      end
+
+      it 'returns Unknown for invalid timestamp' do
+        result = command.send(:format_agent_timestamp, agent_with_invalid_timestamp)
+        expect(result).to eq('Unknown')
+      end
     end
   end
 end

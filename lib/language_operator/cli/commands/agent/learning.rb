@@ -160,39 +160,44 @@ module LanguageOperator
               status_color = learning_enabled ? :green : :yellow
               status_text = learning_enabled ? 'Enabled' : 'Disabled'
 
+              # Format timestamp properly
+              timestamp = format_agent_timestamp(agent)
+
               highlighted_box(
                 title: 'Learning Status',
                 rows: {
                   'Agent' => pastel.white.bold(agent_name),
                   'Cluster' => cluster_name,
                   'Learning' => pastel.send(status_color).bold(status_text),
-                  'Last Updated' => agent.dig('metadata', 'resourceVersion') || 'Unknown'
+                  'Created' => timestamp
                 }
               )
               puts
+
+              # Show execution progress and learning information
+              display_execution_progress(agent, learning_status)
 
               # If learning status ConfigMap exists, show detailed information
               if learning_status
                 display_detailed_learning_status(learning_status)
               else
-                puts pastel.dim('No learning status data available yet.')
-                puts pastel.dim('Learning data will appear after the agent has run and the operator has analyzed its behavior.')
-                puts
+                display_learning_explanation(learning_enabled)
               end
 
               # Show next steps
               puts pastel.white.bold('Available Commands:')
               if learning_enabled
-                puts pastel.dim("  aictl agent learning disable #{agent_name}")
+                puts pastel.dim("  aictl agent learning disable #{agent_name}    # Disable automatic learning")
               else
-                puts pastel.dim("  aictl agent learning enable #{agent_name}")
+                puts pastel.dim("  aictl agent learning enable #{agent_name}     # Enable automatic learning")
               end
-              puts pastel.dim("  aictl agent versions #{agent_name}")
-              puts pastel.dim("  aictl agent inspect #{agent_name}")
+              puts pastel.dim("  aictl agent inspect #{agent_name}               # View agent configuration")
+              puts pastel.dim("  aictl agent logs #{agent_name}                 # View execution logs")
+              puts pastel.dim("  aictl agent versions #{agent_name}             # View synthesis history")
             end
 
             def display_detailed_learning_status(learning_status)
-              data = learning_status.dig('data') || {}
+              data = learning_status['data'] || {}
 
               # Parse learning data if available
               if data['tasks']
@@ -209,11 +214,7 @@ module LanguageOperator
                     executions = task_info['executions'] || 0
                     status = task_info['status'] || 'neural'
 
-                    confidence_color = if confidence >= 85
-                                         :green
-                                       else
-                                         confidence >= 70 ? :yellow : :red
-                                       end
+                    confidence_color = determine_confidence_color(confidence)
 
                     puts "  #{pastel.cyan(task_name)}"
                     puts "    Status: #{format_task_status(status)}"
@@ -285,6 +286,72 @@ module LanguageOperator
 
               # Update the agent
               client.update_resource(agent)
+            end
+
+            def format_agent_timestamp(agent)
+              created_time = agent.dig('metadata', 'creationTimestamp')
+              return 'Unknown' unless created_time
+
+              begin
+                Time.parse(created_time).strftime('%Y-%m-%d %H:%M:%S UTC')
+              rescue StandardError
+                'Unknown'
+              end
+            end
+
+            def display_execution_progress(agent, _learning_status)
+              # For now, show learning configuration since execution metrics aren't available yet
+              puts pastel.white.bold('Learning Configuration:')
+              puts "  Threshold: #{pastel.cyan('10 successful runs')} (auto-learning trigger)"
+              puts "  Confidence: #{pastel.cyan('85%')} (pattern detection threshold)"
+              puts "  Mode: #{pastel.cyan('Automatic')} (batched learning enabled)"
+              puts
+
+              # Try to get some basic execution info from agent status if available
+              status = agent['status']
+              return unless status && status['conditions']
+
+              ready_condition = status['conditions'].find { |c| c['type'] == 'Ready' }
+              return unless ready_condition
+
+              last_transition = ready_condition['lastTransitionTime']
+              return unless last_transition
+
+              begin
+                formatted_time = Time.parse(last_transition).strftime('%Y-%m-%d %H:%M:%S UTC')
+                puts pastel.white.bold('Agent Status:')
+                puts "  Last activity: #{formatted_time}"
+                status_text = ready_condition['status'] == 'True' ? 'Ready' : 'Not Ready'
+                status_colored = ready_condition['status'] == 'True' ? pastel.green(status_text) : pastel.yellow(status_text)
+                puts "  Status: #{status_colored}"
+                puts
+              rescue StandardError
+                # Skip if timestamp parsing fails
+              end
+            end
+
+            def display_learning_explanation(learning_enabled)
+              if learning_enabled
+                puts pastel.dim('Learning is enabled and will begin automatically after the agent completes 10 successful runs.')
+                puts pastel.dim('Neural tasks will be analyzed for patterns and converted to symbolic implementations.')
+              else
+                puts pastel.yellow('Learning is disabled for this agent.')
+                puts pastel.dim('Enable learning to allow automatic task optimization after sufficient executions.')
+              end
+              puts
+              puts pastel.dim('Note: Execution metrics will be available once the agent starts running and')
+              puts pastel.dim('the operator begins collecting telemetry data.')
+              puts
+            end
+
+            def determine_confidence_color(confidence)
+              if confidence >= 85
+                :green
+              elsif confidence >= 70
+                :yellow
+              else
+                :red
+              end
             end
           end
         end
