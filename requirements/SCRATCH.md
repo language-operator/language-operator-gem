@@ -4,10 +4,10 @@ Critical insights and patterns for the language-operator Ruby gem.
 
 ## Quick Reference
 
-- **Project**: Kubernetes agent orchestration with `aictl` CLI (`bundle exec bin/aictl`)  
+- **Project**: Kubernetes agent orchestration with `aictl` CLI (`bundle exec bin/aictl`)
 - **DSL**: Task/Main model (v1) replaces workflow/step (v0, deprecated)
 - **Components**: TaskDefinition (contracts), MainDefinition (imperative), TypeSchema (7 types)
-- **Test Status**: All passing, RuboCop clean
+- **Test Status**: Unit tests passing (384 examples), integration tests have pre-existing failures
 
 ## Key Patterns
 
@@ -25,23 +25,25 @@ Critical insights and patterns for the language-operator Ruby gem.
 ## Architecture Overview
 
 **Key Files:**
-- `dsl/schema.rb` (1100+ lines) - JSON Schema generation  
+- `dsl/schema.rb` (1100+ lines) - JSON Schema generation
 - `agent/safety/ast_validator.rb` - Code security validation
 - `agent/task_executor.rb` - Neural/symbolic task execution
 - `agent/learning/trace_analyzer.rb` - OTLP query adapter
 
 **Core Systems:**
 - ✅ DSL v1: Schema, AST validator, definitions
-- ✅ Task execution: Neural & symbolic modes  
+- ✅ Task execution: Neural & symbolic modes
 - ✅ Parallel execution: DependencyGraph & ParallelExecutor (not integrated - variable mapping issue)
-- ✅ Learning system: TraceAnalyzer & PatternDetector 
+- ✅ Learning system: TraceAnalyzer & PatternDetector (85% consistency, 10+ executions → symbolic)
 - ✅ CLI: Unified wizards pattern with UxHelper
+- ✅ Agent runtime: Persistent mode for autonomous agents (AGENT_IDLE_TIMEOUT, AGENT_NEW_INSTRUCTION)
+- ✅ Kubernetes events: Agent-operator communication via K8s Event API
 
 ## Implementation Details
 
 **Task Execution:**
 - Neural: TaskExecutor → LLM → JSON → validation
-- Symbolic: TaskDefinition#call → code → validation  
+- Symbolic: TaskDefinition#call → code → validation
 - Runtime: Agent detects DSL version, creates TaskExecutor
 
 **Parallel Execution (Blocked):**
@@ -49,14 +51,19 @@ Critical insights and patterns for the language-operator Ruby gem.
 - Issue: Variable-to-result mapping (`s1 = execute_task(:fetch1)` vs `{fetch1: {...}}`)
 
 **Learning System:**
-- TraceAnalyzer (OTLP) + PatternDetector (85% consistency, 10+ executions → symbolic)
+- TraceAnalyzer (OTLP) + PatternDetector
 - Config: OTEL_QUERY_ENDPOINT, OTEL_QUERY_API_KEY, OTEL_QUERY_BACKEND
 - Gotcha: WebMock stubs needed before TraceAnalyzer init
+
+**JSON Parsing Resilience (Neural Tasks):**
+- Retry mechanism for malformed LLM responses (reduces crash rate from 66% to <10%)
+- Parsing-specific retry with strict JSON-only instructions
+- Flag reset at task start to prevent infinite loops in scheduled agents
 
 ## Common Gotchas
 
 1. **Hash Keys:** Ruby symbols ≠ strings - check types in tests
-2. **Heredocs:** Use `<<~'RUBY'` (single quotes) to prevent RSpec context leakage  
+2. **Heredocs:** Use `<<~'RUBY'` (single quotes) to prevent RSpec context leakage
 3. **Parser:** Too forgiving for syntax validation - use AST for semantic checks
 4. **Tools:** Access via LLM interface (`execute_llm`), not direct RPC
 5. **Futures:** Use `future.wait` + `future.rejected?`, not `rescue` around `future.value`
@@ -64,69 +71,50 @@ Critical insights and patterns for the language-operator Ruby gem.
 7. **WebMock:** Stub HTTP before object initialization if constructor makes requests
 8. **UX:** Always use `UxHelper` for TTY components
 
-## Current Active Issues (2025-11-27)
+## Current Active Issues (2025-11-28)
 
 **P1 - UX/Operational Issues:**
-- #100 - Agent pause/resume commands fail silently on kubectl errors  
+- #100 - Agent pause/resume commands fail silently on kubectl errors
 - #102 - Agent workspace validation fails for legitimate pod names with special characters
 - #105 - StreamingBody MockStream incomplete IO interface may break middleware compatibility
 
-**Recently Resolved (2025-11-28):**
-- #117 - ✅ Update SCHEMA_CHANGELOG.md for version 0.1.64
-  - Added version 0.1.64 entry documenting learning status & observability improvements
-  - Documented new features: semantic OpenTelemetry attributes, Kubernetes event emission, real execution metrics
-  - Documented improvements: enhanced learning-status command, better formatting, color-coded boxes
-  - Documented bug fixes: handle empty lastExecution, SigNoz Query Builder v5, K8s::Resource annotations, hanging tests
-  - Test now passes: schema changelog contains current gem version
-  - Documentation-only change, no code modifications
-
-**Recently Resolved (2025-11-27):**
-- #109 - ✅ Agent runtime exits after task completion instead of waiting for further instructions
-  - Implemented persistent mode for autonomous agents with DSL v1 (task/main model)
-  - Added `execute_main_block_persistent` method with signal handling (SIGTERM/SIGINT)
-  - Agent now enters idle state after initial task completion instead of exiting
-  - Configurable idle timeout via `AGENT_IDLE_TIMEOUT` environment variable
-  - Support for new instructions via `AGENT_NEW_INSTRUCTION` environment variable
-  - Backward compatibility maintained - scheduled mode still exits after execution
-  - Fixes CrashLoopBackOff in Kubernetes deployments for autonomous agents
-
-- #108 - ✅ Universal cluster association for all resource types (tools, agents, models)
-  - Added clusterRef field to all resource specs for proper cluster lifecycle management
-  - Updated ResourceBuilder.build_resource() to accept cluster_ref parameter
-  - Modified all CLI commands (agent create, model create, tool install) to pass cluster reference
-  - Added comprehensive test coverage for cluster association
-  - Maintains backward compatibility for existing resources
-  - Fixes cluster finalizer cleanup issue for all aictl-created resources
-
-- #111 - ✅ Agent crashing intermittently due to neural task JSON parsing failures
-  - Made JSON parsing errors retryable by updating retryable_error? method
-  - Enhanced parse_neural_response to handle malformed THINK blocks with aggressive fallback patterns
-  - Added LLM retry mechanism with clarified prompt when parsing fails initially
-  - Implemented parsing-specific retry with strict JSON-only instructions
-  - Reduces crash rate from 66% (2/3 runs) to <10% for malformed LLM responses
-  - Maintains existing retry behavior for network/timeout errors
-  - All tests pass (155 examples, 0 failures)
-
-- #112 - ✅ Scheduled agents stuck in execution loop after JSON parsing resilience changes 
-  - Fixed logic error in JSON parsing retry condition: `!defined?(@parsing_retry_attempted)` → `!@parsing_retry_attempted`
-  - Removed problematic ensure block and reset retry flag at task start instead
-  - Added regression tests for JSON parsing retry behavior and limit validation
-  - Verified scheduled agents execute once and exit correctly (no infinite loops)
-  - Preserved all JSON parsing resilience improvements from #111
-  - Confirmed both scheduled and autonomous modes work properly
-
-**Recently Resolved (2025-11-26):**
-- #92 - ✅ CLI error handler exit(1) bypasses Thor error handling and testing
-  - Implemented Thor-compatible error classes with specific exit codes (2-6)
-  - Replaced all exit(1) calls with proper Thor exceptions
-  - Added comprehensive test coverage
-  - Maintains backward compatibility and DEBUG mode behavior
-
 **P2 - Legacy Cleanup:**
-- #78 - Remove dead code tool.rb file (645 lines, cleanup)
+- #78 - Remove dead code tool.rb file (645 lines)
 - #76 - Dead code: unused expression in model test
 
 **P3 - Enhancements:**
 - #51 - Include complete MCP tool schemas
 - #40 - Performance optimization
 - #41 - Comprehensive test suite
+
+## Recently Resolved (Last 5)
+
+1. **#117** (2025-11-28) - Schema changelog missing v0.1.64 entry - documentation update
+2. **#109** (2025-11-27) - Agent persistent mode for autonomous agents - prevents CrashLoopBackOff
+3. **#108** (2025-11-27) - Universal cluster association (clusterRef) - fixes finalizer cleanup
+4. **#111** (2025-11-27) - Neural task JSON parsing resilience - crash rate 66% → <10%
+5. **#112** (2025-11-27) - Scheduled agent infinite loop fix - parsing retry condition bug
+
+## Key Learnings
+
+**Agent Runtime:**
+- Autonomous mode requires persistent execution after initial task completion
+- Signal handling (SIGTERM/SIGINT) for graceful shutdown
+- Idle timeout configurable via AGENT_IDLE_TIMEOUT
+- New instructions via AGENT_NEW_INSTRUCTION environment variable
+
+**Resource Management:**
+- All Kubernetes resources (agents, models, tools) need clusterRef for proper lifecycle
+- Cluster finalizers require explicit resource association
+- ResourceBuilder.build_resource() accepts cluster_ref parameter
+
+**Neural Task Execution:**
+- LLM responses may include malformed THINK blocks
+- Aggressive fallback patterns + retry with strict JSON instructions
+- Parsing retry flag must reset at task start (not in ensure block)
+- Scheduled vs autonomous modes have different execution expectations
+
+**Schema & Documentation:**
+- Schema CHANGELOG.md must match gem VERSION for CI tests
+- Template at lib/language_operator/templates/schema/CHANGELOG.md
+- Test: spec/language_operator/dsl/schema_artifacts_spec.rb:116
