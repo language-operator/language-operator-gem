@@ -149,7 +149,7 @@ module LanguageOperator
       #
       # @param params [Hash] Input parameters
       # @return [Hash] Validated and coerced parameters
-      # @raise [ArgumentError] If validation fails
+      # @raise [LanguageOperator::Agent::TaskValidationError] If validation fails
       def validate_inputs(params)
         params = params.transform_keys(&:to_sym)
         validated = {}
@@ -158,7 +158,10 @@ module LanguageOperator
           key_sym = key.to_sym
           value = params[key_sym]
 
-          raise ArgumentError, "Missing required input parameter: #{key}" if value.nil?
+          if value.nil?
+            raise LanguageOperator::Agent::TaskValidationError.new(@name,
+                                                                    "Missing required input parameter: #{key}")
+          end
 
           validated[key_sym] = coerce_value(value, type, "input parameter '#{key}'")
         end
@@ -174,7 +177,7 @@ module LanguageOperator
       #
       # @param result [Hash] Output values
       # @return [Hash] Validated and coerced outputs
-      # @raise [ArgumentError] If validation fails
+      # @raise [LanguageOperator::Agent::TaskValidationError] If validation fails
       def validate_outputs(result)
         return result if @outputs_schema.empty? # No schema = no validation
 
@@ -185,7 +188,10 @@ module LanguageOperator
           key_sym = key.to_sym
           value = result[key_sym]
 
-          raise ArgumentError, "Missing required output field: #{key}" if value.nil?
+          if value.nil?
+            raise LanguageOperator::Agent::TaskValidationError.new(@name,
+                                                                    "Missing required output field: #{key}")
+          end
 
           validated[key_sym] = coerce_value(value, type, "output field '#{key}'")
         end

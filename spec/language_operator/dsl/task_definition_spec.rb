@@ -142,13 +142,13 @@ RSpec.describe LanguageOperator::Dsl::TaskDefinition do
     it 'raises error for missing required input' do
       expect do
         task.validate_inputs(name: 'Alice')
-      end.to raise_error(ArgumentError, /Missing required input parameter: user_id/)
+      end.to raise_error(LanguageOperator::Agent::TaskValidationError, /Missing required input parameter: user_id/)
     end
 
     it 'raises error for invalid coercion' do
       expect do
         task.validate_inputs(user_id: 'abc', name: 'Alice')
-      end.to raise_error(ArgumentError, /Cannot coerce "abc" to integer/)
+      end.to raise_error(LanguageOperator::Agent::TaskValidationError, /Cannot coerce "abc" to integer/)
     end
 
     it 'converts symbol to string for string type' do
@@ -171,13 +171,13 @@ RSpec.describe LanguageOperator::Dsl::TaskDefinition do
     it 'raises error for missing required output' do
       expect do
         task.validate_outputs(user: { id: 1 })
-      end.to raise_error(ArgumentError, /Missing required output field: found/)
+      end.to raise_error(LanguageOperator::Agent::TaskValidationError, /Missing required output field: found/)
     end
 
     it 'validates hash type' do
       expect do
         task.validate_outputs(user: 'not a hash', found: true)
-      end.to raise_error(ArgumentError, /Expected hash/)
+      end.to raise_error(LanguageOperator::Agent::TaskValidationError, /Expected hash/)
     end
   end
 
@@ -198,7 +198,7 @@ RSpec.describe LanguageOperator::Dsl::TaskDefinition do
       it 'rejects invalid string' do
         expect do
           task.validate_inputs(value: 'abc')
-        end.to raise_error(ArgumentError, /Cannot coerce/)
+        end.to raise_error(LanguageOperator::Agent::TaskValidationError, /Cannot coerce/)
       end
     end
 
@@ -257,7 +257,7 @@ RSpec.describe LanguageOperator::Dsl::TaskDefinition do
       it 'rejects ambiguous values' do
         expect do
           task.validate_inputs(flag: 'maybe')
-        end.to raise_error(ArgumentError, /Cannot coerce/)
+        end.to raise_error(LanguageOperator::Agent::TaskValidationError, /Cannot coerce/)
       end
     end
 
@@ -272,7 +272,7 @@ RSpec.describe LanguageOperator::Dsl::TaskDefinition do
       it 'rejects non-array' do
         expect do
           task.validate_inputs(items: 'not an array')
-        end.to raise_error(ArgumentError, /Expected array/)
+        end.to raise_error(LanguageOperator::Agent::TaskValidationError, /Expected array/)
       end
     end
 
@@ -287,7 +287,7 @@ RSpec.describe LanguageOperator::Dsl::TaskDefinition do
       it 'rejects non-hash' do
         expect do
           task.validate_inputs(data: [1, 2, 3])
-        end.to raise_error(ArgumentError, /Expected hash/)
+        end.to raise_error(LanguageOperator::Agent::TaskValidationError, /Expected hash/)
       end
     end
 
@@ -320,7 +320,7 @@ RSpec.describe LanguageOperator::Dsl::TaskDefinition do
     it 'validates inputs before execution' do
       expect do
         task.call(items: 'not an array')
-      end.to raise_error(ArgumentError, /Expected array/)
+      end.to raise_error(LanguageOperator::Agent::TaskValidationError, /Expected array/)
     end
 
     it 'validates outputs after execution' do
@@ -328,7 +328,7 @@ RSpec.describe LanguageOperator::Dsl::TaskDefinition do
 
       expect do
         task.call(items: [1, 2, 3])
-      end.to raise_error(ArgumentError, /Missing required output field: total/)
+      end.to raise_error(LanguageOperator::Agent::TaskValidationError, /Missing required output field: total/)
     end
   end
 
