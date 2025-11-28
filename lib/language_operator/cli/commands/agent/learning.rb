@@ -300,11 +300,16 @@ module LanguageOperator
             end
 
             def display_execution_progress(agent, _learning_status)
-              # For now, show learning configuration since execution metrics aren't available yet
-              puts pastel.white.bold('Learning Configuration:')
-              puts "  Threshold: #{pastel.cyan('10 successful runs')} (auto-learning trigger)"
-              puts "  Confidence: #{pastel.cyan('85%')} (pattern detection threshold)"
-              puts "  Mode: #{pastel.cyan('Automatic')} (batched learning enabled)"
+              # Show learning configuration in a cyan highlighted box
+              highlighted_box(
+                title: 'Learning Configuration',
+                color: :cyan,
+                rows: {
+                  'Threshold' => "#{pastel.cyan('10 successful runs')} (auto-learning trigger)",
+                  'Confidence' => "#{pastel.cyan('85%')} (pattern detection threshold)",
+                  'Mode' => "#{pastel.cyan('Automatic')} (batched learning enabled)"
+                }
+              )
               puts
 
               # Try to get some basic execution info from agent status if available
@@ -319,11 +324,17 @@ module LanguageOperator
 
               begin
                 formatted_time = Time.parse(last_transition).strftime('%Y-%m-%d %H:%M:%S UTC')
-                puts pastel.white.bold('Agent Status:')
-                puts "  Last activity: #{formatted_time}"
                 status_text = ready_condition['status'] == 'True' ? 'Ready' : 'Not Ready'
                 status_colored = ready_condition['status'] == 'True' ? pastel.green(status_text) : pastel.yellow(status_text)
-                puts "  Status: #{status_colored}"
+
+                highlighted_box(
+                  title: 'Agent Status',
+                  color: :cyan,
+                  rows: {
+                    'Last activity' => formatted_time,
+                    'Status' => status_colored
+                  }
+                )
                 puts
               rescue StandardError
                 # Skip if timestamp parsing fails
