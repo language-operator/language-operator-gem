@@ -161,6 +161,7 @@ module LanguageOperator
 
               # Display Learning Status box
               display_learning_status_box(agent, learning_status, annotations)
+              puts
 
               # If learning status ConfigMap exists, show detailed information
               if learning_status
