@@ -9,13 +9,22 @@ require 'language_operator/agent/webhook_authenticator'
 RSpec.describe LanguageOperator::Agent::WebServer do
   include Rack::Test::Methods
 
+
   let(:agent) do
     instance_double('Agent').tap do |agent_double|
       allow(agent_double).to receive(:workspace_path).and_return('/tmp/workspace')
+      allow(agent_double).to receive(:workspace_available?).and_return(true)
       allow(agent_double).to receive(:class).and_return(double(name: 'TestAgent'))
+      allow(agent_double).to receive(:respond_to?).with(:cleanup_connections).and_return(false)
+      allow(agent_double).to receive(:cleanup_connections)
     end
   end
   let(:web_server) { described_class.new(agent) }
+
+  # Cleanup executor pool after each test to prevent resource leaks
+  after do
+    web_server.cleanup if web_server && web_server.respond_to?(:cleanup)
+  end
 
   describe '#build_request_context' do
     context 'when request has a body' do
@@ -137,6 +146,7 @@ RSpec.describe LanguageOperator::Agent::WebServer do
       allow(LanguageOperator::Agent::Executor).to receive(:new) do |_agent|
         executor_instances << instance_double('Executor').tap do |executor_double|
           allow(executor_double).to receive(:execute_with_context).and_return('result')
+          allow(executor_double).to receive(:cleanup_connections)
         end
         executor_instances.last
       end
@@ -170,6 +180,7 @@ RSpec.describe LanguageOperator::Agent::WebServer do
 
       allow(LanguageOperator::Agent::Executor).to receive(:new) do |_agent|
         instance_double('Executor').tap do |executor_double|
+          allow(executor_double).to receive(:cleanup_connections)
           allow(executor_double).to receive(:execute_with_context) do |args|
             # Capture the executor instance and its context
             execution_contexts << {
@@ -219,6 +230,7 @@ RSpec.describe LanguageOperator::Agent::WebServer do
       allow(LanguageOperator::Agent::Executor).to receive(:new) do |_agent|
         call_count += 1
         instance_double('Executor').tap do |executor_double|
+          allow(executor_double).to receive(:cleanup_connections)
           if call_count == 2
             # Second executor throws an error
             allow(executor_double).to receive(:execute_with_context).and_raise('Executor error')
@@ -267,8 +279,10 @@ RSpec.describe LanguageOperator::Agent::WebServer do
     end
 
     it 'falls back to temporary executor when pool is exhausted' do
-      # Mock the pool to always be empty
-      allow_any_instance_of(Queue).to receive(:pop).and_raise(ThreadError)
+      # Get the actual pool instance and stub it to be exhausted
+      pool = web_server.instance_variable_get(:@executor_pool)
+      allow(pool).to receive(:pop).with(timeout: 5).and_raise(ThreadError)
+      allow(pool).to receive(:empty?).and_return(true)
 
       # Track executor creation for fallback
       fallback_executor_created = false
@@ -339,6 +353,7 @@ RSpec.describe LanguageOperator::Agent::WebServer do
       allow(LanguageOperator::Agent::Executor).to receive(:new) do |_agent|
         executor_creation_count += 1
         instance_double('Executor').tap do |executor_double|
+          allow(executor_double).to receive(:cleanup_connections)
           allow(executor_double).to receive(:execute_with_context).and_return("result #{executor_creation_count}")
         end
       end

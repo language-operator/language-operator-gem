@@ -29,6 +29,8 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor, 'event emission' do
     tasks_registry[:neural_task] = neural_task
 
     allow(agent).to receive(:kubernetes_client).and_return(kubernetes_client)
+    allow(agent).to receive(:respond_to?).and_return(false)
+    allow(agent).to receive(:respond_to?).with(:kubernetes_client).and_return(true)
     allow(agent).to receive(:send_message).and_return('{"result": "success"}')
     allow(agent).to receive(:logger).and_return(Logger.new('/dev/null'))
 
@@ -36,6 +38,8 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor, 'event emission' do
     allow(OpenTelemetry::Trace).to receive(:current_span).and_return(nil)
     mock_span = double('span')
     allow(mock_span).to receive(:set_attribute).with(any_args)
+    allow(mock_span).to receive(:record_exception).with(any_args)
+    allow(mock_span).to receive(:status=).with(any_args)
     mock_tracer = double('tracer')
     allow(mock_tracer).to receive(:in_span).and_yield(mock_span)
     allow_any_instance_of(described_class).to receive(:tracer).and_return(mock_tracer)
@@ -87,6 +91,8 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor, 'event emission' do
     end
 
     it 'emits a failure event with error details' do
+      allow(kubernetes_client).to receive(:emit_execution_event)
+
       expect(kubernetes_client).to receive(:emit_execution_event).with(
         'test_task',
         hash_including(
@@ -94,7 +100,7 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor, 'event emission' do
           duration_ms: be_a(Float),
           metadata: hash_including(
             'task_type' => 'symbolic',
-            'error_type' => 'StandardError',
+            'error_type' => 'LanguageOperator::Agent::TaskExecutionError',
             'error_category' => 'execution'
           )
         )
@@ -106,6 +112,7 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor, 'event emission' do
 
     it 'emits failure event for validation errors' do
       allow(symbolic_task).to receive(:validate_inputs).and_raise(ArgumentError.new('Invalid input'))
+      allow(kubernetes_client).to receive(:emit_execution_event)
 
       expect(kubernetes_client).to receive(:emit_execution_event).with(
         'test_task',
@@ -144,16 +151,23 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor, 'event emission' do
     end
 
     it 'logs warning but does not fail task execution' do
-      logger = instance_double(Logger)
-      allow(agent).to receive(:logger).and_return(logger)
-      allow(logger).to receive(:warn)
+      logger = instance_double(LanguageOperator::Logger)
+      stdlib_logger = instance_double(Logger, level: Logger::INFO)
+      allow(logger).to receive(:logger).and_return(stdlib_logger)
 
+      # Create executor first
+      test_executor = described_class.new(agent, tasks_registry, config)
+
+      # Stub the logger method on the executor instance
+      allow(test_executor).to receive(:logger).and_return(logger)
+
+      # Set expectation
       expect(logger).to receive(:warn).with(
         'Failed to emit task execution event',
         hash_including(task: :test_task)
       )
 
-      result = executor.execute_task(:test_task, inputs: {})
+      result = test_executor.execute_task(:test_task, inputs: {})
       expect(result[:result]).to eq('success')
     end
 

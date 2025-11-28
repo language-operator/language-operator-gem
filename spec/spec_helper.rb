@@ -20,6 +20,24 @@ RSpec.configure do |config|
     c.syntax = :expect
   end
 
+  # Suppress STDOUT/STDERR during tests unless VERBOSE=1 or DEBUG_INIT=1
+  config.around(:each) do |example|
+    if ENV['VERBOSE'] || ENV['DEBUG_INIT']
+      example.run
+    else
+      original_stdout = $stdout
+      original_stderr = $stderr
+      begin
+        $stdout = StringIO.new
+        $stderr = StringIO.new
+        example.run
+      ensure
+        $stdout = original_stdout
+        $stderr = original_stderr
+      end
+    end
+  end
+
   # NOTE: Registry cleanup not needed as each test creates its own tool classes
 
   # Mock RubyLLM and RubyLLM::MCP configuration to avoid real API calls

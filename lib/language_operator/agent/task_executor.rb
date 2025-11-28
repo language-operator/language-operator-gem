@@ -656,6 +656,8 @@ module LanguageOperator
       # @param task [TaskDefinition] The task definition
       # @return [String] Task type
       def determine_task_type(task)
+        return nil unless task
+
         if task.neural? && task.symbolic?
           'hybrid'
         elsif task.neural?

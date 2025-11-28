@@ -210,8 +210,10 @@ RSpec.describe LanguageOperator::Agent::Base do
       end
 
       it 'handles the error gracefully and logs warning' do
-        logger = instance_double(Logger)
-        allow(Logger).to receive(:new).and_return(logger)
+        logger = instance_double(LanguageOperator::Logger)
+        allow(logger).to receive(:debug)
+        allow(logger).to receive(:info)
+        allow(LanguageOperator::Logger).to receive(:new).and_return(logger)
         expect(logger).to receive(:warn).with('Failed to initialize Kubernetes client', error: 'K8s client error')
 
         agent = described_class.new(config)

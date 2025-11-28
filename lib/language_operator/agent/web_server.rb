@@ -179,16 +179,13 @@ module LanguageOperator
 
         # Drain and cleanup all executors in the pool
         executors_cleaned = 0
-        begin
-          loop do
-            executor = @executor_pool.pop(timeout: 0.1)
-            if executor
-              executor.cleanup_connections
-              executors_cleaned += 1
-            end
+
+        until @executor_pool.empty?
+          executor = @executor_pool.pop unless @executor_pool.empty?
+          if executor
+            executor.cleanup_connections
+            executors_cleaned += 1
           end
-        rescue ThreadError
-          # Pool is empty, we're done
         end
 
         puts "Cleaned up #{executors_cleaned} executors from pool"
