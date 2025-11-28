@@ -20,6 +20,9 @@ code:
 inspect:
 	$(AICTL) inspect $(AGENT)
 
+learning-status:
+	$(AICTL) learning status $(AGENT)
+
 logs:
 	$(AICTL) logs $(AGENT)
 
