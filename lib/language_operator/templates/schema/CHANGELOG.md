@@ -12,6 +12,34 @@ The schema version is tied directly to the gem version and follows [Semantic Ver
 
 ## Version History
 
+### 0.1.64 (2025-11-27)
+
+**Learning Status & Observability Improvements**
+
+This release enhances the learning status tracking and observability features for agents.
+
+**New Features:**
+- Added semantic OpenTelemetry attributes for learning status tracking
+- Implemented Kubernetes event emission for agent-operator communication
+- Real execution metrics from learning status ConfigMap integration
+
+**Improvements:**
+- Enhanced `aictl agent learning-status` command with color-coded boxes and better clarity
+- Changed terminology from "Runs Completed" to "Runs Processed"
+- Improved learning status display formatting with cyan highlighted boxes
+- Restructured learning status into two clear informational boxes
+
+**Bug Fixes:**
+- Handle empty string `lastExecution` in ConfigMap data
+- Fixed SigNoz Query Builder v5 select fields usage
+- Fixed K8s::Resource annotations handling in learning status command
+- Resolved hanging tests and improved test output visibility
+
+**Test Improvements:**
+- Added comprehensive aictl smoke test playbook
+- Removed obsolete learning adapter specs
+- Fixed OpenTelemetry mocking in task executor event emission test
+
 ### 0.1.34 (2025-11-14)
 
 **DSL v1: Task/Main Primitives Added**
