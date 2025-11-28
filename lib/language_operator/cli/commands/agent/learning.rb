@@ -344,7 +344,7 @@ module LanguageOperator
                 progress_percent = [(total_executions.to_f / learning_threshold * 100).round, 100].min
                 progress = "#{progress_percent}% toward learning threshold"
 
-                last_run = if last_execution
+                last_run = if last_execution && !last_execution.empty?
                              begin
                                Time.parse(last_execution).strftime('%Y-%m-%d %H:%M:%S UTC')
                              rescue StandardError
