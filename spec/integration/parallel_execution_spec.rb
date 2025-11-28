@@ -10,10 +10,10 @@ RSpec.describe 'Parallel Execution', type: :integration do
           description "Agent that can execute independent tasks in parallel"
         #{'  '}
           # Independent task 1
-          task :fetch_source_a,
+          task(:fetch_source_a,
             inputs: { delay: 'number' },
             outputs: { data: 'string', source: 'string' }
-          do |inputs|
+          ) do |inputs|
             sleep(inputs[:delay] / 1000.0) if inputs[:delay] > 0  # Simulate I/O delay
             {
               data: "Data from source A",
@@ -22,10 +22,10 @@ RSpec.describe 'Parallel Execution', type: :integration do
           end
         #{'  '}
           # Independent task 2#{'  '}
-          task :fetch_source_b,
+          task(:fetch_source_b,
             inputs: { delay: 'number' },
             outputs: { data: 'string', source: 'string' }
-          do |inputs|
+          ) do |inputs|
             sleep(inputs[:delay] / 1000.0) if inputs[:delay] > 0  # Simulate I/O delay
             {
               data: "Data from source B",#{' '}
@@ -34,10 +34,10 @@ RSpec.describe 'Parallel Execution', type: :integration do
           end
         #{'  '}
           # Independent task 3
-          task :fetch_source_c,
+          task(:fetch_source_c,
             inputs: { delay: 'number' },
             outputs: { data: 'string', source: 'string' }
-          do |inputs|
+          ) do |inputs|
             sleep(inputs[:delay] / 1000.0) if inputs[:delay] > 0  # Simulate I/O delay
             {
               data: "Data from source C",
@@ -46,10 +46,10 @@ RSpec.describe 'Parallel Execution', type: :integration do
           end
         #{'  '}
           # Dependent task that merges results
-          task :merge_sources,
+          task(:merge_sources,
             inputs: { source_a: 'hash', source_b: 'hash', source_c: 'hash' },
             outputs: { merged: 'hash', sources: 'array' }
-          do |inputs|
+          ) do |inputs|
             {
               merged: {
                 combined_data: [
@@ -113,10 +113,10 @@ RSpec.describe 'Parallel Execution', type: :integration do
           end
 
           # Level 2: Depends on init_a
-          task :process_a,
+          task(:process_a,
             inputs: { init_result: 'hash' },
             outputs: { result: 'string', level: 'integer' }
-          do |inputs|
+          ) do |inputs|
             {
               result: "Processed_#{inputs[:init_result][:result]}",
               level: 2
@@ -124,10 +124,10 @@ RSpec.describe 'Parallel Execution', type: :integration do
           end
 
           # Level 2: Depends on init_b
-          task :process_b,
+          task(:process_b,
             inputs: { init_result: 'hash' },
             outputs: { result: 'string', level: 'integer' }
-          do |inputs|
+          ) do |inputs|
             {
               result: "Processed_#{inputs[:init_result][:result]}",
               level: 2
@@ -135,10 +135,10 @@ RSpec.describe 'Parallel Execution', type: :integration do
           end
 
           # Level 3: Depends on both process_a and process_b
-          task :final_merge,
+          task(:final_merge,
             inputs: { a_result: 'hash', b_result: 'hash' },
             outputs: { combined: 'string', level: 'integer' }
-          do |inputs|
+          ) do |inputs|
             {
               combined: "#{inputs[:a_result][:result]}_#{inputs[:b_result][:result]}",
               level: 3
@@ -178,10 +178,10 @@ RSpec.describe 'Parallel Execution', type: :integration do
       agent_dsl = <<~'RUBY'
         agent "explicit-parallel" do
           # Task that simulates I/O work
-          task :io_task,
+          task(:io_task,
             inputs: { id: 'string', delay: 'number' },
             outputs: { result: 'string', duration: 'number' }
-          do |inputs|
+          ) do |inputs|
             start_time = Time.now
             sleep(inputs[:delay] / 1000.0) if inputs[:delay] > 0
             end_time = Time.now
@@ -193,10 +193,10 @@ RSpec.describe 'Parallel Execution', type: :integration do
           end
 
           # Task that processes results
-          task :combine_results,
+          task(:combine_results,
             inputs: { results: 'array' },
             outputs: { combined: 'string', total_duration: 'number' }
-          do |inputs|
+          ) do |inputs|
             {
               combined: inputs[:results].map { |r| r[:result] }.join(' | '),
               total_duration: inputs[:results].sum { |r| r[:duration] }
@@ -241,10 +241,10 @@ RSpec.describe 'Parallel Execution', type: :integration do
       agent_dsl = <<~'RUBY'
         agent "mixed-execution" do
           # Initial setup task
-          task :setup,
+          task(:setup,
             inputs: { config: 'hash' },
             outputs: { prepared_data: 'array', batch_size: 'integer' }
-          do |inputs|
+          ) do |inputs|
             count = inputs[:config][:item_count] || 6
             {
               prepared_data: (1..count).map { |i| "item_#{i}" },
@@ -253,10 +253,10 @@ RSpec.describe 'Parallel Execution', type: :integration do
           end
 
           # Parallel processing task
-          task :process_batch,
+          task(:process_batch,
             inputs: { batch: 'array', batch_id: 'integer' },
             outputs: { processed: 'array', batch_id: 'integer', count: 'integer' }
-          do |inputs|
+          ) do |inputs|
             processed = inputs[:batch].map { |item| "processed_#{item}" }
             sleep(0.02)  # Simulate processing time
 
@@ -268,10 +268,10 @@ RSpec.describe 'Parallel Execution', type: :integration do
           end
 
           # Final aggregation task
-          task :aggregate_results,
+          task(:aggregate_results,
             inputs: { batch_results: 'array' },
             outputs: { all_items: 'array', summary: 'hash' }
-          do |inputs|
+          ) do |inputs|
             all_processed = inputs[:batch_results].flat_map { |br| br[:processed] }
 
             {
@@ -329,10 +329,10 @@ RSpec.describe 'Parallel Execution', type: :integration do
 
       sequential_dsl = <<~'RUBY'
         agent "sequential" do
-          task :slow_task,
+          task(:slow_task,
             inputs: { id: 'string' },
             outputs: { result: 'string' }
-          do |inputs|
+          ) do |inputs|
             sleep(0.05)  # 50ms I/O simulation
             { result: "Processed #{inputs[:id]}" }
           end
@@ -350,10 +350,10 @@ RSpec.describe 'Parallel Execution', type: :integration do
 
       parallel_dsl = <<~'RUBY'
         agent "parallel" do
-          task :slow_task,
+          task(:slow_task,
             inputs: { id: 'string' },
             outputs: { result: 'string' }
-          do |inputs|
+          ) do |inputs|
             sleep(0.05)  # 50ms I/O simulation
             { result: "Processed #{inputs[:id]}" }
           end
@@ -400,10 +400,10 @@ RSpec.describe 'Parallel Execution', type: :integration do
     it 'handles thread pool sizing and resource constraints' do
       agent_dsl = <<~RUBY
         agent "thread-pool-test" do
-          task :cpu_intensive,
+          task(:cpu_intensive,
             inputs: { workload: 'integer' },
             outputs: { result: 'integer', thread_id: 'string' }
-          do |inputs|
+          ) do |inputs|
             # Simulate CPU work
             sum = 0
             inputs[:workload].times { |i| sum += i }
@@ -456,10 +456,10 @@ RSpec.describe 'Parallel Execution', type: :integration do
     it 'handles partial failures gracefully in parallel tasks' do
       agent_dsl = <<~'RUBY'
         agent "failure-tolerant" do
-          task :potentially_failing_task,
+          task(:potentially_failing_task,
             inputs: { id: 'integer', should_fail: 'boolean' },
             outputs: { result: 'string', success: 'boolean' }
-          do |inputs|
+          ) do |inputs|
             if inputs[:should_fail]
               raise StandardError, "Task #{inputs[:id]} failed"
             end
@@ -505,10 +505,10 @@ RSpec.describe 'Parallel Execution', type: :integration do
     it 'provides detailed error information for debugging parallel failures' do
       agent_dsl = <<~'RUBY'
         agent "detailed-error-handling" do
-          task :error_prone_task,
+          task(:error_prone_task,
             inputs: { id: 'integer', error_type: 'string' },
             outputs: { result: 'string' }
-          do |inputs|
+          ) do |inputs|
             case inputs[:error_type]
             when 'timeout'
               sleep(2)  # Simulate timeout

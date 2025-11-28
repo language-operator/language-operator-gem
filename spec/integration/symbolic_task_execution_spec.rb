@@ -9,10 +9,10 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
         agent "calculator" do
           description "A calculator agent with symbolic tasks"
         #{'  '}
-          task :add_numbers,
+          task(:add_numbers,
             inputs: { a: 'number', b: 'number' },
             outputs: { sum: 'number' }
-          do |inputs|
+          ) do |inputs|
             { sum: inputs[:a] + inputs[:b] }
           end
         #{'  '}
@@ -33,10 +33,10 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
     it 'validates symbolic task input and output schemas' do
       agent_dsl = <<~RUBY
         agent "data-processor" do
-          task :process_array,
+          task(:process_array,
             inputs: { items: 'array', multiplier: 'number' },
             outputs: { processed: 'array', count: 'integer' }
-          do |inputs|
+          ) do |inputs|
             processed = inputs[:items].map { |x| x * inputs[:multiplier] }
             {#{' '}
               processed: processed,
@@ -66,7 +66,7 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
     it 'handles complex Ruby logic in symbolic tasks' do
       agent_dsl = <<~'RUBY'
         agent "text-analyzer" do
-          task :analyze_text,
+          task(:analyze_text,
             inputs: { text: 'string' },
             outputs: {
               word_count: 'integer',
@@ -74,7 +74,7 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
               sentences: 'integer',
               summary: 'hash'
             }
-          do |inputs|
+          ) do |inputs|
             text = inputs[:text]
             words = text.split(/\s+/).reject(&:empty?)
             sentences = text.split(/[.!?]+/).reject(&:empty?)
@@ -114,17 +114,17 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
     it 'executes symbolic task with access to task executor context' do
       agent_dsl = <<~RUBY
         agent "context-aware" do
-          task :fetch_data,
+          task(:fetch_data,
             inputs: { source: 'string' },
             outputs: { data: 'hash' }
-          do |inputs|
+          ) do |inputs|
             { data: { source: inputs[:source], fetched: true } }
           end
         #{'  '}
-          task :process_with_context,
+          task(:process_with_context,
             inputs: { query: 'string' },
             outputs: { result: 'hash', metadata: 'hash' }
-          do |inputs|
+          ) do |inputs|
             # Access other tasks via context
             data = execute_task(:fetch_data, inputs: { source: 'database' })
         #{'    '}
@@ -157,10 +157,10 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
     it 'provides execute_llm helper in symbolic task context' do
       agent_dsl = <<~RUBY
         agent "llm-helper" do
-          task :hybrid_processing,
+          task(:hybrid_processing,
             inputs: { prompt: 'string' },
             outputs: { response: 'string', processed_locally: 'boolean' }
-          do |inputs|
+          ) do |inputs|
             # Use LLM helper method (this would be mocked in tests)
             llm_response = execute_llm(inputs[:prompt]) rescue 'Mock LLM response'
         #{'    '}
@@ -188,10 +188,10 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
     it 'provides execute_tool helper in symbolic task context' do
       agent_dsl = <<~RUBY
         agent "tool-user" do
-          task :use_tools,
+          task(:use_tools,
             inputs: { operation: 'string', data: 'hash' },
             outputs: { result: 'hash', tools_used: 'boolean' }
-          do |inputs|
+          ) do |inputs|
             # Use tool helper method (this would be mocked in tests)
             tool_result = execute_tool('calculator', 'add',#{' '}
               a: inputs[:data][:a],#{' '}
@@ -227,10 +227,10 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
     it 'handles Ruby exceptions in symbolic tasks' do
       agent_dsl = <<~RUBY
         agent "error-prone" do
-          task :divide_numbers,
+          task(:divide_numbers,
             inputs: { numerator: 'number', denominator: 'number' },
             outputs: { result: 'number' }
-          do |inputs|
+          ) do |inputs|
             if inputs[:denominator] == 0
               raise ArgumentError, "Cannot divide by zero"
             end
@@ -261,10 +261,10 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
     it 'validates input types in symbolic tasks' do
       agent_dsl = <<~RUBY
         agent "type-checker" do
-          task :strict_math,
+          task(:strict_math,
             inputs: { numbers: 'array' },
             outputs: { sum: 'number' }
-          do |inputs|
+          ) do |inputs|
             { sum: inputs[:numbers].sum }
           end
         #{'  '}
@@ -285,10 +285,10 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
     it 'validates output schema in symbolic tasks' do
       agent_dsl = <<~RUBY
         agent "schema-validator" do
-          task :bad_output,
+          task(:bad_output,
             inputs: { data: 'string' },
             outputs: { result: 'integer', status: 'boolean' }
-          do |inputs|
+          ) do |inputs|
             # Return wrong output schema
             { wrong_key: 'bad value' }
           end
@@ -312,10 +312,10 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
       # Symbolic version
       symbolic_dsl = <<~RUBY
         agent "symbolic-calc" do
-          task :calculate,
+          task(:calculate,
             inputs: { numbers: 'array' },
             outputs: { sum: 'number', average: 'number' }
-          do |inputs|
+          ) do |inputs|
             sum = inputs[:numbers].sum
             {
               sum: sum,
@@ -359,14 +359,14 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
     it 'handles large datasets efficiently in symbolic tasks' do
       agent_dsl = <<~RUBY
         agent "large-data-processor" do
-          task :process_large_dataset,
+          task(:process_large_dataset,
             inputs: { data: 'array' },
             outputs: {#{' '}
               count: 'integer',
               sum: 'number',
               stats: 'hash'
             }
-          do |inputs|
+          ) do |inputs|
             data = inputs[:data]
             {
               count: data.length,
@@ -406,7 +406,7 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
     it 'applies type coercion to symbolic task inputs' do
       agent_dsl = <<~'RUBY'
         agent "type-coercion" do
-          task :process_types,
+          task(:process_types,
             inputs: {
               count: 'integer',
               rate: 'number',
@@ -414,7 +414,7 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
               name: 'string'
             },
             outputs: { summary: 'string' }
-          do |inputs|
+          ) do |inputs|
             {
               summary: "#{inputs[:name]}: count=#{inputs[:count]}, " +
                       "rate=#{inputs[:rate]}, active=#{inputs[:active]}"
@@ -447,14 +447,14 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
     it 'validates output types with coercion' do
       agent_dsl = <<~RUBY
         agent "output-coercion" do
-          task :flexible_output,
+          task(:flexible_output,
             inputs: { input: 'string' },
             outputs: {#{' '}
               number_result: 'number',
               string_result: 'string',
               bool_result: 'boolean'
             }
-          do |inputs|
+          ) do |inputs|
             {
               number_result: '42.5',    # string that should coerce to number
               string_result: 123,       # number that should coerce to string

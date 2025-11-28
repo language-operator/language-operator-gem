@@ -10,10 +10,10 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
           description "Agent with both neural and symbolic tasks"
 
           # Symbolic task - fast, deterministic data fetch
-          task :fetch_user_data,
+          task(:fetch_user_data,
             inputs: { user_id: 'integer' },
             outputs: { user: 'hash', preferences: 'hash' }
-          do |inputs|
+          ) do |inputs|
             {
               user: {
                 id: inputs[:user_id],
@@ -29,7 +29,7 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
           end
 
           # Neural task - creative content generation
-          task :generate_welcome_message,
+          task(:generate_welcome_message,
             instructions: "Generate a personalized welcome message for the user",
             inputs: { user: 'hash', preferences: 'hash' },
             outputs: { message: 'string', tone: 'string' }
@@ -41,7 +41,7 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
               formatted_message: 'string',
               metadata: 'hash'
             }
-          do |inputs|
+          ) do |inputs|
             {
               formatted_message: "#{inputs[:tone].upcase}: #{inputs[:message]} (for #{inputs[:user][:name]})",
               metadata: {
@@ -84,10 +84,10 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
       agent_dsl = <<~'RUBY'
         agent "data-flow" do
           # Symbolic preprocessing
-          task :preprocess_data,
+          task(:preprocess_data,
             inputs: { raw_data: 'array' },
             outputs: { cleaned_data: 'array', stats: 'hash' }
-          do |inputs|
+          ) do |inputs|
             cleaned = inputs[:raw_data].compact.reject { |x| x.to_s.strip.empty? }
             {
               cleaned_data: cleaned,
@@ -100,7 +100,7 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
           end
 
           # Neural analysis
-          task :analyze_patterns,
+          task(:analyze_patterns,
             instructions: "Analyze the cleaned data and identify patterns or insights",
             inputs: { cleaned_data: 'array', stats: 'hash' },
             outputs: { insights: 'array', confidence: 'number' }
@@ -109,7 +109,7 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
           task :generate_report,
             inputs: { insights: 'array', confidence: 'number', stats: 'hash' },
             outputs: { report: 'string', summary: 'hash' }
-          do |inputs|
+          ) do |inputs|
             report_lines = [
               "Data Analysis Report",
               "=" * 20,
@@ -167,7 +167,7 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
       agent_dsl = <<~'RUBY'
         agent "smart-optimizer" do
           # Fast symbolic computation
-          task :calculate_statistics,
+          task(:calculate_statistics,
             inputs: { numbers: 'array' },
             outputs: {
               sum: 'number',
@@ -175,7 +175,7 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
               median: 'number',
               count: 'integer'
             }
-          do |inputs|
+          ) do |inputs|
             sorted = inputs[:numbers].sort
             {
               sum: inputs[:numbers].sum,
@@ -186,7 +186,7 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
           end
 
           # Creative neural interpretation
-          task :interpret_results,
+          task(:interpret_results,
             instructions: "Interpret the statistical results and provide business insights",
             inputs: {
               sum: 'number',
@@ -204,7 +204,7 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
               stats: 'hash'
             },
             outputs: { executive_summary: 'string' }
-          do |inputs|
+          ) do |inputs|
             {
               executive_summary: [
                 "Executive Summary",
@@ -263,10 +263,10 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
       agent_dsl = <<~'RUBY'
         agent "conditional-processor" do
           # Symbolic validation
-          task :validate_input,
+          task(:validate_input,
             inputs: { data: 'hash' },
             outputs: { valid: 'boolean', errors: 'array' }
-          do |inputs|
+          ) do |inputs|
             errors = []
             data = inputs[:data]
 
@@ -281,7 +281,7 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
           end
 
           # Neural content generation (only for valid data)
-          task :generate_profile,
+          task(:generate_profile,
             instructions: "Generate a professional profile description for the person",
             inputs: { data: 'hash' },
             outputs: { profile: 'string', keywords: 'array' }
@@ -290,7 +290,7 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
           task :format_errors,
             inputs: { errors: 'array' },
             outputs: { error_message: 'string' }
-          do |inputs|
+          ) do |inputs|
             {
               error_message: "Validation failed:\n" + inputs[:errors].map { |e| "- #{e}" }.join("\n")
             }
@@ -343,10 +343,10 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
       agent_dsl = <<~'RUBY'
         agent "iterative-processor" do
           # Symbolic batch preparation
-          task :prepare_batch,
+          task(:prepare_batch,
             inputs: { items: 'array', batch_size: 'integer' },
             outputs: { batches: 'array', total_batches: 'integer' }
-          do |inputs|
+          ) do |inputs|
             items = inputs[:items]
             batch_size = inputs[:batch_size]
 
@@ -359,7 +359,7 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
           end
 
           # Neural processing for each batch
-          task :process_batch,
+          task(:process_batch,
             instructions: "Process and enhance each item in the batch",
             inputs: { batch: 'array', batch_number: 'integer' },
             outputs: { processed_items: 'array', insights: 'string' }
@@ -372,7 +372,7 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
               summary: 'string',
               performance_stats: 'hash'
             }
-          do |inputs|
+          ) do |inputs|
             all_items = inputs[:all_results].flat_map { |r| r[:processed_items] }
             all_insights = inputs[:all_results].map { |r| r[:insights] }
 

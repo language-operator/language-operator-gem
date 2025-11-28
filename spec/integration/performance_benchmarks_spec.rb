@@ -12,15 +12,15 @@ RSpec.describe 'Performance Benchmarks', type: :integration do
       agent_dsl = <<~'RUBY'
         agent "symbolic-benchmark" do
           # Simple computational task
-          task :simple_math,
+          task(:simple_math,
             inputs: { a: 'number', b: 'number' },
             outputs: { result: 'number' }
-          do |inputs|
+          ) do |inputs|
             { result: inputs[:a] + inputs[:b] }
           end
 
           # Complex computational task
-          task :complex_math,
+          task(:complex_math,
             inputs: { numbers: 'array' },
             outputs: {
               sum: 'number',
@@ -28,7 +28,7 @@ RSpec.describe 'Performance Benchmarks', type: :integration do
               median: 'number',
               std_dev: 'number'
             }
-          do |inputs|
+          ) do |inputs|
             sorted = inputs[:numbers].sort
             n = inputs[:numbers].length
             sum = inputs[:numbers].sum
@@ -47,14 +47,14 @@ RSpec.describe 'Performance Benchmarks', type: :integration do
           end
 
           # String processing task
-          task :string_processing,
+          task(:string_processing,
             inputs: { text: 'string' },
             outputs: {
               word_count: 'integer',
               unique_words: 'integer',
               avg_word_length: 'number'
             }
-          do |inputs|
+          ) do |inputs|
             words = inputs[:text].downcase.scan(/\w+/)
             unique = words.uniq
 
@@ -112,7 +112,7 @@ RSpec.describe 'Performance Benchmarks', type: :integration do
       agent_dsl = <<~RUBY
         agent "neural-benchmark" do
           # Simple neural task
-          task :simple_analysis,
+          task(:simple_analysis,
             instructions: "Provide a brief analysis of the number",
             inputs: { number: 'number' },
             outputs: { analysis: 'string', category: 'string' }
@@ -172,7 +172,7 @@ RSpec.describe 'Performance Benchmarks', type: :integration do
           task :analyze_sentiment,
             inputs: { text: 'string' },
             outputs: { sentiment: 'string', confidence: 'number' }
-          do |inputs|
+          ) do |inputs|
             text = inputs[:text].downcase
         #{'    '}
             positive_words = ['good', 'great', 'excellent', 'amazing', 'wonderful', 'fantastic']
@@ -204,7 +204,7 @@ RSpec.describe 'Performance Benchmarks', type: :integration do
       # Neural version
       neural_dsl = <<~RUBY
         agent "neural-sentiment" do
-          task :analyze_sentiment,
+          task(:analyze_sentiment,
             instructions: "Analyze the sentiment of the given text and provide a confidence score",
             inputs: { text: 'string' },
             outputs: { sentiment: 'string', confidence: 'number' }
@@ -246,7 +246,7 @@ RSpec.describe 'Performance Benchmarks', type: :integration do
           task :io_simulation,
             inputs: { id: 'integer', delay: 'number' },
             outputs: { result: 'string', actual_delay: 'number' }
-          do |inputs|
+          ) do |inputs|
             start_time = Time.now
             sleep(inputs[:delay])
             end_time = Time.now
@@ -322,10 +322,10 @@ RSpec.describe 'Performance Benchmarks', type: :integration do
     it 'measures memory usage patterns' do
       agent_dsl = <<~'RUBY'
         agent "memory-test" do
-          task :memory_intensive,
+          task(:memory_intensive,
             inputs: { size: 'integer' },
             outputs: { allocated_mb: 'number', peak_objects: 'integer' }
-          do |inputs|
+          ) do |inputs|
             gc_start = GC.stat
 
             # Allocate memory
@@ -377,10 +377,10 @@ RSpec.describe 'Performance Benchmarks', type: :integration do
       # Minimal work task
       minimal_dsl = <<~RUBY
         agent "minimal-work" do
-          task :minimal_task,
+          task(:minimal_task,
             inputs: { input: 'string' },
             outputs: { output: 'string' }
-          do |inputs|
+          ) do |inputs|
             { output: inputs[:input] }  # Just pass through
           end
         #{'  '}
@@ -393,10 +393,10 @@ RSpec.describe 'Performance Benchmarks', type: :integration do
       # Substantial work task
       substantial_dsl = <<~'RUBY'
         agent "substantial-work" do
-          task :substantial_task,
+          task(:substantial_task,
             inputs: { input: 'string' },
             outputs: { output: 'string', work_done: 'integer' }
-          do |inputs|
+          ) do |inputs|
             # Do actual computation
             result = ""
             work_counter = 0

@@ -7,7 +7,7 @@ RSpec.describe 'Error Handling in Task Execution', type: :integration, skip: 'Sy
     it 'handles Ruby exceptions in symbolic tasks' do
       agent_dsl = <<~'RUBY'
         agent "error-producer" do
-          task :division_task,
+          task(:division_task,
             inputs: { numerator: 'number', denominator: 'number' },
             outputs: { result: 'number' } do |inputs|
             if inputs[:denominator] == 0
@@ -268,7 +268,7 @@ RSpec.describe 'Error Handling in Task Execution', type: :integration, skip: 'Sy
               required_field: 'string',
               another_field: 'number'
             }
-          do |inputs|
+          ) do |inputs|
             case inputs[:mode]
             when 'missing_field'
               { wrong_field: 'oops' }  # Missing required fields
@@ -324,13 +324,13 @@ RSpec.describe 'Error Handling in Task Execution', type: :integration, skip: 'Sy
     it 'handles output type coercion failures' do
       agent_dsl = <<~RUBY
         agent "coercion-failure" do
-          task :uncoercible_output,
+          task(:uncoercible_output,
             inputs: { mode: 'string' },
             outputs: {#{' '}
               number_field: 'number',
               boolean_field: 'boolean'
             }
-          do |inputs|
+          ) do |inputs|
             case inputs[:mode]
             when 'bad_number'
               {

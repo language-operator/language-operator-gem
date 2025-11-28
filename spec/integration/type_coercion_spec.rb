@@ -7,14 +7,14 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
     it 'coerces string inputs to integers' do
       agent_dsl = <<~RUBY
         agent "integer-coercion" do
-          task :process_integers,
+          task(:process_integers,
             inputs: {#{' '}
               count: 'integer',
               negative: 'integer',
               zero: 'integer'
             },
             outputs: { sum: 'integer', product: 'integer' }
-          do |inputs|
+          ) do |inputs|
             {
               sum: inputs[:count] + inputs[:negative] + inputs[:zero],
               product: inputs[:count] * inputs[:negative] * inputs[:zero]
@@ -44,7 +44,7 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
     it 'coerces various types to numbers (float)' do
       agent_dsl = <<~RUBY
         agent "number-coercion" do
-          task :process_numbers,
+          task(:process_numbers,
             inputs: {#{' '}
               decimal: 'number',
               integer_str: 'number',
@@ -52,7 +52,7 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
               negative_decimal: 'number'
             },
             outputs: { sum: 'number', average: 'number' }
-          do |inputs|
+          ) do |inputs|
             values = [
               inputs[:decimal],
               inputs[:integer_str],#{' '}
@@ -89,7 +89,7 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
     it 'coerces various types to booleans' do
       agent_dsl = <<~'RUBY'
         agent "boolean-coercion" do
-          task :process_booleans,
+          task(:process_booleans,
             inputs: {
               true_string: 'boolean',
               false_string: 'boolean',
@@ -103,7 +103,7 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
               false_count: 'integer',
               summary: 'string'
             }
-          do |inputs|
+          ) do |inputs|
             values = [
               inputs[:true_string],
               inputs[:false_string],
@@ -149,7 +149,7 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
     it 'coerces various types to strings' do
       agent_dsl = <<~RUBY
         agent "string-coercion" do
-          task :process_strings,
+          task(:process_strings,
             inputs: {#{' '}
               symbol_input: 'string',
               integer_input: 'string',
@@ -157,7 +157,7 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
               boolean_input: 'string'
             },
             outputs: { concatenated: 'string', lengths: 'array' }
-          do |inputs|
+          ) do |inputs|
             strings = [
               inputs[:symbol_input],
               inputs[:integer_input],
@@ -194,12 +194,12 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
     it 'handles complex nested type coercion' do
       agent_dsl = <<~RUBY
         agent "nested-coercion" do
-          task :process_nested,
+          task(:process_nested,
             inputs: {#{' '}
               config: 'hash'
             },
             outputs: { processed_config: 'hash' }
-          do |inputs|
+          ) do |inputs|
             # Process nested hash with type-aware handling
             config = inputs[:config]
         #{'    '}
@@ -254,7 +254,7 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
     it 'coerces task output types to match schema' do
       agent_dsl = <<~RUBY
         agent "output-coercion" do
-          task :flexible_output,
+          task(:flexible_output,
             inputs: { mode: 'string' },
             outputs: {#{' '}
               count: 'integer',
@@ -262,7 +262,7 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
               active: 'boolean',
               message: 'string'
             }
-          do |inputs|
+          ) do |inputs|
             # Return outputs that need coercion
             case inputs[:mode]
             when 'strings'
@@ -317,13 +317,13 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
     it 'validates array and hash types without coercion' do
       agent_dsl = <<~RUBY
         agent "strict-collections" do
-          task :collection_task,
+          task(:collection_task,
             inputs: { mode: 'string' },
             outputs: {#{' '}
               items: 'array',
               metadata: 'hash'
             }
-          do |inputs|
+          ) do |inputs|
             if inputs[:mode] == 'invalid'
               {
                 items: 'not-an-array',     # Should cause validation error
@@ -367,14 +367,14 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
     it 'handles invalid type coercion gracefully' do
       agent_dsl = <<~RUBY
         agent "coercion-errors" do
-          task :error_prone_coercion,
+          task(:error_prone_coercion,
             inputs: {#{' '}
               bad_integer: 'integer',
               bad_number: 'number',#{' '}
               bad_boolean: 'boolean'
             },
             outputs: { result: 'string' }
-          do |inputs|
+          ) do |inputs|
             { result: 'Should not reach here' }
           end
         #{'  '}
@@ -418,7 +418,7 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
     it 'handles null and empty values appropriately' do
       agent_dsl = <<~RUBY
         agent "null-handling" do
-          task :handle_nulls,
+          task(:handle_nulls,
             inputs: {#{' '}
               nullable_string: 'string',
               nullable_integer: 'integer',
@@ -428,7 +428,7 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
               processed: 'hash',
               summary: 'string'
             }
-          do |inputs|
+          ) do |inputs|
             {
               processed: {
                 string_length: inputs[:nullable_string]&.length || 0,
@@ -466,7 +466,7 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
     it 'handles boundary values for numeric types' do
       agent_dsl = <<~RUBY
         agent "boundary-values" do
-          task :test_boundaries,
+          task(:test_boundaries,
             inputs: {#{' '}
               large_integer: 'integer',
               small_integer: 'integer',
@@ -478,7 +478,7 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
               number_sum: 'number',
               ranges: 'hash'
             }
-          do |inputs|
+          ) do |inputs|
             {
               integer_sum: inputs[:large_integer] + inputs[:small_integer],
               number_sum: inputs[:large_number] + inputs[:tiny_number],
@@ -516,10 +516,10 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
       # Agent with type coercion
       coercion_dsl = <<~RUBY
         agent "with-coercion" do
-          task :math_operations,
+          task(:math_operations,
             inputs: { a: 'number', b: 'number', iterations: 'integer' },
             outputs: { result: 'number' }
-          do |inputs|
+          ) do |inputs|
             result = 0
             inputs[:iterations].times do
               result += inputs[:a] * inputs[:b]
@@ -536,10 +536,10 @@ RSpec.describe 'Type Coercion in Task Execution', type: :integration do
       # Agent with native types (no coercion needed)
       native_dsl = <<~RUBY
         agent "native-types" do
-          task :math_operations,
+          task(:math_operations,
             inputs: { a: 'number', b: 'number', iterations: 'integer' },
             outputs: { result: 'number' }
-          do |inputs|
+          ) do |inputs|
             result = 0
             inputs[:iterations].times do
               result += inputs[:a] * inputs[:b]
