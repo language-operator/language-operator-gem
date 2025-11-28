@@ -224,5 +224,58 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Learning::LearningCommand
         expect(result).to eq('Unknown')
       end
     end
+
+    describe '#parse_execution_summary' do
+      let(:learning_status_with_summary) do
+        {
+          'data' => {
+            'execution-summary' => JSON.generate({
+              'totalExecutions' => 8,
+              'learningThreshold' => 10,
+              'successRate' => 0.875,
+              'lastExecution' => '2025-11-28T14:30:00Z'
+            })
+          }
+        }
+      end
+
+      let(:learning_status_invalid_json) do
+        {
+          'data' => {
+            'execution-summary' => 'invalid json'
+          }
+        }
+      end
+
+      it 'parses valid execution summary' do
+        result = command.send(:parse_execution_summary, learning_status_with_summary)
+        expect(result).to eq({
+          'totalExecutions' => 8,
+          'learningThreshold' => 10,
+          'successRate' => 0.875,
+          'lastExecution' => '2025-11-28T14:30:00Z'
+        })
+      end
+
+      it 'returns nil for missing learning status' do
+        result = command.send(:parse_execution_summary, nil)
+        expect(result).to be_nil
+      end
+
+      it 'returns nil for missing data' do
+        result = command.send(:parse_execution_summary, {})
+        expect(result).to be_nil
+      end
+
+      it 'returns nil for missing execution-summary' do
+        result = command.send(:parse_execution_summary, { 'data' => {} })
+        expect(result).to be_nil
+      end
+
+      it 'returns nil for invalid JSON' do
+        result = command.send(:parse_execution_summary, learning_status_invalid_json)
+        expect(result).to be_nil
+      end
+    end
   end
 end

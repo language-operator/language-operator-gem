@@ -326,14 +326,38 @@ module LanguageOperator
               )
             end
 
-            def display_learning_status_box(_agent, _learning_status, annotations)
+            def display_learning_status_box(_agent, learning_status, annotations)
               learning_enabled = !annotations.key?(Constants::KubernetesLabels::LEARNING_DISABLED_LABEL)
               status_color = learning_enabled ? :green : :yellow
               status_text = learning_enabled ? 'Enabled' : 'Disabled'
 
-              # TODO: Replace with real execution data when backend is ready (issue #88)
-              runs_completed = 'Unknown'
-              progress = 'Waiting for execution data'
+              # Parse execution summary from ConfigMap if available
+              execution_summary = parse_execution_summary(learning_status)
+
+              if execution_summary
+                total_executions = execution_summary['totalExecutions'] || 0
+                learning_threshold = execution_summary['learningThreshold'] || 10
+                execution_summary['successRate'] || 0.0
+                last_execution = execution_summary['lastExecution']
+
+                runs_completed = "#{total_executions}/#{learning_threshold}"
+                progress_percent = [(total_executions.to_f / learning_threshold * 100).round, 100].min
+                progress = "#{progress_percent}% toward learning threshold"
+
+                last_run = if last_execution
+                             begin
+                               Time.parse(last_execution).strftime('%Y-%m-%d %H:%M:%S UTC')
+                             rescue StandardError
+                               'Unknown'
+                             end
+                           else
+                             'No executions yet'
+                           end
+              else
+                runs_completed = 'No data'
+                progress = 'Waiting for agent executions'
+                last_run = 'No executions yet'
+              end
 
               highlighted_box(
                 title: 'Learning Status',
@@ -343,7 +367,8 @@ module LanguageOperator
                   'Threshold' => "#{pastel.cyan('10 successful runs')} (auto-learning trigger)",
                   'Confidence Target' => "#{pastel.cyan('85%')} (pattern detection)",
                   'Runs Completed' => runs_completed,
-                  'Progress' => progress
+                  'Progress' => progress,
+                  'Last Execution' => last_run
                 }
               )
             end
@@ -369,6 +394,22 @@ module LanguageOperator
                 :yellow
               else
                 :red
+              end
+            end
+
+            def parse_execution_summary(learning_status)
+              return nil unless learning_status
+
+              data = learning_status['data']
+              return nil unless data
+
+              execution_summary_json = data['execution-summary']
+              return nil unless execution_summary_json
+
+              begin
+                JSON.parse(execution_summary_json)
+              rescue StandardError
+                nil
               end
             end
           end
