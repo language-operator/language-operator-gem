@@ -314,7 +314,7 @@ module LanguageOperator
 
               highlighted_box(
                 title: 'Agent Status',
-                color: :cyan,
+                color: :yellow,
                 rows: {
                   'Name' => pastel.white.bold(agent_name),
                   'Cluster' => cluster_name,
