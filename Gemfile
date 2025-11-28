@@ -6,3 +6,5 @@ source 'https://rubygems.org'
 gemspec
 
 gem 'pry', '~> 0.14', group: :development
+
+gem "parallel_tests", "~> 5.5", group: :development
