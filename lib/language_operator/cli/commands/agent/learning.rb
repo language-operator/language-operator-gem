@@ -155,37 +155,24 @@ module LanguageOperator
 
               puts
 
-              # Learning enablement status
-              learning_enabled = !annotations.key?(Constants::KubernetesLabels::LEARNING_DISABLED_LABEL)
-              status_color = learning_enabled ? :green : :yellow
-              status_text = learning_enabled ? 'Enabled' : 'Disabled'
-
-              # Format timestamp properly
-              timestamp = format_agent_timestamp(agent)
-
-              highlighted_box(
-                title: 'Learning Status',
-                rows: {
-                  'Agent' => pastel.white.bold(agent_name),
-                  'Cluster' => cluster_name,
-                  'Learning' => pastel.send(status_color).bold(status_text),
-                  'Created' => timestamp
-                }
-              )
+              # Display Agent Status box
+              display_agent_status_box(agent, cluster_name)
               puts
 
-              # Show execution progress and learning information
-              display_execution_progress(agent, learning_status)
+              # Display Learning Status box
+              display_learning_status_box(agent, learning_status, annotations)
 
               # If learning status ConfigMap exists, show detailed information
               if learning_status
                 display_detailed_learning_status(learning_status)
               else
+                learning_enabled = !annotations.key?(Constants::KubernetesLabels::LEARNING_DISABLED_LABEL)
                 display_learning_explanation(learning_enabled)
               end
 
               # Show next steps
               puts pastel.white.bold('Available Commands:')
+              learning_enabled = !annotations.key?(Constants::KubernetesLabels::LEARNING_DISABLED_LABEL)
               if learning_enabled
                 puts pastel.dim("  aictl agent learning disable #{agent_name}    # Disable automatic learning")
               else
@@ -299,46 +286,65 @@ module LanguageOperator
               end
             end
 
-            def display_execution_progress(agent, _learning_status)
-              # Show learning configuration in a cyan highlighted box
+            def display_agent_status_box(agent, cluster_name)
+              agent_name = agent.dig('metadata', 'name')
+              timestamp = format_agent_timestamp(agent)
+
+              # Get agent operational status
+              status = agent['status']
+              if status && status['conditions']
+                ready_condition = status['conditions'].find { |c| c['type'] == 'Ready' }
+                if ready_condition
+                  begin
+                    last_activity = Time.parse(ready_condition['lastTransitionTime']).strftime('%Y-%m-%d %H:%M:%S UTC')
+                    status_text = ready_condition['status'] == 'True' ? 'Ready' : 'Not Ready'
+                    status_colored = ready_condition['status'] == 'True' ? pastel.green(status_text) : pastel.yellow(status_text)
+                  rescue StandardError
+                    last_activity = 'Unknown'
+                    status_colored = pastel.dim('Unknown')
+                  end
+                else
+                  last_activity = 'Unknown'
+                  status_colored = pastel.dim('Unknown')
+                end
+              else
+                last_activity = 'Unknown'
+                status_colored = pastel.dim('Unknown')
+              end
+
               highlighted_box(
-                title: 'Learning Configuration',
+                title: 'Agent Status',
                 color: :cyan,
                 rows: {
-                  'Threshold' => "#{pastel.cyan('10 successful runs')} (auto-learning trigger)",
-                  'Confidence' => "#{pastel.cyan('85%')} (pattern detection threshold)",
-                  'Mode' => "#{pastel.cyan('Automatic')} (batched learning enabled)"
+                  'Name' => pastel.white.bold(agent_name),
+                  'Cluster' => cluster_name,
+                  'Created' => timestamp,
+                  'Last Activity' => last_activity,
+                  'Status' => status_colored
                 }
               )
-              puts
+            end
 
-              # Try to get some basic execution info from agent status if available
-              status = agent['status']
-              return unless status && status['conditions']
+            def display_learning_status_box(_agent, _learning_status, annotations)
+              learning_enabled = !annotations.key?(Constants::KubernetesLabels::LEARNING_DISABLED_LABEL)
+              status_color = learning_enabled ? :green : :yellow
+              status_text = learning_enabled ? 'Enabled' : 'Disabled'
 
-              ready_condition = status['conditions'].find { |c| c['type'] == 'Ready' }
-              return unless ready_condition
+              # TODO: Replace with real execution data when backend is ready (issue #88)
+              runs_completed = 'Unknown'
+              progress = 'Waiting for execution data'
 
-              last_transition = ready_condition['lastTransitionTime']
-              return unless last_transition
-
-              begin
-                formatted_time = Time.parse(last_transition).strftime('%Y-%m-%d %H:%M:%S UTC')
-                status_text = ready_condition['status'] == 'True' ? 'Ready' : 'Not Ready'
-                status_colored = ready_condition['status'] == 'True' ? pastel.green(status_text) : pastel.yellow(status_text)
-
-                highlighted_box(
-                  title: 'Agent Status',
-                  color: :cyan,
-                  rows: {
-                    'Last activity' => formatted_time,
-                    'Status' => status_colored
-                  }
-                )
-                puts
-              rescue StandardError
-                # Skip if timestamp parsing fails
-              end
+              highlighted_box(
+                title: 'Learning Status',
+                color: :cyan,
+                rows: {
+                  'Learning' => pastel.send(status_color).bold(status_text),
+                  'Threshold' => "#{pastel.cyan('10 successful runs')} (auto-learning trigger)",
+                  'Confidence Target' => "#{pastel.cyan('85%')} (pattern detection)",
+                  'Runs Completed' => runs_completed,
+                  'Progress' => progress
+                }
+              )
             end
 
             def display_learning_explanation(learning_enabled)
