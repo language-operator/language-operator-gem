@@ -189,7 +189,7 @@ module LanguageOperator
               mode = agent.dig('spec', 'executionMode') || 'autonomous'
               if mode == 'scheduled'
                 exec_data = get_execution_data(name, ctx)
-                
+
                 exec_rows = {
                   'Total Runs' => exec_data[:total_runs],
                   'Last Run' => exec_data[:last_run] || 'Never'
@@ -740,7 +740,7 @@ module LanguageOperator
             begin
               # Get CronJob to find last execution time and next run
               cronjob = ctx.client.get_resource('CronJob', agent_name, ctx.namespace)
-              
+
               # Get last successful execution time
               last_successful = cronjob.dig('status', 'lastSuccessfulTime')
               if last_successful
@@ -750,9 +750,7 @@ module LanguageOperator
 
               # Calculate next run time from schedule
               schedule = cronjob.dig('spec', 'schedule')
-              if schedule
-                execution_data[:next_run] = calculate_next_run(schedule)
-              end
+              execution_data[:next_run] = calculate_next_run(schedule) if schedule
             rescue K8s::Error::NotFound, StandardError
               # CronJob not found or parsing error, continue with job counting
             end
@@ -761,7 +759,7 @@ module LanguageOperator
             begin
               # Count total completed jobs for this agent
               jobs = ctx.client.list_resources('Job', namespace: ctx.namespace)
-              
+
               agent_jobs = jobs.select do |job|
                 labels = job.dig('metadata', 'labels') || {}
                 labels['app.kubernetes.io/name'] == agent_name
@@ -772,7 +770,7 @@ module LanguageOperator
                 conditions = job.dig('status', 'conditions') || []
                 conditions.any? { |c| c['type'] == 'Complete' && c['status'] == 'True' }
               end
-              
+
               execution_data[:total_runs] = successful_jobs.length
             rescue StandardError
               # If job listing fails, keep default count of 0
@@ -784,32 +782,32 @@ module LanguageOperator
           def calculate_next_run(schedule)
             # Simple next run calculation for common cron patterns
             # Handle the most common case: */N * * * * (every N minutes)
-            
+
             parts = schedule.split
             return schedule unless parts.length == 5 # Not a valid cron expression
-            
+
             minute, hour, day, month, weekday = parts
             current_time = Time.now
-            
+
             # Handle every-N-minutes pattern: */10 * * * *
             if minute.start_with?('*/') && hour == '*' && day == '*' && month == '*' && weekday == '*'
               interval = minute[2..].to_i
               if interval > 0 && interval < 60
                 current_minute = current_time.min
-                current_second = current_time.sec
-                
+                current_time.sec
+
                 # Find the next occurrence
                 next_minute_mark = ((current_minute / interval) + 1) * interval
-                
+
                 if next_minute_mark < 60
                   # Same hour
-                  next_time = Time.new(current_time.year, current_time.month, current_time.day, 
+                  next_time = Time.new(current_time.year, current_time.month, current_time.day,
                                        current_time.hour, next_minute_mark, 0)
                 else
                   # Next hour
                   next_hour = current_time.hour + 1
                   next_minute = next_minute_mark - 60
-                  
+
                   if next_hour < 24
                     next_time = Time.new(current_time.year, current_time.month, current_time.day,
                                          next_hour, next_minute, 0)
@@ -820,11 +818,11 @@ module LanguageOperator
                                          0, next_minute, 0)
                   end
                 end
-                
+
                 return Formatters::ValueFormatter.time_until(next_time)
               end
             end
-            
+
             # For other patterns, show the schedule (could add more patterns later)
             schedule
           rescue StandardError

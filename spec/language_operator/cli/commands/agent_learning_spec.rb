@@ -230,11 +230,11 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Learning::LearningCommand
         {
           'data' => {
             'execution-summary' => JSON.generate({
-              'totalExecutions' => 8,
-              'learningThreshold' => 10,
-              'successRate' => 0.875,
-              'lastExecution' => '2025-11-28T14:30:00Z'
-            })
+                                                   'totalExecutions' => 8,
+                                                   'learningThreshold' => 10,
+                                                   'successRate' => 0.875,
+                                                   'lastExecution' => '2025-11-28T14:30:00Z'
+                                                 })
           }
         }
       end
@@ -250,11 +250,11 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Learning::LearningCommand
       it 'parses valid execution summary' do
         result = command.send(:parse_execution_summary, learning_status_with_summary)
         expect(result).to eq({
-          'totalExecutions' => 8,
-          'learningThreshold' => 10,
-          'successRate' => 0.875,
-          'lastExecution' => '2025-11-28T14:30:00Z'
-        })
+                               'totalExecutions' => 8,
+                               'learningThreshold' => 10,
+                               'successRate' => 0.875,
+                               'lastExecution' => '2025-11-28T14:30:00Z'
+                             })
       end
 
       it 'returns nil for missing learning status' do

@@ -25,22 +25,22 @@ module LanguageOperator
             # Core event emission settings
             enabled: 'ENABLE_K8S_EVENTS',
             disabled: 'DISABLE_K8S_EVENTS',
-            
+
             # Event filtering
             emit_success_events: 'EMIT_SUCCESS_EVENTS',
             emit_failure_events: 'EMIT_FAILURE_EVENTS',
             emit_validation_events: 'EMIT_VALIDATION_EVENTS',
-            
+
             # Performance and rate limiting
             rate_limit_per_minute: 'EVENT_RATE_LIMIT_PER_MINUTE',
             batch_size: 'EVENT_BATCH_SIZE',
             batch_timeout_ms: 'EVENT_BATCH_TIMEOUT_MS',
-            
+
             # Error handling
             retry_failed_events: 'RETRY_FAILED_EVENTS',
             max_event_retries: 'MAX_EVENT_RETRIES',
             retry_delay_ms: 'EVENT_RETRY_DELAY_MS',
-            
+
             # Event content control
             include_task_metadata: 'INCLUDE_TASK_METADATA',
             include_error_details: 'INCLUDE_ERROR_DETAILS',
@@ -95,13 +95,13 @@ module LanguageOperator
       # @return [Boolean] True if events should be emitted
       def self.enabled?(config = nil)
         config ||= load
-        
+
         # Must be in Kubernetes environment
         return false unless ENV.fetch('KUBERNETES_SERVICE_HOST', nil)
-        
+
         # Respect explicit disable flag (legacy)
         return false if config[:disabled]
-        
+
         # Check enable flag
         config[:enabled]
       end
@@ -113,9 +113,9 @@ module LanguageOperator
       # @return [Boolean] True if this event type should be emitted
       def self.should_emit?(event_type, config = nil)
         return false unless enabled?(config)
-        
+
         config ||= load
-        
+
         case event_type
         when :success
           config[:emit_success_events]

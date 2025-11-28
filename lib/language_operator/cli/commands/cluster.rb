@@ -58,8 +58,8 @@ module LanguageOperator
             unless k8s.namespace_exists?(namespace)
               Formatters::ProgressFormatter.with_spinner("Creating namespace '#{namespace}'") do
                 k8s.create_namespace(namespace, labels: Constants::KubernetesLabels.cluster_management_labels.merge(
-                                       Constants::KubernetesLabels::CLUSTER_LABEL => name
-                                     ))
+                  Constants::KubernetesLabels::CLUSTER_LABEL => name
+                ))
               end
             end
 

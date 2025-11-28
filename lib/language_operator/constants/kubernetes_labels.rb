@@ -61,7 +61,7 @@ module LanguageOperator
         # Build a label selector string for finding tool pods
         #
         # @param tool_name [String] The tool name
-        # @return [String] Label selector string for kubectl commands  
+        # @return [String] Label selector string for kubectl commands
         def tool_selector(tool_name)
           "#{TOOL_LABEL}=#{tool_name}"
         end

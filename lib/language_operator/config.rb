@@ -191,7 +191,7 @@ module LanguageOperator
     #   Config.get_int('MAX_WORKERS', default: 4)
     def self.get_int(*keys, default: nil)
       keys.each do |key|
-        value = ENV[key.to_s]
+        value = ENV.fetch(key.to_s, nil)
         next unless value
 
         begin
@@ -220,7 +220,7 @@ module LanguageOperator
     #   Config.get_bool('USE_TLS', 'ENABLE_TLS', default: true)
     def self.get_bool(*keys, default: false)
       keys.each do |key|
-        value = ENV[key.to_s]
+        value = ENV.fetch(key.to_s, nil)
         next unless value
 
         return %w[true 1 yes on].include?(value.to_s.downcase)
@@ -240,7 +240,7 @@ module LanguageOperator
     #   Config.get_array('ALLOWED_HOSTS', separator: ',')
     def self.get_array(*keys, default: [], separator: ',')
       keys.each do |key|
-        value = ENV[key.to_s]
+        value = ENV.fetch(key.to_s, nil)
         next unless value
         next if value.empty?
 

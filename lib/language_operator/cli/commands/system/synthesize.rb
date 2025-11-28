@@ -55,7 +55,7 @@ module LanguageOperator
               option :model, type: :string, desc: 'Model to use for synthesis (defaults to first available in cluster)'
               option :dry_run, type: :boolean, default: false, desc: 'Show prompt without calling LLM'
               option :raw, type: :boolean, default: false, desc: 'Output only the raw code without formatting'
-              
+
               def synthesize(instructions = nil)
                 handle_command_error('synthesize agent') do
                   # Read instructions from STDIN if not provided as argument

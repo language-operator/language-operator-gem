@@ -418,16 +418,16 @@ RSpec.describe LanguageOperator::Instrumentation::TaskTracer do
                               id: 'call_123',
                               arguments: { repo: 'test/repo' },
                               result: { issues: [] })
-      
+
       mock_response_with_tools = double('Response',
-                                       content: '{"result": "success"}',
-                                       input_tokens: 100,
-                                       output_tokens: 50,
-                                       model: 'claude-3-5-sonnet-20241022',
-                                       tool_calls: [mock_tool_call])
-      
+                                        content: '{"result": "success"}',
+                                        input_tokens: 100,
+                                        output_tokens: 50,
+                                        model: 'claude-3-5-sonnet-20241022',
+                                        tool_calls: [mock_tool_call])
+
       allow(mock_agent).to receive(:send_message).and_return(mock_response_with_tools)
-      
+
       executor.execute_task(:test_neural, inputs: { text: 'test' })
 
       tool_span = exporter.finished_spans.find { |s| s.name.start_with?('execute_tool') }

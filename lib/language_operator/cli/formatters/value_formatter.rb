@@ -51,7 +51,7 @@ module LanguageOperator
         #   ValueFormatter.time_ago(Time.now - 300) # => "5m ago"
         def self.time_ago(past_time)
           diff = Time.now - past_time
-          
+
           if diff < 0
             'in the future' # Edge case for clock skew
           elsif diff < SECONDS_PER_MINUTE

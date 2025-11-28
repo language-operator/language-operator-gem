@@ -170,9 +170,9 @@ module LanguageOperator
       def create_event(event)
         # Ensure proper apiVersion and kind for events
         event = event.merge({
-          'apiVersion' => 'v1',
-          'kind' => 'Event'
-        })
+                              'apiVersion' => 'v1',
+                              'kind' => 'Event'
+                            })
         create_resource(event)
       end
 
@@ -261,35 +261,35 @@ module LanguageOperator
       def build_event_message(task_name, success, duration_ms, metadata = {}, event_config = nil)
         event_config ||= Agent::EventConfig.load
         content_config = Agent::EventConfig.content_config(event_config)
-        
+
         status = success ? 'completed successfully' : 'failed'
         message = "Task '#{task_name}' #{status} in #{duration_ms.round(2)}ms"
-        
+
         # Include metadata if configured
         if content_config[:include_task_metadata] && metadata.any?
           # Filter metadata based on configuration
           filtered_metadata = metadata.dup
-          
+
           # Remove error details if not configured to include them
           unless content_config[:include_error_details]
             filtered_metadata.delete('error_type')
             filtered_metadata.delete('error_category')
           end
-          
+
           if filtered_metadata.any?
             details = filtered_metadata.map { |k, v| "#{k}: #{v}" }.join(', ')
             message += " (#{details})"
           end
         end
-        
+
         # Truncate if configured and message is too long
-        if content_config[:truncate_long_messages] && 
+        if content_config[:truncate_long_messages] &&
            message.length > content_config[:max_message_length]
           max_length = content_config[:max_message_length]
           truncated_length = message.length - max_length
           message = message[0...max_length] + "... (truncated #{truncated_length} chars)"
         end
-        
+
         message
       end
 

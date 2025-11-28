@@ -41,7 +41,7 @@ module LanguageOperator
         @workspace_path = ENV.fetch('WORKSPACE_PATH', '/workspace')
         @mode = agent_mode_with_default
         @executor = nil
-        
+
         # Initialize Kubernetes client for event emission (only in K8s environments)
         @kubernetes_client = begin
           LanguageOperator::Kubernetes::Client.instance if ENV.fetch('KUBERNETES_SERVICE_HOST', nil)

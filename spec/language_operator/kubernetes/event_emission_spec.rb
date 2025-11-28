@@ -12,13 +12,13 @@ RSpec.describe LanguageOperator::Kubernetes::Client do
     allow(K8s::Config).to receive(:load_file).and_return(double(current_context: 'test'))
     allow(K8s::Client).to receive(:config).and_return(mock_k8s_client)
     allow(client).to receive(:build_client).and_return(mock_k8s_client)
-    
+
     # Mock the API client structure for events
     api_client = instance_double(K8s::APIClient)
     allow(mock_k8s_client).to receive(:api).with('v1').and_return(api_client)
     allow(api_client).to receive(:resource).with('events').and_return(mock_resource_client)
     allow(api_client).to receive(:resource).with('events', namespace: anything).and_return(mock_resource_client)
-    
+
     allow(mock_resource_client).to receive(:create_resource).and_return(instance_double(K8s::Resource))
   end
 
@@ -88,7 +88,7 @@ RSpec.describe LanguageOperator::Kubernetes::Client do
 
       it 'includes metadata in the event message' do
         metadata = { 'retry_count' => 2, 'error_type' => 'NetworkError' }
-        
+
         expect(client).to receive(:create_event) do |event|
           expect(event['message']).to include('retry_count: 2, error_type: NetworkError')
         end

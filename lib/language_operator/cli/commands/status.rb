@@ -35,13 +35,13 @@ module LanguageOperator
 
               # Format cluster info using UxHelper
               logo(title: 'cluster status')
-              
+
               if cluster_resource
                 # Use actual cluster resource data
                 status = cluster_resource.dig('status', 'phase') || 'Unknown'
                 domain = cluster_resource.dig('spec', 'domain')
                 created = cluster_resource.dig('metadata', 'creationTimestamp')
-                
+
                 format_cluster_details(
                   name: current_cluster,
                   namespace: cluster_config[:namespace],

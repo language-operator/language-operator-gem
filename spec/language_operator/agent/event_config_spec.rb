@@ -6,18 +6,18 @@ require 'language_operator/agent/event_config'
 RSpec.describe LanguageOperator::Agent::EventConfig do
   after do
     # Clean up environment variables
-    [
-      'KUBERNETES_SERVICE_HOST', 'ENABLE_K8S_EVENTS', 'DISABLE_K8S_EVENTS',
-      'EMIT_SUCCESS_EVENTS', 'EMIT_FAILURE_EVENTS', 'EMIT_VALIDATION_EVENTS',
-      'EVENT_RATE_LIMIT_PER_MINUTE', 'INCLUDE_TASK_METADATA', 'INCLUDE_ERROR_DETAILS',
-      'TRUNCATE_LONG_MESSAGES', 'MAX_EVENT_MESSAGE_LENGTH'
+    %w[
+      KUBERNETES_SERVICE_HOST ENABLE_K8S_EVENTS DISABLE_K8S_EVENTS
+      EMIT_SUCCESS_EVENTS EMIT_FAILURE_EVENTS EMIT_VALIDATION_EVENTS
+      EVENT_RATE_LIMIT_PER_MINUTE INCLUDE_TASK_METADATA INCLUDE_ERROR_DETAILS
+      TRUNCATE_LONG_MESSAGES MAX_EVENT_MESSAGE_LENGTH
     ].each { |var| ENV.delete(var) }
   end
 
   describe '.load' do
     it 'returns default configuration when no env vars are set' do
       config = described_class.load
-      
+
       expect(config[:enabled]).to be true
       expect(config[:disabled]).to be false
       expect(config[:emit_success_events]).to be true

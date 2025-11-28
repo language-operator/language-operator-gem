@@ -151,26 +151,26 @@ RSpec.describe LanguageOperator::CLI::Helpers::LabelUtils do
 
     it 'returns comprehensive debug information' do
       result = described_class.debug_pod_search(mock_ctx, 'MyAgent-v2')
-      
+
       expect(result).to match({
-        agent_name: 'MyAgent-v2',
-        normalized_name: 'myagent-v2',
-        label_selector: "#{LanguageOperator::Constants::KubernetesLabels::NAME}=myagent-v2",
-        namespace: 'test-namespace',
-        valid_label_value: false  # uppercase letters make it invalid
-      })
+                                agent_name: 'MyAgent-v2',
+                                normalized_name: 'myagent-v2',
+                                label_selector: "#{LanguageOperator::Constants::KubernetesLabels::NAME}=myagent-v2",
+                                namespace: 'test-namespace',
+                                valid_label_value: false # uppercase letters make it invalid
+                              })
     end
 
     it 'shows valid status for proper names' do
       result = described_class.debug_pod_search(mock_ctx, 'data-processor')
-      
+
       expect(result[:valid_label_value]).to be true
       expect(result[:normalized_name]).to eq('data-processor')
     end
 
     it 'shows invalid status for problematic names' do
       result = described_class.debug_pod_search(mock_ctx, '-invalid-')
-      
+
       expect(result[:valid_label_value]).to be false
       expect(result[:normalized_name]).to eq('-invalid-')
     end
@@ -178,21 +178,21 @@ RSpec.describe LanguageOperator::CLI::Helpers::LabelUtils do
 
   describe 'edge cases and real-world scenarios' do
     it 'handles common agent naming patterns' do
-      patterns = [
-        'github-webhook',
-        'slack-bot',
-        'data-processor-v2',
-        'api-gateway',
-        'notification-service',
-        'backup-manager',
-        'log-analyzer',
-        'health-check'
+      patterns = %w[
+        github-webhook
+        slack-bot
+        data-processor-v2
+        api-gateway
+        notification-service
+        backup-manager
+        log-analyzer
+        health-check
       ]
 
       patterns.each do |pattern|
-        expect(described_class.valid_label_value?(pattern)).to be(true), 
-          "Expected '#{pattern}' to be valid but was invalid"
-        
+        expect(described_class.valid_label_value?(pattern)).to be(true),
+                                                               "Expected '#{pattern}' to be valid but was invalid"
+
         selector = described_class.agent_pod_selector(pattern)
         expect(selector).to eq("#{LanguageOperator::Constants::KubernetesLabels::NAME}=#{pattern}")
       end
@@ -200,12 +200,12 @@ RSpec.describe LanguageOperator::CLI::Helpers::LabelUtils do
 
     it 'handles problematic user inputs gracefully' do
       problematic_inputs = [
-        'My-Agent',  # uppercase
-        'agent_with_underscores',  # underscores (common mistake)
+        'My-Agent', # uppercase
+        'agent_with_underscores', # underscores (common mistake)
         'agent with spaces',  # spaces
         'agent@company.com',  # email-like
-        '.hidden-agent',  # starts with dot
-        'agent-',  # ends with hyphen
+        '.hidden-agent', # starts with dot
+        'agent-', # ends with hyphen
         '',  # empty
         nil  # nil
       ]
@@ -219,11 +219,11 @@ RSpec.describe LanguageOperator::CLI::Helpers::LabelUtils do
 
     it 'produces consistent results for same input' do
       agent_name = 'data-processor-v2'
-      
+
       # Call multiple times to ensure consistency
       results = 5.times.map { described_class.agent_pod_selector(agent_name) }
       expect(results.uniq.length).to eq(1)
-      
+
       validations = 5.times.map { described_class.valid_label_value?(agent_name) }
       expect(validations.uniq).to eq([true])
     end

@@ -139,8 +139,7 @@ module LanguageOperator
         # @example
         #   puts highlight_ruby_code("puts 'Hello, world!'")
         def highlight_ruby_code(code_content)
-          highlighted = rouge_formatter.format(rouge_lexer.lex(code_content))
-          highlighted
+          rouge_formatter.format(rouge_lexer.lex(code_content))
         end
 
         def logo(title: nil, sparkle: false)
@@ -409,7 +408,7 @@ module LanguageOperator
         def format_resource_details(type:, name:, common_fields: {}, optional_fields: {})
           rows = { 'Name' => pastel.white.bold(name) }
           rows.merge!(common_fields)
-          
+
           optional_fields.each do |key, value|
             case key
             when 'Domain'
@@ -418,7 +417,7 @@ module LanguageOperator
               rows[key] = value if value
             end
           end
-          
+
           highlighted_box(
             title: "Language#{type}",
             rows: rows.compact

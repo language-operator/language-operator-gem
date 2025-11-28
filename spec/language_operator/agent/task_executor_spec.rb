@@ -172,12 +172,12 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
           call_count += 1
           if call_count == 1
             instance_double(RubyLLM::Message,
-                           content: 'Not JSON at all',
-                           is_a?: false)
+                            content: 'Not JSON at all',
+                            is_a?: false)
           else
             instance_double(RubyLLM::Message,
-                           content: '{"summary": "Retry successful"}',
-                           is_a?: false)
+                            content: '{"summary": "Retry successful"}',
+                            is_a?: false)
           end
         end
 
@@ -201,9 +201,9 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
           executor.execute_task(:summarize_text, inputs: { text: 'Text' })
         end.to raise_error(LanguageOperator::Agent::TaskExecutionError, /returned invalid JSON/)
 
-        # Should make 5 calls total: 
+        # Should make 5 calls total:
         # Call 1: Original attempt
-        # Call 2: JSON parsing retry with clarified prompt  
+        # Call 2: JSON parsing retry with clarified prompt
         # Calls 3-5: Normal task retries (max_retries = 3)
         expect(call_count).to eq(5)
       end
@@ -648,11 +648,9 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor do
         retry_count = 0
         allow(executor).to receive(:execute_task_implementation) do
           retry_count += 1
-          if retry_count <= 2
-            raise Errno::ECONNRESET, 'Connection reset'
-          else
-            { result: 'success after retries' }
-          end
+          raise Errno::ECONNRESET, 'Connection reset' if retry_count <= 2
+
+          { result: 'success after retries' }
         end
 
         result = executor.execute_task(:network_error, inputs: {}, max_retries: 3)

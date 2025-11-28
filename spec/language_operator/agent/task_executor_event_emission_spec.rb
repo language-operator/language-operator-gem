@@ -13,7 +13,7 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor, 'event emission' do
 
   let(:symbolic_task) do
     LanguageOperator::Dsl::TaskDefinition.new('test_task').tap do |task|
-      task.execute { |inputs| { result: 'success' } }
+      task.execute { |_inputs| { result: 'success' } }
     end
   end
 
@@ -27,11 +27,11 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor, 'event emission' do
   before do
     tasks_registry[:test_task] = symbolic_task
     tasks_registry[:neural_task] = neural_task
-    
+
     allow(agent).to receive(:kubernetes_client).and_return(kubernetes_client)
     allow(agent).to receive(:send_message).and_return('{"result": "success"}')
     allow(agent).to receive(:logger).and_return(Logger.new('/dev/null'))
-    
+
     # Mock OpenTelemetry
     allow(OpenTelemetry::Trace).to receive(:current_span).and_return(nil)
     allow_any_instance_of(described_class).to receive(:tracer).and_return(
@@ -68,10 +68,10 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor, 'event emission' do
 
     it 'includes execution duration in the event' do
       start_time = Time.now
-      
-      expect(kubernetes_client).to receive(:emit_execution_event) do |task_name, options|
+
+      expect(kubernetes_client).to receive(:emit_execution_event) do |_task_name, options|
         expect(options[:duration_ms]).to be > 0
-        expect(options[:duration_ms]).to be < 10000 # Should be less than 10 seconds
+        expect(options[:duration_ms]).to be < 10_000 # Should be less than 10 seconds
       end
 
       allow(Time).to receive(:now).and_return(start_time, start_time + 0.1) # 100ms execution
@@ -129,7 +129,7 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor, 'event emission' do
 
     it 'does not emit events and continues normally' do
       expect(kubernetes_client).not_to receive(:emit_execution_event)
-      
+
       result = executor.execute_task(:test_task, inputs: {})
       expect(result[:result]).to eq('success')
     end
@@ -168,41 +168,41 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor, 'event emission' do
     let(:start_time) { Time.now - 0.5 } # 500ms ago
 
     it 'calculates duration correctly' do
-      expect(kubernetes_client).to receive(:emit_execution_event) do |task_name, options|
+      expect(kubernetes_client).to receive(:emit_execution_event) do |_task_name, options|
         expect(options[:duration_ms]).to be_within(50).of(500)
       end
 
-      executor.send(:emit_task_execution_event, 'test_task', 
-                   success: true, execution_start: start_time)
+      executor.send(:emit_task_execution_event, 'test_task',
+                    success: true, execution_start: start_time)
     end
 
     it 'includes task type in metadata' do
-      expect(kubernetes_client).to receive(:emit_execution_event) do |task_name, options|
+      expect(kubernetes_client).to receive(:emit_execution_event) do |_task_name, options|
         expect(options[:metadata]['task_type']).to eq('symbolic')
       end
 
-      executor.send(:emit_task_execution_event, 'test_task', 
-                   success: true, execution_start: start_time)
+      executor.send(:emit_task_execution_event, 'test_task',
+                    success: true, execution_start: start_time)
     end
 
     it 'includes error details for failed tasks' do
-      expect(kubernetes_client).to receive(:emit_execution_event) do |task_name, options|
+      expect(kubernetes_client).to receive(:emit_execution_event) do |_task_name, options|
         expect(options[:metadata]['error_type']).to eq('StandardError')
         expect(options[:metadata]['error_category']).to be_a(String)
       end
 
-      executor.send(:emit_task_execution_event, 'test_task', 
-                   success: false, execution_start: start_time, error: error)
+      executor.send(:emit_task_execution_event, 'test_task',
+                    success: false, execution_start: start_time, error: error)
     end
 
     context 'when task is not in registry' do
       it 'handles missing tasks gracefully' do
-        expect(kubernetes_client).to receive(:emit_execution_event) do |task_name, options|
+        expect(kubernetes_client).to receive(:emit_execution_event) do |_task_name, options|
           expect(options[:metadata]['task_type']).to be_nil
         end
 
-        executor.send(:emit_task_execution_event, 'unknown_task', 
-                     success: true, execution_start: start_time)
+        executor.send(:emit_task_execution_event, 'unknown_task',
+                      success: true, execution_start: start_time)
       end
     end
   end

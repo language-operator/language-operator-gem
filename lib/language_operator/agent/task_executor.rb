@@ -137,10 +137,10 @@ module LanguageOperator
 
           # Execute with retry logic
           result = execute_with_retry(task, task_name, inputs, timeout, max_retries, execution_start)
-          
+
           # Emit Kubernetes event for successful task completion
           emit_task_execution_event(task_name, success: true, execution_start: execution_start)
-          
+
           result
         end
       rescue ArgumentError => e
@@ -385,11 +385,11 @@ module LanguageOperator
         return unless @agent.respond_to?(:kubernetes_client)
 
         duration_ms = ((Time.now - execution_start) * 1000).round(2)
-        
+
         metadata = {
           'task_type' => determine_task_type(@tasks[task_name.to_sym])
         }
-        
+
         if error
           metadata['error_type'] = error.class.name
           metadata['error_category'] = categorize_error(error).to_s
@@ -403,8 +403,8 @@ module LanguageOperator
         )
       rescue StandardError => e
         logger.warn('Failed to emit task execution event',
-                   task: task_name,
-                   error: e.message)
+                    task: task_name,
+                    error: e.message)
       end
 
       # Summarize hash values for logging (truncate long strings)

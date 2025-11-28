@@ -397,14 +397,14 @@ RSpec.describe LanguageOperator::TypeCoercion do
         # Generate many unique cache entries (integer coercions are cached)
         large_number = cache_size * 10
         large_number.times do |i|
-          described_class.coerce(i.to_s, 'integer')  # Use valid integers
+          described_class.coerce(i.to_s, 'integer') # Use valid integers
         end
 
         stats = described_class.cache_stats
         # Cache size should never exceed the configured limit
         expect(stats[:size]).to be <= cache_size
         expect(stats[:size]).to be > 0 # Should have some entries
-        
+
         # Verify we've processed more entries than the cache can hold
         total_operations = stats[:hits] + stats[:misses]
         expect(total_operations).to eq(large_number)

@@ -149,7 +149,7 @@ module LanguageOperator
             end
 
             def display_learning_status(agent, learning_status, cluster_name)
-              agent_name = agent.dig('metadata', 'name')
+              agent.dig('metadata', 'name')
               annotations = agent.dig('metadata', 'annotations')
               annotations = annotations.respond_to?(:to_h) ? annotations.to_h : (annotations || {})
 
@@ -170,7 +170,6 @@ module LanguageOperator
                 learning_enabled = !annotations.key?(Constants::KubernetesLabels::LEARNING_DISABLED_LABEL)
                 display_learning_explanation(learning_enabled)
               end
-
             end
 
             def display_detailed_learning_status(learning_status)
