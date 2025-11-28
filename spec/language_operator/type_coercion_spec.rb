@@ -141,13 +141,30 @@ RSpec.describe LanguageOperator::TypeCoercion do
           .to raise_error(ArgumentError, /Cannot coerce "" to boolean/)
       end
 
-      it 'raises ArgumentError for non-boolean, non-string values' do
+      it 'coerces integer 1 to true' do
+        expect(described_class.coerce(1, 'boolean')).to be(true)
+      end
+
+      it 'coerces integer 0 to false' do
+        expect(described_class.coerce(0, 'boolean')).to be(false)
+      end
+
+      it 'raises ArgumentError for integers other than 0 or 1' do
+        expect { described_class.coerce(2, 'boolean') }
+          .to raise_error(ArgumentError, /Cannot coerce 2 to boolean \(only 0 and 1 are valid integers\)/)
+        expect { described_class.coerce(-1, 'boolean') }
+          .to raise_error(ArgumentError, /Cannot coerce -1 to boolean \(only 0 and 1 are valid integers\)/)
+        expect { described_class.coerce(42, 'boolean') }
+          .to raise_error(ArgumentError, /Cannot coerce 42 to boolean \(only 0 and 1 are valid integers\)/)
+      end
+
+      it 'raises ArgumentError for non-boolean, non-string, non-integer values' do
         expect { described_class.coerce(nil, 'boolean') }
           .to raise_error(ArgumentError, /Cannot coerce nil to boolean/)
-        expect { described_class.coerce(1, 'boolean') }
-          .to raise_error(ArgumentError, /Cannot coerce 1 to boolean/)
-        expect { described_class.coerce(0, 'boolean') }
-          .to raise_error(ArgumentError, /Cannot coerce 0 to boolean/)
+        expect { described_class.coerce(1.0, 'boolean') }
+          .to raise_error(ArgumentError, /Cannot coerce 1.0 to boolean/)
+        expect { described_class.coerce(0.0, 'boolean') }
+          .to raise_error(ArgumentError, /Cannot coerce 0.0 to boolean/)
       end
     end
 
@@ -270,16 +287,20 @@ RSpec.describe LanguageOperator::TypeCoercion do
     it 'coerces truthy values' do
       expect(described_class.coerce_boolean('true')).to be(true)
       expect(described_class.coerce_boolean(true)).to be(true)
+      expect(described_class.coerce_boolean(1)).to be(true)
     end
 
     it 'coerces falsy values' do
       expect(described_class.coerce_boolean('false')).to be(false)
       expect(described_class.coerce_boolean(false)).to be(false)
+      expect(described_class.coerce_boolean(0)).to be(false)
     end
 
     it 'raises ArgumentError for ambiguous values' do
       expect { described_class.coerce_boolean('maybe') }
         .to raise_error(ArgumentError, /Cannot coerce "maybe" to boolean/)
+      expect { described_class.coerce_boolean(2) }
+        .to raise_error(ArgumentError, /Cannot coerce 2 to boolean/)
     end
   end
 

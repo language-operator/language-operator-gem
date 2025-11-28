@@ -19,7 +19,7 @@ module LanguageOperator
   # - integer: Coerces String, Integer, Float to Integer
   # - number: Coerces String, Integer, Float to Float
   # - string: Coerces any value to String via to_s
-  # - boolean: Coerces String, Boolean to Boolean (explicit values only)
+  # - boolean: Coerces String, Integer (0 or 1), Boolean to Boolean (explicit values only)
   # - array: Strict validation (no coercion)
   # - hash: Strict validation (no coercion)
   # - any: No coercion, passes through any value
@@ -32,8 +32,11 @@ module LanguageOperator
   # @example Boolean coercion
   #   TypeCoercion.coerce("true", "boolean")   # => true
   #   TypeCoercion.coerce("1", "boolean")      # => true
+  #   TypeCoercion.coerce(1, "boolean")        # => true
+  #   TypeCoercion.coerce(0, "boolean")        # => false
   #   TypeCoercion.coerce("false", "boolean")  # => false
   #   TypeCoercion.coerce("maybe", "boolean")  # raises ArgumentError
+  #   TypeCoercion.coerce(2, "boolean")        # raises ArgumentError
   #
   # @example String coercion (never fails)
   #   TypeCoercion.coerce(:symbol, "string")  # => "symbol"
@@ -213,11 +216,11 @@ module LanguageOperator
 
     # Coerce value to Boolean
     #
-    # Accepts: Boolean, String (explicit values only)
+    # Accepts: Boolean, Integer (0 or 1), String (explicit values only)
     # Coercion: Case-insensitive string matching with optimized pattern lookup
-    # Truthy: "true", "1", "yes", "t", "y"
-    # Falsy: "false", "0", "no", "f", "n"
-    # Errors: Ambiguous values (e.g., "maybe", "unknown")
+    # Truthy: "true", "1", "yes", "t", "y", 1 (integer)
+    # Falsy: "false", "0", "no", "f", "n", 0 (integer)
+    # Errors: Ambiguous values (e.g., "maybe", "unknown"), integers other than 0 or 1
     #
     # @param value [Object] Value to coerce
     # @return [Boolean] Coerced boolean
@@ -227,17 +230,28 @@ module LanguageOperator
     #   coerce_boolean(true)      # => true
     #   coerce_boolean("true")    # => true
     #   coerce_boolean("1")       # => true
+    #   coerce_boolean(1)         # => true
     #   coerce_boolean("yes")     # => true
     #   coerce_boolean(false)     # => false
     #   coerce_boolean("false")   # => false
     #   coerce_boolean("0")       # => false
+    #   coerce_boolean(0)         # => false
     #   coerce_boolean("no")      # => false
     #   coerce_boolean("maybe")   # raises ArgumentError
+    #   coerce_boolean(2)         # raises ArgumentError
     def self.coerce_boolean(value)
       # Fast path for already-correct types
       return value if value.is_a?(TrueClass) || value.is_a?(FalseClass)
 
-      # Only allow string values for coercion (not integers or other types)
+      # Handle integer 0 and 1 (common in many programming contexts)
+      if value.is_a?(Integer)
+        return true if value == 1
+        return false if value.zero?
+
+        raise ArgumentError, "Cannot coerce #{value.inspect} to boolean (only 0 and 1 are valid integers)"
+      end
+
+      # Only allow string values for coercion (not floats, symbols, or other types)
       raise ArgumentError, "Cannot coerce #{value.inspect} to boolean" unless value.is_a?(String)
 
       # Optimized pattern matching using pre-compiled arrays
@@ -308,9 +322,9 @@ module LanguageOperator
           errors: 'Never (everything has to_s)'
         },
         'boolean' => {
-          accepts: 'Boolean, String (explicit values)',
+          accepts: 'Boolean, Integer (0 or 1), String (explicit values)',
           method: 'Pattern matching (true/1/yes/t/y or false/0/no/f/n)',
-          errors: 'Ambiguous values'
+          errors: 'Ambiguous values, integers other than 0 or 1'
         },
         'array' => {
           accepts: 'Array only',
