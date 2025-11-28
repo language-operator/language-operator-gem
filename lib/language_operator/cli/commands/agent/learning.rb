@@ -340,7 +340,7 @@ module LanguageOperator
                 execution_summary['successRate'] || 0.0
                 last_execution = execution_summary['lastExecution']
 
-                runs_completed = "#{total_executions}/#{learning_threshold}"
+                runs_processed = "#{total_executions}/#{learning_threshold}"
                 progress_percent = [(total_executions.to_f / learning_threshold * 100).round, 100].min
                 progress = "#{progress_percent}% toward learning threshold"
 
@@ -354,7 +354,7 @@ module LanguageOperator
                              'No executions yet'
                            end
               else
-                runs_completed = 'No data'
+                runs_processed = 'No data'
                 progress = 'Waiting for agent executions'
                 last_run = 'No executions yet'
               end
@@ -366,7 +366,7 @@ module LanguageOperator
                   'Learning' => pastel.send(status_color).bold(status_text),
                   'Threshold' => "#{pastel.cyan('10 successful runs')} (auto-learning trigger)",
                   'Confidence Target' => "#{pastel.cyan('85%')} (pattern detection)",
-                  'Runs Completed' => runs_completed,
+                  'Runs Processed' => runs_processed,
                   'Progress' => progress,
                   'Last Execution' => last_run
                 }
