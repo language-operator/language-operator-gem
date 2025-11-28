@@ -33,9 +33,10 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
             instructions: "Generate a personalized welcome message for the user",
             inputs: { user: 'hash', preferences: 'hash' },
             outputs: { message: 'string', tone: 'string' }
+          )
 
           # Symbolic task - deterministic message formatting
-          task :format_response,
+          task(:format_response,
             inputs: { message: 'string', user: 'hash', tone: 'string' },
             outputs: {
               formatted_message: 'string',
@@ -104,9 +105,10 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
             instructions: "Analyze the cleaned data and identify patterns or insights",
             inputs: { cleaned_data: 'array', stats: 'hash' },
             outputs: { insights: 'array', confidence: 'number' }
+          )
 
           # Symbolic report generation
-          task :generate_report,
+          task(:generate_report,
             inputs: { insights: 'array', confidence: 'number', stats: 'hash' },
             outputs: { report: 'string', summary: 'hash' }
           ) do |inputs|
@@ -195,9 +197,10 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
               count: 'integer'
             },
             outputs: { interpretation: 'string', recommendations: 'array' }
+          )
 
           # Fast symbolic summary
-          task :create_executive_summary,
+          task(:create_executive_summary,
             inputs: {
               interpretation: 'string',
               recommendations: 'array',
@@ -285,9 +288,10 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
             instructions: "Generate a professional profile description for the person",
             inputs: { data: 'hash' },
             outputs: { profile: 'string', keywords: 'array' }
+          )
 
           # Symbolic error formatting
-          task :format_errors,
+          task(:format_errors,
             inputs: { errors: 'array' },
             outputs: { error_message: 'string' }
           ) do |inputs|
@@ -363,9 +367,10 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
             instructions: "Process and enhance each item in the batch",
             inputs: { batch: 'array', batch_number: 'integer' },
             outputs: { processed_items: 'array', insights: 'string' }
+          )
 
           # Symbolic result aggregation
-          task :aggregate_results,
+          task(:aggregate_results,
             inputs: { all_results: 'array' },
             outputs: {
               total_processed: 'integer',
@@ -429,18 +434,19 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
       optimized_dsl = <<~RUBY
         agent "optimized" do
           # Fast symbolic preprocessing
-          task :preprocess do |inputs|
+          task(:preprocess) do |inputs|
             { data: inputs[:data].map(&:to_i).select(&:positive?) }
           end
         #{'  '}
           # Neural analysis only where needed
-          task :analyze,
+          task(:analyze,
             instructions: "Analyze trends in the data",
             inputs: { data: 'array' },
             outputs: { trend: 'string' }
+          )
         #{'  '}
           # Fast symbolic calculation
-          task :calculate do |inputs|
+          task(:calculate) do |inputs|
             { sum: inputs[:data].sum, avg: inputs[:data].sum.to_f / inputs[:data].length }
           end
         #{'  '}
@@ -456,22 +462,25 @@ RSpec.describe 'Hybrid Agent Execution', type: :integration do
       suboptimal_dsl = <<~RUBY
         agent "suboptimal" do
           # Neural preprocessing (unnecessarily slow)
-          task :preprocess,
+          task(:preprocess,
             instructions: "Clean and prepare the data array",
             inputs: { data: 'array' },
             outputs: { data: 'array' }
+          )
         #{'  '}
           # Neural analysis
-          task :analyze,
+          task(:analyze,
             instructions: "Analyze trends in the data",#{' '}
             inputs: { data: 'array' },
             outputs: { trend: 'string' }
+          )
         #{'  '}
           # Neural calculation (unnecessarily slow)
-          task :calculate,
+          task(:calculate,
             instructions: "Calculate sum and average of the data",
             inputs: { data: 'array' },
             outputs: { sum: 'number', avg: 'number' }
+          )
         #{'  '}
           main do |inputs|
             cleaned = execute_task(:preprocess, inputs: inputs)

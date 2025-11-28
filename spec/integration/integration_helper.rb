@@ -225,9 +225,60 @@ module Integration
           user: { id: 123, name: 'Test User', email: 'test@example.com' },
           preferences: { theme: 'dark', notifications: true }
         }.to_json
+      when /calculate.*total.*sum.*provided numbers/i
+        # Mock calculation for specific neural test
+        { total: 42.5 }.to_json
       when /calculate.*total|sum/i
         # Mock calculation
         { total: 42.5 }.to_json
+      when /analyze.*provided data.*generate insights.*using.*tools/i
+        # Mock data analysis with tools (neural_task_execution_spec.rb - analyze_data task)
+        { insights: 'Data shows positive trend with 20% growth', metrics: { growth: 0.2, trend: 'positive' } }.to_json
+      when /validate.*input.*properly formatted email/i
+        # Mock email validation (neural_task_execution_spec.rb - validate_email task)
+        { valid: false, reason: 'Missing @ symbol' }.to_json
+      when /process.*required data field/i
+        # Mock data processing (neural_task_execution_spec.rb - process_data task)
+        { result: 'Processed successfully' }.to_json
+      when /provide.*quick response.*input/i, /quick response/i
+        # Mock quick response (neural_task_execution_spec.rb - quick_response task)
+        { response: 'Quick response generated', timing: 0.1 }.to_json
+      when /process step one/i
+        # Mock task one (neural_task_execution_spec.rb - task_one)
+        { result: 'Step one complete', status: 'success' }.to_json
+      when /process step two/i
+        # Mock task two (neural_task_execution_spec.rb - task_two)
+        { result: 'Step two complete', status: 'success' }.to_json
+      when /process numeric inputs.*return statistics/i, /process.*numbers/i
+        # Mock numeric processing (neural_task_execution_spec.rb - process_numbers task)
+        { sum: 150, average: 30, max: 50, min: 10 }.to_json
+      when /validate strict input requirements/i, /strict.*task/i
+        # Mock strict task validation
+        { output: 'Validated successfully', passed: true }.to_json
+      when /generate.*personalized welcome message/i
+        # Mock welcome message generation (hybrid tests)
+        { message: 'Welcome to our platform! We are excited to have you here.', tone: 'friendly' }.to_json
+      when /analyze.*cleaned data.*identify patterns/i
+        # Mock pattern analysis (hybrid tests)
+        { insights: ['Pattern A detected', 'Trend B observed'], confidence: 0.85 }.to_json
+      when /interpret.*statistical results.*business insights/i
+        # Mock result interpretation (hybrid tests)
+        { interpretation: 'Sales data shows strong growth', recommendations: ['Increase inventory', 'Expand marketing'] }.to_json
+      when /generate.*professional profile description/i
+        # Mock profile generation (hybrid tests)
+        { profile: 'Professional with extensive experience', keywords: %w[experienced skilled professional] }.to_json
+      when /process.*enhance.*item.*batch/i
+        # Mock batch processing (hybrid tests)
+        { processed_items: %w[enhanced_item_1 enhanced_item_2], insights: 'Batch processed successfully' }.to_json
+      when /analyze trends.*data/i
+        # Mock trend analysis (hybrid tests)
+        { trend: 'upward' }.to_json
+      when /clean.*prepare.*data array/i
+        # Mock data cleaning (hybrid tests)
+        { data: [1, 2, 3, 4, 5] }.to_json
+      when /calculate.*sum.*average.*data/i
+        # Mock calculation (hybrid tests)
+        { sum: 15, avg: 3 }.to_json
       when /analyze.*sentiment/i
         # Mock sentiment analysis
         { sentiment: 'positive', confidence: 0.85, keywords: %w[good excellent] }.to_json
