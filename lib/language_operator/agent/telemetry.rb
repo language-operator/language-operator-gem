@@ -70,6 +70,11 @@ module LanguageOperator
 
         # Build resource attributes from environment variables
         #
+        # Includes semantic attributes required for learning status tracking:
+        # - agent.name: Required for learning controller to identify agent executions
+        # - agent.mode: Agent operating mode (autonomous, scheduled, reactive)
+        # - service.version: Agent runtime version for observability
+        #
         # @return [Hash] Resource attributes
         def build_resource_attributes
           attributes = {}
@@ -83,9 +88,26 @@ module LanguageOperator
           # Kubernetes pod name
           attributes['k8s.pod.name'] = ENV['HOSTNAME'] if ENV['HOSTNAME']
 
-          # Agent-specific attributes
-          attributes['agent.name'] = ENV['AGENT_NAME'] if ENV['AGENT_NAME']
-          attributes['agent.mode'] = ENV['AGENT_MODE'] if ENV['AGENT_MODE']
+          # Agent-specific attributes (CRITICAL for learning system)
+          if (agent_name = ENV.fetch('AGENT_NAME', nil))
+            attributes['agent.name'] = agent_name
+            # Also set as service.name for better trace organization
+            attributes['service.name'] = "language-operator-agent-#{agent_name}"
+          else
+            warn 'AGENT_NAME environment variable not set - learning status tracking may not work correctly'
+          end
+
+          if (agent_mode = ENV.fetch('AGENT_MODE', nil))
+            attributes['agent.mode'] = agent_mode
+          end
+
+          # Agent runtime version for observability
+          attributes['service.version'] = LanguageOperator::VERSION if defined?(LanguageOperator::VERSION)
+
+          # Agent cluster context
+          if (cluster_name = ENV.fetch('AGENT_CLUSTER', nil))
+            attributes['agent.cluster'] = cluster_name
+          end
 
           attributes
         end

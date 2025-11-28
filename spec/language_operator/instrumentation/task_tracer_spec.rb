@@ -61,6 +61,9 @@ RSpec.describe LanguageOperator::Instrumentation::TaskTracer do
     ENV.delete('CAPTURE_TASK_OUTPUTS')
     ENV.delete('CAPTURE_TOOL_ARGS')
     ENV.delete('CAPTURE_TOOL_RESULTS')
+    ENV.delete('AGENT_NAME')
+    ENV.delete('AGENT_MODE')
+    ENV.delete('AGENT_CLUSTER')
   end
 
   describe 'span creation' do
@@ -368,6 +371,122 @@ RSpec.describe LanguageOperator::Instrumentation::TaskTracer do
       result = tracer_instance.send(:sanitize_data, long_string, :inputs, max_length: 1000)
       expect(result).to include('truncated')
       expect(result.length).to be < 1100
+    end
+  end
+
+  describe 'semantic attributes for learning system' do
+    before do
+      ENV['AGENT_NAME'] = 'test-agent'
+      ENV['AGENT_MODE'] = 'autonomous'
+      ENV['AGENT_CLUSTER'] = 'test-cluster'
+    end
+
+    it 'includes agent context attributes on task execution spans' do
+      executor.execute_task(:test_symbolic, inputs: { value: 5 })
+
+      root_span = exporter.finished_spans.find { |s| s.name == 'task_executor.execute_task' }
+      expect(root_span.attributes['agent.name']).to eq('test-agent')
+      expect(root_span.attributes['task.name']).to eq('test_symbolic')
+      expect(root_span.attributes['gen_ai.operation.name']).to eq('execute_task')
+    end
+
+    it 'includes agent context attributes on neural task spans' do
+      executor.execute_task(:test_neural, inputs: { text: 'test' })
+
+      neural_span = exporter.finished_spans.find { |s| s.name == 'gen_ai.chat' }
+      expect(neural_span.attributes['agent.name']).to eq('test-agent')
+      expect(neural_span.attributes['agent.mode']).to eq('autonomous')
+      expect(neural_span.attributes['agent.cluster']).to eq('test-cluster')
+      expect(neural_span.attributes['task.name']).to eq('test_neural')
+    end
+
+    it 'includes agent context attributes on symbolic task spans' do
+      executor.execute_task(:test_symbolic, inputs: { value: 5 })
+
+      symbolic_span = exporter.finished_spans.find { |s| s.name == 'task_executor.symbolic' }
+      expect(symbolic_span.attributes['agent.name']).to eq('test-agent')
+      expect(symbolic_span.attributes['agent.mode']).to eq('autonomous')
+      expect(symbolic_span.attributes['agent.cluster']).to eq('test-cluster')
+      expect(symbolic_span.attributes['task.name']).to eq('test_symbolic')
+      expect(symbolic_span.attributes['gen_ai.operation.name']).to eq('execute_task')
+    end
+
+    it 'includes agent context attributes on tool call spans' do
+      ENV['CAPTURE_TOOL_ARGS'] = 'true'
+      mock_tool_call = double('ToolCall',
+                              name: 'github',
+                              id: 'call_123',
+                              arguments: { repo: 'test/repo' },
+                              result: { issues: [] })
+      
+      mock_response_with_tools = double('Response',
+                                       content: '{"result": "success"}',
+                                       input_tokens: 100,
+                                       output_tokens: 50,
+                                       model: 'claude-3-5-sonnet-20241022',
+                                       tool_calls: [mock_tool_call])
+      
+      allow(mock_agent).to receive(:send_message).and_return(mock_response_with_tools)
+      
+      executor.execute_task(:test_neural, inputs: { text: 'test' })
+
+      tool_span = exporter.finished_spans.find { |s| s.name.start_with?('execute_tool') }
+      expect(tool_span.attributes['agent.name']).to eq('test-agent')
+      expect(tool_span.attributes['agent.mode']).to eq('autonomous')
+      expect(tool_span.attributes['agent.cluster']).to eq('test-cluster')
+      expect(tool_span.attributes['gen_ai.operation.name']).to eq('execute_tool')
+      expect(tool_span.attributes['gen_ai.tool.name']).to eq('github')
+    end
+
+    it 'includes task type information on task execution spans' do
+      executor.execute_task(:test_symbolic, inputs: { value: 5 })
+
+      root_span = exporter.finished_spans.find { |s| s.name == 'task_executor.execute_task' }
+      expect(root_span.attributes['task.type']).to eq('symbolic')
+      expect(root_span.attributes['task.has_neural']).to eq('false')
+      expect(root_span.attributes['task.has_symbolic']).to eq('true')
+    end
+
+    it 'handles missing agent environment variables gracefully' do
+      ENV.delete('AGENT_NAME')
+      ENV.delete('AGENT_MODE')
+      ENV.delete('AGENT_CLUSTER')
+
+      executor.execute_task(:test_symbolic, inputs: { value: 5 })
+
+      root_span = exporter.finished_spans.find { |s| s.name == 'task_executor.execute_task' }
+      expect(root_span.attributes['agent.name']).to be_nil
+      expect(root_span.attributes['task.name']).to eq('test_symbolic')
+    end
+  end
+
+  describe '#add_agent_context_attributes' do
+    let(:tracer_instance) do
+      Class.new do
+        include LanguageOperator::Instrumentation::TaskTracer
+      end.new
+    end
+
+    it 'adds agent attributes from environment variables' do
+      ENV['AGENT_NAME'] = 'test-agent'
+      ENV['AGENT_MODE'] = 'scheduled'
+      ENV['AGENT_CLUSTER'] = 'prod'
+
+      attributes = {}
+      tracer_instance.send(:add_agent_context_attributes, attributes)
+
+      expect(attributes['agent.name']).to eq('test-agent')
+      expect(attributes['agent.mode']).to eq('scheduled')
+      expect(attributes['agent.cluster']).to eq('prod')
+    end
+
+    it 'handles missing environment variables gracefully' do
+      attributes = {}
+      tracer_instance.send(:add_agent_context_attributes, attributes)
+
+      expect(attributes['agent.name']).to be_nil
+      expect(attributes['agent.mode']).to be_nil
+      expect(attributes['agent.cluster']).to be_nil
     end
   end
 end

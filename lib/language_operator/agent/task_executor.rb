@@ -106,15 +106,11 @@ module LanguageOperator
       def execute_task(task_name, inputs: {}, timeout: nil, max_retries: nil)
         execution_start = Time.now
         max_retries ||= @config[:max_retries]
-        
+
         # Reset JSON parsing retry flag for this task
         @parsing_retry_attempted = false
 
-        with_span('task_executor.execute_task', attributes: {
-                    'task.name' => task_name.to_s,
-                    'task.inputs' => inputs.keys.map(&:to_s).join(','),
-                    'task.max_retries' => max_retries
-                  }) do
+        with_span('task_executor.execute_task', attributes: build_task_execution_attributes(task_name, inputs, max_retries)) do
           # Fast task lookup using pre-built cache
           task_name_sym = task_name.to_sym
           task_info = @task_cache[task_name_sym]
@@ -963,6 +959,43 @@ module LanguageOperator
                         end
         end
         cache
+      end
+
+      # Build semantic attributes for task execution span
+      #
+      # Includes attributes required for learning status tracking:
+      # - task.name: Task identifier for learning controller
+      # - agent.name: Agent identifier (explicit for learning system)
+      # - gen_ai.operation.name: Semantic operation name
+      #
+      # @param task_name [Symbol] Name of the task being executed
+      # @param inputs [Hash] Task input parameters
+      # @param max_retries [Integer] Maximum retry attempts
+      # @return [Hash] Span attributes
+      def build_task_execution_attributes(task_name, inputs, max_retries)
+        attributes = {
+          # Core task identification (CRITICAL for learning system)
+          'task.name' => task_name.to_s,
+          'task.inputs' => inputs.keys.map(&:to_s).join(','),
+          'task.max_retries' => max_retries,
+
+          # Semantic operation name for better trace organization
+          'gen_ai.operation.name' => 'execute_task'
+        }
+
+        # Explicitly add agent name if available (redundant with resource attribute but ensures visibility)
+        if (agent_name = ENV.fetch('AGENT_NAME', nil))
+          attributes['agent.name'] = agent_name
+        end
+
+        # Add task type information if available
+        if (task_info = @task_cache[task_name.to_sym])
+          attributes['task.type'] = task_info[:type]
+          attributes['task.has_neural'] = task_info[:neural].to_s
+          attributes['task.has_symbolic'] = task_info[:symbolic].to_s
+        end
+
+        attributes
       end
     end
   end

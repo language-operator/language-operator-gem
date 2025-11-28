@@ -87,12 +87,18 @@ module LanguageOperator
       # @param prompt [String] The generated prompt
       # @param validated_inputs [Hash] Validated input parameters
       # @return [Hash] Span attributes
-      def neural_task_attributes(_task, prompt, validated_inputs)
+      def neural_task_attributes(task, prompt, validated_inputs)
         attributes = {
           'gen_ai.operation.name' => 'chat',
           'gen_ai.system' => determine_genai_system,
           'gen_ai.prompt.size' => prompt.bytesize
         }
+
+        # Add agent context (CRITICAL for learning system)
+        add_agent_context_attributes(attributes)
+
+        # Add task identification
+        attributes['task.name'] = task.name.to_s if task.respond_to?(:name) && task.name
 
         # Add model if available
         if @agent.respond_to?(:config) && @agent.config
@@ -130,10 +136,19 @@ module LanguageOperator
       # @param task [TaskDefinition] The task definition
       # @return [Hash] Span attributes
       def symbolic_task_attributes(task)
-        {
+        attributes = {
           'task.execution.type' => 'symbolic',
-          'task.execution.has_block' => task.execute_block ? 'true' : 'false'
+          'task.execution.has_block' => task.execute_block ? 'true' : 'false',
+          'gen_ai.operation.name' => 'execute_task'
         }
+
+        # Add agent context (CRITICAL for learning system)
+        add_agent_context_attributes(attributes)
+
+        # Add task identification
+        attributes['task.name'] = task.name.to_s if task.respond_to?(:name) && task.name
+
+        attributes
       end
 
       # Record token usage from LLM response on span
@@ -265,6 +280,9 @@ module LanguageOperator
           'gen_ai.tool.name' => extract_tool_name(tool_call)
         }
 
+        # Add agent context (CRITICAL for learning system)
+        add_agent_context_attributes(attributes)
+
         # Add tool call ID if available
         attributes['gen_ai.tool.call.id'] = tool_call.id.to_s if tool_call.respond_to?(:id) && tool_call.id
 
@@ -340,6 +358,29 @@ module LanguageOperator
         span.set_attribute('task.output.count', outputs.size)
       rescue StandardError => e
         logger&.warn('Failed to record output metadata', error: e.message)
+      end
+
+      # Add agent context attributes to span attributes hash
+      #
+      # Ensures all spans include agent identification required for learning system.
+      # This is redundant with resource attributes but provides explicit visibility.
+      #
+      # @param attributes [Hash] Span attributes hash to modify
+      def add_agent_context_attributes(attributes)
+        # Agent name is CRITICAL for learning controller to track executions
+        if (agent_name = ENV.fetch('AGENT_NAME', nil))
+          attributes['agent.name'] = agent_name
+        end
+
+        # Add agent mode for better traceability
+        if (agent_mode = ENV.fetch('AGENT_MODE', nil))
+          attributes['agent.mode'] = agent_mode
+        end
+
+        # Add cluster context if available
+        if (cluster_name = ENV.fetch('AGENT_CLUSTER', nil))
+          attributes['agent.cluster'] = cluster_name
+        end
       end
     end
     # rubocop:enable Metrics/ModuleLength
