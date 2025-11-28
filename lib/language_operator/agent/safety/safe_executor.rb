@@ -36,7 +36,8 @@ module LanguageOperator
 
           # Step 3: Execute using instance_eval with smart constant injection
           # Only inject constants that won't conflict with user-defined ones
-          safe_constants = %w[Numeric Integer Float String Array Hash TrueClass FalseClass Time Date]
+          safe_constants = %w[Numeric Integer Float String Array Hash TrueClass FalseClass Time Date
+                              ArgumentError TypeError RuntimeError StandardError]
 
           # Find which constants user code defines to avoid redefinition warnings
           user_defined_constants = safe_constants.select { |const| code.include?("#{const} =") }
@@ -128,6 +129,9 @@ module LanguageOperator
               ::Object.const_get(name)
             when :TrueClass, :FalseClass, :NilClass
               # Allow boolean and nil types
+              ::Object.const_get(name)
+            when :ArgumentError, :TypeError, :RuntimeError, :StandardError
+              # Allow standard Ruby exception classes for error handling
               ::Object.const_get(name)
             else
               # Security-by-default: explicitly deny access to any other constants

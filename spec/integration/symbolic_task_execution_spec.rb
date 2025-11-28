@@ -103,10 +103,10 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
       result = execute_main_with_timing(agent, { text: test_text })
 
       expect(result[:success]).to be(true)
-      expect(result[:output][:word_count]).to eq(8)
+      expect(result[:output][:word_count]).to eq(9) # "Hello world! This is a test. How are you?" splits to 9 tokens
       expect(result[:output][:sentences]).to eq(3)
       expect(result[:output][:summary][:has_punctuation]).to be(true)
-      expect(result[:output][:summary][:longest_word]).to eq('Hello')
+      expect(result[:output][:summary][:longest_word]).to eq('world!') # Punctuation attached makes it longest at 6 chars
     end
   end
 
@@ -276,10 +276,12 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
 
       agent = create_test_agent('type-checker', agent_dsl)
 
-      # Test with wrong input type
-      expect do
-        execute_main_with_timing(agent, { numbers: 'not-an-array' })
-      end.to raise_error(LanguageOperator::Agent::TaskValidationError, /Expected.*array/)
+      # Test with wrong input type - should return error result (not raise)
+      result = execute_main_with_timing(agent, { numbers: 'not-an-array' })
+
+      expect(result[:success]).to be(false)
+      expect(result[:error]).to be_a(LanguageOperator::Agent::TaskValidationError)
+      expect(result[:error].message).to match(/Expected.*array/)
     end
 
     it 'validates output schema in symbolic tasks' do
@@ -301,9 +303,12 @@ RSpec.describe 'Symbolic Task Execution', type: :integration do
 
       agent = create_test_agent('schema-validator', agent_dsl)
 
-      expect do
-        execute_main_with_timing(agent, { data: 'test' })
-      end.to raise_error(LanguageOperator::Agent::TaskValidationError, /Missing required output/)
+      # Test with wrong output schema - should return error result (not raise)
+      result = execute_main_with_timing(agent, { data: 'test' })
+
+      expect(result[:success]).to be(false)
+      expect(result[:error]).to be_a(LanguageOperator::Agent::TaskValidationError)
+      expect(result[:error].message).to match(/Missing required output/)
     end
   end
 

@@ -25,7 +25,7 @@ module LanguageOperator
           const_set const_get remove_const
           define_method define_singleton_method
           undef_method remove_method alias_method
-          exit exit! abort raise fail throw
+          exit exit! abort throw
           trap at_exit
           open
         ].freeze

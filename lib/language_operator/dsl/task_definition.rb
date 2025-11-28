@@ -2,6 +2,7 @@
 
 require_relative '../loggable'
 require_relative '../type_coercion'
+require_relative '../agent/task_executor'
 
 module LanguageOperator
   module Dsl
@@ -275,12 +276,12 @@ module LanguageOperator
       # @param type [String] Target type
       # @param context [String] Context for error messages
       # @return [Object] Coerced value
-      # @raise [ArgumentError] If coercion fails
+      # @raise [LanguageOperator::Agent::TaskValidationError] If coercion fails
       def coerce_value(value, type, context)
         TypeCoercion.coerce(value, type)
       rescue ArgumentError => e
-        # Re-raise with context added
-        raise ArgumentError, "#{e.message} for #{context}"
+        # Re-raise as TaskValidationError with context added
+        raise LanguageOperator::Agent::TaskValidationError.new(@name, "#{e.message} for #{context}", e)
       end
 
       # Convert schema hash to JSON Schema format
