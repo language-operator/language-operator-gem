@@ -17,8 +17,8 @@ run:
 code:
 	$(AICTL) code $(AGENT)
 
-optimize:
-	OTEL_QUERY_ENDPOINT=$(OTEL_QUERY_ENDPOINT) OTEL_QUERY_API_KEY=$(OTEL_QUERY_API_KEY) OTEL_QUERY_BACKEND=$(OTEL_QUERY_BACKEND) $(AICTL) optimize $(AGENT)
+inspect:
+	$(AICTL) inspect $(AGENT)
 
 logs:
 	$(AICTL) logs $(AGENT)

@@ -1,22 +1,33 @@
-# frozen_string_literal: true
-
 require 'language_operator'
 
-agent 'test-agent' do
-  description 'Tell a fortune every 10 minutes'
+agent "s002" do
+  description "Tell me a fortune every 10 minutes"
+
   mode :scheduled
-  schedule '*/10 * * * *'
+  schedule "*/10 * * * *"
 
-  task :tell_fortune,
-       instructions: 'Generate a random fortune message',
-       inputs: {},
-       outputs: { fortune: 'string' }
+  task :generate_fortune,
+    instructions: "Generate a short, positive fortune message. Keep it under 100 words. Make it inspiring and uplifting.",
+    inputs: {},
+    outputs: { fortune: 'string' }
 
-  main do |_inputs|
-    execute_task(:tell_fortune)
+  task :format_output,
+    instructions: "Format the fortune message into a readable output string with a title 'Your Fortune:'",
+    inputs: { fortune: 'string' },
+    outputs: { message: 'string' }
+
+  main do |inputs|
+    fortune = execute_task(:generate_fortune)
+    output = execute_task(:format_output, inputs: fortune)
+    output
+  end
+
+  constraints do
+    max_iterations 999999
+    timeout "10m"
   end
 
   output do |outputs|
-    puts outputs[:fortune]
+    puts outputs[:message]
   end
 end

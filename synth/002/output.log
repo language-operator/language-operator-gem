@@ -1,21 +1,94 @@
+[36m⚬[0m [2mStreaming logs for agent 's002'...[0m
+
+[1;36m⚬[0m Language Operator v0.1.61
 [1;36m⚬[0m OpenTelemetry disabled
-[1;36m⚬[0m Configuring LLM (provider=openai_compatible, model=mistralai/magistral-small-2509, timeout=300)
+[1;36m⚬[0m Configuring LLM (provider=openai_compatible, model=qwen3-coder:30b, timeout=300)
 [1;36m⚬[0m LLM configuration complete
 [1;36m⚬[0m No MCP servers configured, agent will run without tools
-[1;36m⚬[0m Chat session initialized (with_tools=false)
-[1;36m⚬[0m Executing main block (agent=test-agent, task_count=1)
+[1;36m⚬[0m Chat session initialized (with_tools=false, total_tools=0)
+[1;36m⚬[0m Agent running in scheduled mode - executing once (agent_name=s002, dsl_version=v1)
+[1;36m⚬[0m Executing main block (agent=s002, task_count=2)
 [1;36m⚬[0m Executing main block (inputs_keys=[])
-[1;36m⚬[0m Executing task (task=tell_fortune, type=neural, timeout=240.0, max_retries=3)
-[1;36m⚬[0m Sending prompt to LLM (task=tell_fortune, prompt_length=417)
-[1;36m⚬[0m LLM response received, extracting content (task=tell_fortune)
-[1;36m⚬[0m Neural task response received (task=tell_fortune, response_length=3617)
-[1;36m⚬[0m Parsing neural task response (task=tell_fortune)
-[1;36m⚬[0m Response parsed successfully (task=tell_fortune, output_keys=[:fortune])
-[1;36m⚬[0m Validating task outputs (task=tell_fortune)
-[1;36m⚬[0m Main execution (33.916s)
+[1;36m⚬[0m Sending prompt to LLM (task=generate_fortune, prompt_length=632, available_tools=[])
+[1;36m⚬[0m LLM response received, extracting content (task=generate_fortune, response_class=RubyLLM::Message, has_tool_calls=, tool_call_count=0)
+[1;36m⚬[0m Neural task response received (task=generate_fortune, response_length=563)
+[1;36m⚬[0m Parsing neural task response (task=generate_fortune)
+[1;36m⚬[0m LLM thinking captured (event=llm_thinking, task=generate_fortune, thinking_steps=1, thinking=["\nI need to generate a short, positive fortune message that is inspiring and uplifting, under 100 words. The message should be meaningful and encourage the reader. I'll create a brief, motivational message about perseverance and positive outcomes.\n\n"], thinking_preview=
+I need to generate a short, positive fortune message that is inspiring and uplifting, under 100 w...)
+[1;36m⚬[0m Response parsed successfully (task=generate_fortune, output_keys=[:fortune])
+[1;36m⚬[0m Validating task outputs (task=generate_fortune)
+[1;36m⚬[0m Sending prompt to LLM (task=format_output, prompt_length=918, available_tools=[])
+[1;36m⚬[0m LLM response received, extracting content (task=format_output, response_class=RubyLLM::Message, has_tool_calls=, tool_call_count=0)
+[1;36m⚬[0m Neural task response received (task=format_output, response_length=583)
+[1;36m⚬[0m Parsing neural task response (task=format_output)
+[1;36m⚬[0m LLM thinking captured (event=llm_thinking, task=format_output, thinking_steps=1, thinking=["\nI need to format the fortune message into a readable output string with the title 'Your Fortune:' as specified. The input fortune message is already provided and needs to be wrapped with the title. I'll create a JSON object with the formatted message.\n\n"], thinking_preview=
+I need to format the fortune message into a readable output string with the title 'Your Fortune:'...)
+[1;36m⚬[0m Response parsed successfully (task=format_output, output_keys=[:message])
+[1;36m⚬[0m Validating task outputs (task=format_output)
+[1;36m⚬[0m Main execution (13.01s)
 [1;36m⚬[0m Main block completed
-[1;36m⚬[0m Main block execution completed (result={fortune: "Your kindness will bring you much happiness."})
-Your kindness will bring you much happiness.
-[32m✔ Agent completed successfully[0m
+[1;36m⚬[0m Main block execution completed (result={message: "Your Fortune: Every challenge you face today is building strength you didn't know you had. Trust the process, believe in yourself, and remember that brighter days are always ahead. Your hard work and dedication will soon bring rewarding results. Keep moving forward with hope and determination."})
+Your Fortune: Every challenge you face today is building strength you didn't know you had. Trust the process, believe in yourself, and remember that brighter days are always ahead. Your hard work and dedication will soon bring rewarding results. Keep moving forward with hope and determination.
+[1;36m⚬[0m Scheduled execution completed - exiting (agent_name=s002)
+[1;36m⚬[0m Language Operator v0.1.61
+[1;36m⚬[0m OpenTelemetry disabled
+[1;36m⚬[0m Configuring LLM (provider=openai_compatible, model=qwen3-coder:30b, timeout=300)
+[1;36m⚬[0m LLM configuration complete
+[1;36m⚬[0m No MCP servers configured, agent will run without tools
+[1;36m⚬[0m Chat session initialized (with_tools=false, total_tools=0)
+[1;36m⚬[0m Agent running in scheduled mode - executing once (agent_name=s002, dsl_version=v1)
+[1;36m⚬[0m Executing main block (agent=s002, task_count=2)
+[1;36m⚬[0m Executing main block (inputs_keys=[])
+[1;36m⚬[0m Sending prompt to LLM (task=generate_fortune, prompt_length=632, available_tools=[])
+[1;36m⚬[0m LLM response received, extracting content (task=generate_fortune, response_class=RubyLLM::Message, has_tool_calls=, tool_call_count=0)
+[1;36m⚬[0m Neural task response received (task=generate_fortune, response_length=707)
+[1;36m⚬[0m Parsing neural task response (task=generate_fortune)
+[1;36m⚬[0m LLM thinking captured (event=llm_thinking, task=generate_fortune, thinking_steps=1, thinking=["\nI need to create a short, positive fortune message that is inspiring and uplifting, under 100 words. The message should be generally encouraging and positive in nature. Let me think of a message that conveys hope, perseverance, or personal growth in a concise way.\n\nI'll create a fortune that emphasizes the power of persistence and believing in oneself - a common theme that's universally uplifting and inspiring.\n"], thinking_preview=
+I need to create a short, positive fortune message that is inspiring and uplifting, under 100 wor...)
+[1;36m⚬[0m Response parsed successfully (task=generate_fortune, output_keys=[:fortune])
+[1;36m⚬[0m Validating task outputs (task=generate_fortune)
+[1;36m⚬[0m Sending prompt to LLM (task=format_output, prompt_length=893, available_tools=[])
+[1;36m⚬[0m LLM response received, extracting content (task=format_output, response_class=RubyLLM::Message, has_tool_calls=, tool_call_count=0)
+[1;36m⚬[0m Neural task response received (task=format_output, response_length=745)
+[1;36m⚬[0m Parsing neural task response (task=format_output)
+[1;36m⚬[0m LLM thinking captured (event=llm_thinking, task=format_output, thinking_steps=1, thinking=["\nI need to format the fortune message into a readable output string with the title 'Your Fortune:' as requested. The fortune message is quite long, so I'll format it nicely with proper spacing and structure. I'll create a formatted string that includes the title and the fortune content.\n\nI'll create a clean, readable format that presents the fortune in an appealing way while keeping it concise and maintaining the inspirational tone.\n"], thinking_preview=
+I need to format the fortune message into a readable output string with the title 'Your Fortune:'...)
+[1;36m⚬[0m Response parsed successfully (task=format_output, output_keys=[:message])
+[1;36m⚬[0m Validating task outputs (task=format_output)
+[1;36m⚬[0m Main execution (12.698s)
+[1;36m⚬[0m Main block completed
+[1;36m⚬[0m Main block execution completed (result={message: "Your Fortune:\n\nEvery challenge you face today is building the strength you'll need for tomorrow. Believe in your ability to grow through difficulties and trust that better days are ahead. You have within you everything you need to succeed and create the life you desire."})
+Your Fortune:
 
-
+Every challenge you face today is building the strength you'll need for tomorrow. Believe in your ability to grow through difficulties and trust that better days are ahead. You have within you everything you need to succeed and create the life you desire.
+[1;36m⚬[0m Scheduled execution completed - exiting (agent_name=s002)
+[1;36m⚬[0m Language Operator v0.1.61
+[1;36m⚬[0m OpenTelemetry disabled
+[1;36m⚬[0m Configuring LLM (provider=openai_compatible, model=qwen3-coder:30b, timeout=300)
+[1;36m⚬[0m LLM configuration complete
+[1;36m⚬[0m No MCP servers configured, agent will run without tools
+[1;36m⚬[0m Chat session initialized (with_tools=false, total_tools=0)
+[1;36m⚬[0m Agent running in scheduled mode - executing once (agent_name=s002, dsl_version=v1)
+[1;36m⚬[0m Executing main block (agent=s002, task_count=2)
+[1;36m⚬[0m Executing main block (inputs_keys=[])
+[1;36m⚬[0m Sending prompt to LLM (task=generate_fortune, prompt_length=632, available_tools=[])
+[1;36m⚬[0m LLM response received, extracting content (task=generate_fortune, response_class=RubyLLM::Message, has_tool_calls=, tool_call_count=0)
+[1;36m⚬[0m Neural task response received (task=generate_fortune, response_length=591)
+[1;36m⚬[0m Parsing neural task response (task=generate_fortune)
+[1;36m⚬[0m LLM thinking captured (event=llm_thinking, task=generate_fortune, thinking_steps=1, thinking=["\nI need to create a positive, inspiring fortune message under 100 words. The message should be uplifting and motivational. Let me craft something that feels genuine and encouraging.\n\nThe fortune should be short and impactful, focusing on positivity and inspiration. I'll make sure it's under 100 words as requested.\n"], thinking_preview=
+I need to create a positive, inspiring fortune message under 100 words. The message should be upl...)
+[1;36m⚬[0m Response parsed successfully (task=generate_fortune, output_keys=[:fortune])
+[1;36m⚬[0m Validating task outputs (task=generate_fortune)
+[1;36m⚬[0m Sending prompt to LLM (task=format_output, prompt_length=877, available_tools=[])
+[1;36m⚬[0m LLM response received, extracting content (task=format_output, response_class=RubyLLM::Message, has_tool_calls=, tool_call_count=0)
+[1;36m⚬[0m Neural task response received (task=format_output, response_length=491)
+[1;36m⚬[0m Parsing neural task response (task=format_output)
+[1;36m⚬[0m LLM thinking captured (event=llm_thinking, task=format_output, thinking_steps=1, thinking=["\nI need to format the fortune message with the title 'Your Fortune:' as requested. The message should be properly formatted with this title prefix. I'll create a JSON object with the formatted message.\n"], thinking_preview=
+I need to format the fortune message with the title 'Your Fortune:' as requested. The message sho...)
+[1;36m⚬[0m Response parsed successfully (task=format_output, output_keys=[:message])
+[1;36m⚬[0m Validating task outputs (task=format_output)
+[1;36m⚬[0m Main execution (12.256s)
+[1;36m⚬[0m Main block completed
+[1;36m⚬[0m Main block execution completed (result={message: "Your Fortune: Your kindness creates ripples of joy that extend far beyond what you can see. Every small act of compassion matters, and your positive energy lights up the world around you. Trust in your ability to make a difference, one moment at a time."})
+Your Fortune: Your kindness creates ripples of joy that extend far beyond what you can see. Every small act of compassion matters, and your positive energy lights up the world around you. Trust in your ability to make a difference, one moment at a time.
+[1;36m⚬[0m Scheduled execution completed - exiting (agent_name=s002)
