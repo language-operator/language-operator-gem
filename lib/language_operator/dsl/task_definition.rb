@@ -159,8 +159,10 @@ module LanguageOperator
           value = params[key_sym]
 
           if value.nil?
+            original_error = ArgumentError.new("Missing required input parameter: #{key}")
             raise LanguageOperator::Agent::TaskValidationError.new(@name,
-                                                                    "Missing required input parameter: #{key}")
+                                                                    "Missing required input parameter: #{key}",
+                                                                    original_error)
           end
 
           validated[key_sym] = coerce_value(value, type, "input parameter '#{key}'")
@@ -189,8 +191,10 @@ module LanguageOperator
           value = result[key_sym]
 
           if value.nil?
+            original_error = ArgumentError.new("Missing required output field: #{key}")
             raise LanguageOperator::Agent::TaskValidationError.new(@name,
-                                                                    "Missing required output field: #{key}")
+                                                                    "Missing required output field: #{key}",
+                                                                    original_error)
           end
 
           validated[key_sym] = coerce_value(value, type, "output field '#{key}'")
