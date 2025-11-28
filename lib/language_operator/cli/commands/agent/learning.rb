@@ -81,7 +81,8 @@ module LanguageOperator
                 agent = ctx.client.get_resource(RESOURCE_AGENT, name, ctx.namespace)
 
                 # Check current status
-                annotations = agent.dig('metadata', 'annotations') || {}
+                annotations = agent.dig('metadata', 'annotations')
+                annotations = annotations.respond_to?(:to_h) ? annotations.to_h : (annotations || {})
                 disabled_annotation = Constants::KubernetesLabels::LEARNING_DISABLED_LABEL
 
                 unless annotations.key?(disabled_annotation)
@@ -117,7 +118,8 @@ module LanguageOperator
                 agent = ctx.client.get_resource(RESOURCE_AGENT, name, ctx.namespace)
 
                 # Check current status
-                annotations = agent.dig('metadata', 'annotations') || {}
+                annotations = agent.dig('metadata', 'annotations')
+                annotations = annotations.respond_to?(:to_h) ? annotations.to_h : (annotations || {})
                 disabled_annotation = Constants::KubernetesLabels::LEARNING_DISABLED_LABEL
 
                 if annotations.key?(disabled_annotation)
@@ -148,7 +150,8 @@ module LanguageOperator
 
             def display_learning_status(agent, learning_status, cluster_name)
               agent_name = agent.dig('metadata', 'name')
-              annotations = agent.dig('metadata', 'annotations') || {}
+              annotations = agent.dig('metadata', 'annotations')
+              annotations = annotations.respond_to?(:to_h) ? annotations.to_h : (annotations || {})
 
               puts
 
@@ -189,7 +192,7 @@ module LanguageOperator
             end
 
             def display_detailed_learning_status(learning_status)
-              data = learning_status['data'] || {}
+              data = learning_status.dig('data') || {}
 
               # Parse learning data if available
               if data['tasks']
@@ -261,7 +264,8 @@ module LanguageOperator
               agent = client.get_resource(RESOURCE_AGENT, name, namespace)
 
               # Add annotation
-              annotations = agent.dig('metadata', 'annotations') || {}
+              annotations = agent.dig('metadata', 'annotations')
+              annotations = annotations.respond_to?(:to_h) ? annotations.to_h : (annotations || {})
               annotations[annotation_key] = annotation_value
               agent['metadata']['annotations'] = annotations
 
@@ -274,7 +278,8 @@ module LanguageOperator
               agent = client.get_resource(RESOURCE_AGENT, name, namespace)
 
               # Remove annotation
-              annotations = agent.dig('metadata', 'annotations') || {}
+              annotations = agent.dig('metadata', 'annotations')
+              annotations = annotations.respond_to?(:to_h) ? annotations.to_h : (annotations || {})
               annotations.delete(annotation_key)
               agent['metadata']['annotations'] = annotations
 
