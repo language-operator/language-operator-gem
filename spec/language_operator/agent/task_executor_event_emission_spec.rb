@@ -19,7 +19,7 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor, 'event emission' do
 
   let(:neural_task) do
     LanguageOperator::Dsl::TaskDefinition.new('neural_task').tap do |task|
-      task.instruction 'Test instruction'
+      task.instructions 'Test instruction'
       task.outputs { result :string }
     end
   end
@@ -34,9 +34,11 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor, 'event emission' do
 
     # Mock OpenTelemetry
     allow(OpenTelemetry::Trace).to receive(:current_span).and_return(nil)
-    allow_any_instance_of(described_class).to receive(:tracer).and_return(
-      instance_double(OpenTelemetry::Tracer, in_span: nil)
-    )
+    mock_span = double('span')
+    allow(mock_span).to receive(:set_attribute).with(any_args)
+    mock_tracer = double('tracer')
+    allow(mock_tracer).to receive(:in_span).and_yield(mock_span)
+    allow_any_instance_of(described_class).to receive(:tracer).and_return(mock_tracer)
   end
 
   describe 'successful task execution' do
