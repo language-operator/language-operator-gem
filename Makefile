@@ -52,7 +52,7 @@ schema: ## Generate schema artifacts (JSON Schema and OpenAPI)
 	@bundle exec rake schema:generate
 
 test: ## Run the unit test suite (use VERBOSE=1 to show all output)
-	@bundle exec rspec spec/language_operator/
+	@bundle exec parallel_rspec spec/language_operator/
 
 test-integration: ## Run integration tests for DSL v1 task execution
 	@INTEGRATION_MOCK_LLM=true INTEGRATION_BENCHMARK=false bundle exec rspec spec/integration/ --tag type:integration
