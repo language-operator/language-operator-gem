@@ -42,6 +42,8 @@ RSpec.describe LanguageOperator::Retry do
 
     it 'respects max_retries parameter' do
       counter = 0
+      allow(described_class).to receive(:sleep) # Mock sleep to avoid test timeout
+      
       expect do
         described_class.with_backoff(max_retries: 5) do
           counter += 1
@@ -55,6 +57,7 @@ RSpec.describe LanguageOperator::Retry do
     it 'calls on_retry callback with attempt number and exception' do
       callback_calls = []
       counter = 0
+      allow(described_class).to receive(:sleep) # Mock sleep to avoid test timeout
 
       expect do
         described_class.with_backoff(max_retries: 2, on_retry: lambda { |attempt, e|
@@ -91,6 +94,8 @@ RSpec.describe LanguageOperator::Retry do
   describe '.on_exceptions' do
     it 'retries on specified exception types' do
       counter = 0
+      allow(described_class).to receive(:sleep) # Mock sleep to avoid test timeout
+      
       result = described_class.on_exceptions([ArgumentError, RuntimeError], max_retries: 2) do
         counter += 1
         raise ArgumentError, 'retry me' if counter < 2
@@ -116,6 +121,8 @@ RSpec.describe LanguageOperator::Retry do
 
     it 're-raises after max retries for specified exceptions' do
       counter = 0
+      allow(described_class).to receive(:sleep) # Mock sleep to avoid test timeout
+      
       expect do
         described_class.on_exceptions([StandardError], max_retries: 2) do
           counter += 1
