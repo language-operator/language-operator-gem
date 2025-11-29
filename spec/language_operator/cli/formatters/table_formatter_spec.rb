@@ -2,6 +2,7 @@
 
 require 'spec_helper'
 require 'language_operator/cli/formatters/table_formatter'
+require 'language_operator/cli/formatters/progress_formatter'
 
 RSpec.describe LanguageOperator::CLI::Formatters::TableFormatter do
   describe '.clusters' do
