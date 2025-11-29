@@ -145,7 +145,7 @@ RSpec.describe 'Neural Task Execution', type: :integration do
       # Should handle gracefully and provide validation result
       expect(result[:success]).to be(true)
       expect(result[:output]).to include(:valid, :reason)
-      expect(result[:output][:valid]).to be_in([true, false])
+      expect([true, false]).to include(result[:output][:valid])
       expect(result[:output][:reason]).to be_a(String)
     end
 
@@ -165,10 +165,10 @@ RSpec.describe 'Neural Task Execution', type: :integration do
 
       agent = create_test_agent('strict-processor', agent_dsl)
 
-      # Test with missing config input
+      # Test with missing config input - use execute_main_block to allow error to bubble up
       expect do
-        execute_main_with_timing(agent, { data: [1, 2, 3] })
-      end.to raise_error(LanguageOperator::Agent::TaskValidationError, /Missing required input: config/)
+        execute_main_block(agent, { data: [1, 2, 3] })
+      end.to raise_error(LanguageOperator::Agent::TaskValidationError, /Missing required input parameter: config/)
     end
   end
 
@@ -207,7 +207,7 @@ RSpec.describe 'Neural Task Execution', type: :integration do
         #{'  '}
           task :task_two,
             instructions: "Process step two",#{' '}
-            inputs: { data: 'string' },
+            inputs: { result: 'string' },
             outputs: { result: 'string' }
         #{'  '}
           main do |inputs|
@@ -267,6 +267,7 @@ RSpec.describe 'Neural Task Execution', type: :integration do
       agent_dsl = <<~RUBY
         agent "strict-types" do
           task :strict_task,
+            instructions: "Convert the number to a string",
             inputs: { number: 'integer' },
             outputs: { result: 'string' }
         #{'  '}
@@ -278,10 +279,10 @@ RSpec.describe 'Neural Task Execution', type: :integration do
 
       agent = create_test_agent('strict-types', agent_dsl)
 
-      # Test with non-coercible input
+      # Test with non-coercible input - use execute_main_block to allow error to bubble up
       expect do
-        execute_main_with_timing(agent, { number: 'not-a-number' })
-      end.to raise_error(ArgumentError, /Cannot coerce/)
+        execute_main_block(agent, { number: 'not-a-number' })
+      end.to raise_error(LanguageOperator::Agent::TaskValidationError, /Cannot coerce/)
     end
   end
 end

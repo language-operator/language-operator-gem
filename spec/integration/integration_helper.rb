@@ -175,6 +175,12 @@ module Integration
       when /interpret.*statistical.*results.*business.*insights/im, /interpret.*results.*business.*insights/im, /task:\s*interpret_results/im
         # Mock result interpretation (hybrid tests) - MUST BE FIRST to avoid sum pattern match
         { interpretation: 'Sales data shows strong growth', recommendations: ['Increase inventory', 'Expand marketing'] }.to_json
+      when /process.*numeric.*inputs.*statistics/im, /task:\s*process_numbers/im
+        # Mock numeric processing (neural task tests)
+        { summary: 'Processed numeric data with statistics: count=5, rate=85.5%, active=true' }.to_json
+      when /convert.*number.*string/im, /task:\s*strict_task/im
+        # Mock number to string conversion (neural task tests)
+        { result: '42' }.to_json
       when /clean.*raw data.*identify anomalies.*validate data quality/i
         # Mock data cleaning response (comprehensive_integration_spec.rb - clean_and_validate task)
         # Outputs: clean_data (array), anomalies (array), quality_score (number)
