@@ -5,7 +5,6 @@
 Please read the following context files:
 
 * Persona: requirements/personas/ruby-engineer.md
-* Feature Spec: requirements/proposals/dsl-v1.md
 * Scratch: requirements/SCRATCH.md
 
 ## Persona

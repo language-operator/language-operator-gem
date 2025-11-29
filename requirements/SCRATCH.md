@@ -73,6 +73,12 @@ Critical insights and patterns for the language-operator Ruby gem.
 
 ## Current Active Issues (2025-11-28)
 
+**P1 - Test Failures (Integration Suite):**
+- #119 - hybrid_agent_execution_spec.rb syntax errors (5 failures)
+- #120 - neural_task_execution_spec.rb syntax errors (7 failures)
+- #121 - symbolic_task_execution_spec.rb syntax errors (4 failures)
+- #122 - type_coercion_spec.rb output validation failure (1 failure)
+
 **P1 - UX/Operational Issues:**
 - #100 - Agent pause/resume commands fail silently on kubectl errors
 - #102 - Agent workspace validation fails for legitimate pod names with special characters
@@ -89,11 +95,11 @@ Critical insights and patterns for the language-operator Ruby gem.
 
 ## Recently Resolved (Last 5)
 
-1. **#117** (2025-11-28) - Schema changelog missing v0.1.64 entry - documentation update
-2. **#109** (2025-11-27) - Agent persistent mode for autonomous agents - prevents CrashLoopBackOff
-3. **#108** (2025-11-27) - Universal cluster association (clusterRef) - fixes finalizer cleanup
-4. **#111** (2025-11-27) - Neural task JSON parsing resilience - crash rate 66% → <10%
-5. **#112** (2025-11-27) - Scheduled agent infinite loop fix - parsing retry condition bug
+1. **#118** (2025-11-28) - Parallel execution test failures - 6 failures fixed via timing relaxation and AST validator compliance
+2. **#117** (2025-11-28) - Schema changelog missing v0.1.64 entry - documentation update
+3. **#109** (2025-11-27) - Agent persistent mode for autonomous agents - prevents CrashLoopBackOff
+4. **#108** (2025-11-27) - Universal cluster association (clusterRef) - fixes finalizer cleanup
+5. **#111** (2025-11-27) - Neural task JSON parsing resilience - crash rate 66% → <10%
 
 ## Key Learnings
 

@@ -69,20 +69,3 @@ clean: ## Clean build artifacts
 	@rm -f language-operator-*.gem
 	@rm -rf doc/
 	@rm -rf .yardoc/
-
-# version-bump: ## Bump version (usage: make version-bump TYPE=patch|minor|major)
-# 	@if [ -z "$(TYPE)" ]; then \
-# 		echo "❌ Error: TYPE not specified"; \
-# 		echo "Usage: make version-bump TYPE=patch|minor|major"; \
-# 		exit 1; \
-# 	fi
-# 	@./bin/bump-version $(TYPE)
-
-# version-bump-patch: ## Bump patch version (0.1.0 -> 0.1.1)
-# 	@./bin/bump-version patch
-
-# version-bump-minor: ## Bump minor version (0.1.0 -> 0.2.0)
-# 	@./bin/bump-version minor
-
-# version-bump-major: ## Bump major version (0.1.0 -> 1.0.0)
-# 	@./bin/bump-version major
