@@ -172,6 +172,9 @@ module Integration
     def mock_neural_response(message)
       # Extract task name and instructions from the message
       case message
+      when /interpret.*statistical.*results.*business.*insights/im, /interpret.*results.*business.*insights/im, /task:\s*interpret_results/im
+        # Mock result interpretation (hybrid tests) - MUST BE FIRST to avoid sum pattern match
+        { interpretation: 'Sales data shows strong growth', recommendations: ['Increase inventory', 'Expand marketing'] }.to_json
       when /clean.*raw data.*identify anomalies.*validate data quality/i
         # Mock data cleaning response (comprehensive_integration_spec.rb - clean_and_validate task)
         # Outputs: clean_data (array), anomalies (array), quality_score (number)
@@ -228,8 +231,8 @@ module Integration
       when /calculate.*total.*sum.*provided numbers/i
         # Mock calculation for specific neural test
         { total: 42.5 }.to_json
-      when /calculate.*total|sum/i
-        # Mock calculation
+      when /^.*sum.*$(?!.*interpret)/im
+        # Mock calculation (excluding interpret_results)
         { total: 42.5 }.to_json
       when /analyze.*provided data.*generate insights.*using.*tools/i
         # Mock data analysis with tools (neural_task_execution_spec.rb - analyze_data task)
@@ -261,15 +264,21 @@ module Integration
       when /analyze.*cleaned data.*identify patterns/i
         # Mock pattern analysis (hybrid tests)
         { insights: ['Pattern A detected', 'Trend B observed'], confidence: 0.85 }.to_json
-      when /interpret.*statistical results.*business insights/i
-        # Mock result interpretation (hybrid tests)
-        { interpretation: 'Sales data shows strong growth', recommendations: ['Increase inventory', 'Expand marketing'] }.to_json
       when /generate.*professional profile description/i
         # Mock profile generation (hybrid tests)
         { profile: 'Professional with extensive experience', keywords: %w[experienced skilled professional] }.to_json
       when /process.*enhance.*item.*batch/i
-        # Mock batch processing (hybrid tests)
-        { processed_items: %w[enhanced_item_1 enhanced_item_2], insights: 'Batch processed successfully' }.to_json
+        # Mock batch processing (hybrid tests) - extract actual batch size from message
+        batch_match = message.match(/batch:\s*\[(.*?)\]/m)
+        if batch_match
+          # Count items in the batch by counting commas + 1
+          item_count = batch_match[1].split(',').length
+          processed_items = (1..item_count).map { |i| "enhanced_item_#{i}" }
+        else
+          # Fallback for unexpected format
+          processed_items = %w[enhanced_item_1 enhanced_item_2]
+        end
+        { processed_items: processed_items, insights: 'Batch processed successfully' }.to_json
       when /analyze trends.*data/i
         # Mock trend analysis (hybrid tests)
         { trend: 'upward' }.to_json
