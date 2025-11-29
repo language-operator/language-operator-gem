@@ -148,6 +148,11 @@ module LanguageOperator
         log_task_error(task_name, e, :validation, execution_start)
         emit_task_execution_event(task_name, success: false, execution_start: execution_start, error: e, event_type: :validation)
         raise TaskValidationError.new(task_name, e.message, e)
+      rescue TaskValidationError => e
+        # TaskValidationError from validate_inputs should be logged as :validation
+        log_task_error(task_name, e, :validation, execution_start)
+        emit_task_execution_event(task_name, success: false, execution_start: execution_start, error: e, event_type: :validation)
+        raise e
       rescue StandardError => e
         # Catch any unexpected errors that escaped retry logic
         log_task_error(task_name, e, :system, execution_start)
