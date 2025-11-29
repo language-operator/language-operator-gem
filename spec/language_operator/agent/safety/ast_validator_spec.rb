@@ -327,18 +327,6 @@ RSpec.describe LanguageOperator::Agent::Safety::ASTValidator do
       end
     end
 
-    context 'with syntax errors' do
-      # NOTE: Prism is very forgiving and accepts most Ruby syntax variations
-      # Skipping these tests as finding truly invalid syntax for Prism is difficult
-      xit 'raises SecurityError for invalid Ruby syntax' do
-        code = 'class Foo; def bar end end'
-
-        expect { validator.validate!(code) }.to raise_error(
-          LanguageOperator::Agent::Safety::ASTValidator::SecurityError,
-          /Syntax error/
-        )
-      end
-    end
 
     context 'with empty or nil code' do
       it 'does not raise error for empty code' do
@@ -407,14 +395,6 @@ RSpec.describe LanguageOperator::Agent::Safety::ASTValidator do
       expect(violations[1][:method]).to eq('eval')
     end
 
-    # NOTE: Prism is very forgiving - skipping syntax error test
-    xit 'returns syntax error violation for invalid syntax' do
-      code = 'class Foo; def bar end end'
-
-      violations = validator.validate(code)
-      expect(violations).not_to be_empty
-      expect(violations.first[:type]).to eq(:syntax_error)
-    end
   end
 
   describe 'safe method constants' do
