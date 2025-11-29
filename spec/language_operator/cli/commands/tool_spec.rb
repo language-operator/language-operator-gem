@@ -83,7 +83,14 @@ RSpec.describe LanguageOperator::CLI::Commands::Tool::Base do
     end
 
     context 'when tool registry is empty' do
-      let(:tool_registry_data) { { 'tools' => {} } }
+      before do
+        stub_request(:get, LanguageOperator::Config::ToolRegistry::REGISTRY_URL)
+          .to_return(
+            status: 200,
+            body: { 'tools' => {} }.to_yaml,
+            headers: { 'Content-Type' => 'application/x-yaml' }
+          )
+      end
 
       it 'shows message when no tools found' do
         expect { command.search }.to output(
