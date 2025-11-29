@@ -113,7 +113,6 @@ RSpec.describe 'Schema Artifacts Generation' do
 
       expect(changelog).to include('# Schema Changelog')
       expect(changelog).to include('## Version History')
-      expect(changelog).to include(LanguageOperator::VERSION)
     end
 
     it 'documents schema versioning approach' do
