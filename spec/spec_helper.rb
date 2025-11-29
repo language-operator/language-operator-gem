@@ -41,7 +41,7 @@ RSpec.configure do |config|
   # NOTE: Registry cleanup not needed as each test creates its own tool classes
 
   # Mock RubyLLM and RubyLLM::MCP configuration to avoid real API calls
-  config.before(:each) do
+  config.before(:each) do |example|
     allow(RubyLLM).to receive(:configure).and_yield(double(
                                                       anthropic_api_key: nil,
                                                       openai_api_key: nil,
@@ -53,6 +53,27 @@ RSpec.configure do |config|
                                                            request_timeout: nil,
                                                            respond_to?: true
                                                          ))
+
+    # Suppress telemetry OTEL configuration errors in test environment
+    # Don't mock for tests that specifically test telemetry warnings
+    current_test_file = example.metadata[:absolute_file_path] || ''
+    is_telemetry_test = current_test_file.include?('telemetry_spec.rb') || 
+                        current_test_file.include?('config_spec.rb')
+    
+    unless is_telemetry_test
+      allow(LanguageOperator::Agent::Telemetry).to receive(:configure).and_return(nil)
+      
+      # Suppress stderr warnings to prevent parallel_tests process issues
+      unless ENV['VERBOSE']
+        original_warn = method(:warn)
+        allow(Kernel).to receive(:warn) do |message|
+          # Only suppress telemetry warnings, allow other warnings through
+          unless message.to_s.include?('AGENT_NAME') || message.to_s.include?('learning status tracking')
+            original_warn.call(message)
+          end
+        end
+      end
+    end
   end
 
   # Clean up environment variables after each test
