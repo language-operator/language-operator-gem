@@ -51,7 +51,7 @@ module LanguageOperator
           def agent_not_found_suggestions(context)
             suggestions = []
             suggestions << "List all agents: #{pastel.dim('aictl agent list')}"
-            suggestions << "Create a new agent: #{pastel.dim('aictl agent create \"description\"')}"
+            suggestions << "Create a new agent: #{pastel.dim('aictl agent create "description"')}"
             suggestions << "Use the wizard: #{pastel.dim('aictl agent create --wizard')}" if context[:suggest_wizard]
             suggestions
           end
