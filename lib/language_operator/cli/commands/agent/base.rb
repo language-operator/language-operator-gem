@@ -164,8 +164,8 @@ module LanguageOperator
 
               begin
                 agent = ctx.client.get_resource(RESOURCE_AGENT, name, ctx.namespace)
-              rescue K8s::Error::NotFound => e
-                handle_agent_not_found(name, ctx, e)
+              rescue K8s::Error::NotFound
+                handle_agent_not_found(name, ctx)
                 return
               end
 
@@ -477,16 +477,20 @@ module LanguageOperator
           # Shared helper methods that are used across multiple commands
           # These will be extracted from the original agent.rb
 
-          def handle_agent_not_found(name, ctx, error)
+          def handle_agent_not_found(name, ctx, error = nil)
             # Get available agents for fuzzy matching
             agents = ctx.client.list_resources(RESOURCE_AGENT, namespace: ctx.namespace)
             available_names = agents.map { |a| a.dig('metadata', 'name') }
 
-            CLI::Errors::Handler.handle_not_found(error,
+            # Create error if not provided
+            error ||= K8s::Error::NotFound.new('GET', "/apis/langop.io/v1alpha1/namespaces/#{ctx.namespace}/languageagents/#{name}", 404, 'Not Found')
+            
+            CLI::Errors::Handler.handle_not_found(error, {
                                                   resource_type: RESOURCE_AGENT,
                                                   resource_name: name,
                                                   cluster: ctx.name,
-                                                  available_resources: available_names)
+                                                  available_resources: available_names
+                                                })
           end
 
           def display_agent_created(agent, ctx, _description, _synthesis_result)
