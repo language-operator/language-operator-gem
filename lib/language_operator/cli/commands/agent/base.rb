@@ -353,39 +353,20 @@ module LanguageOperator
             annotations = agent.dig('metadata', 'annotations')
             annotations = annotations.respond_to?(:to_h) ? annotations.to_h : (annotations || {})
             
-            # Get learning status ConfigMap
-            learning_status = get_learning_status(ctx.client, name, ctx.namespace)
-            
             # Determine learning state
             learning_enabled = !annotations.key?(Constants::KubernetesLabels::LEARNING_DISABLED_LABEL)
             
-            # Parse execution summary from ConfigMap if available
-            execution_summary = parse_execution_summary(learning_status)
+            # Get runs pending learning from agent status
+            runs_pending_learning = agent.dig('status', 'runsPendingLearning') || 0
+            learning_threshold = 10  # Standard threshold
             
-            if execution_summary
-              total_executions = execution_summary['totalExecutions'] || 0
-              learning_threshold = execution_summary['learningThreshold'] || 10
-              success_rate = execution_summary['successRate'] || 0.0
-              last_execution = execution_summary['lastExecution']
-              
-              runs_processed = "#{total_executions}/#{learning_threshold}"
-              progress_percent = [(total_executions.to_f / learning_threshold * 100).round, 100].min
-              progress = "#{progress_percent}% toward learning threshold"
-              
-              last_run = if last_execution && !last_execution.empty?
-                           begin
-                             Time.parse(last_execution).strftime('%Y-%m-%d %H:%M:%S UTC')
-                           rescue StandardError
-                             'Unknown'
-                           end
-                         else
-                           'No executions yet'
-                         end
-            else
-              runs_processed = 'No data'
-              progress = 'Waiting for agent executions'
-              last_run = 'No executions yet'
-            end
+            # Calculate progress
+            progress_percent = [(runs_pending_learning.to_f / learning_threshold * 100).round, 100].min
+            progress = if runs_pending_learning >= learning_threshold
+                         "#{pastel.green('Ready for learning')} (#{runs_pending_learning}/#{learning_threshold})"
+                       else
+                         "#{progress_percent}% toward learning threshold (#{runs_pending_learning}/#{learning_threshold})"
+                       end
             
             status_color = learning_enabled ? :green : :yellow
             status_text = learning_enabled ? 'Enabled' : 'Disabled'
@@ -397,82 +378,12 @@ module LanguageOperator
                 'Status' => pastel.send(status_color).bold(status_text),
                 'Threshold' => "#{pastel.cyan('10 successful runs')} (auto-learning trigger)",
                 'Confidence Target' => "#{pastel.cyan('85%')} (pattern detection)",
-                'Runs Processed' => runs_processed,
-                'Progress' => progress,
-                'Last Execution' => last_run
+                'Runs Processed' => "#{runs_pending_learning}/#{learning_threshold}",
+                'Progress' => progress
               }
             )
-            
-            # Show learned tasks if available
-            if learning_status
-              data = learning_status['data'] || {}
-              if data['tasks']
-                begin
-                  tasks_data = JSON.parse(data['tasks'])
-                  if tasks_data.any?
-                    puts
-                    puts pastel.white.bold('Learned Tasks:')
-                    tasks_data.each do |task_name, task_info|
-                      confidence = task_info['confidence'] || 0
-                      executions = task_info['executions'] || 0
-                      status = task_info['status'] || 'neural'
-                      
-                      confidence_color = confidence >= 85 ? :green : confidence >= 70 ? :yellow : :red
-                      
-                      puts "  #{pastel.cyan(task_name)}"
-                      puts "    Status: #{format_task_status(status)}"
-                      confidence_text = pastel.send(confidence_color, "#{confidence}%")
-                      puts "    Confidence: #{confidence_text} (#{executions} executions)"
-                    end
-                  end
-                rescue StandardError
-                  # Ignore parsing errors
-                end
-              end
-            end
           end
           
-          # Get learning status ConfigMap for an agent
-          def get_learning_status(client, name, namespace)
-            config_map_name = "#{name}-learning-status"
-            begin
-              client.get_resource('ConfigMap', config_map_name, namespace)
-            rescue K8s::Error::NotFound
-              # Learning status ConfigMap doesn't exist yet
-              nil
-            end
-          end
-          
-          # Parse execution summary from learning status ConfigMap
-          def parse_execution_summary(learning_status)
-            return nil unless learning_status
-            
-            data = learning_status['data']
-            return nil unless data
-            
-            execution_summary_json = data['execution-summary']
-            return nil unless execution_summary_json
-            
-            begin
-              JSON.parse(execution_summary_json)
-            rescue StandardError
-              nil
-            end
-          end
-          
-          # Format task status for display
-          def format_task_status(status)
-            case status
-            when 'symbolic'
-              pastel.green('Learned (Symbolic)')
-            when 'neural'
-              pastel.yellow('Learning (Neural)')
-            when 'hybrid'
-              pastel.blue('Hybrid')
-            else
-              pastel.dim(status.capitalize)
-            end
-          end
 
           # Shared helper methods that are used across multiple commands
           # These will be extracted from the original agent.rb
