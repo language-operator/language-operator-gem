@@ -395,12 +395,17 @@ module LanguageOperator
             # Create error if not provided
             error ||= K8s::Error::NotFound.new('GET', "/apis/langop.io/v1alpha1/namespaces/#{ctx.namespace}/languageagents/#{name}", 404, 'Not Found')
             
-            CLI::Errors::Handler.handle_not_found(error, {
-                                                  resource_type: RESOURCE_AGENT,
-                                                  resource_name: name,
-                                                  cluster: ctx.name,
-                                                  available_resources: available_names
-                                                })
+            begin
+              CLI::Errors::Handler.handle_not_found(error, {
+                                                    resource_type: RESOURCE_AGENT,
+                                                    resource_name: name,
+                                                    cluster: ctx.name,
+                                                    available_resources: available_names
+                                                  })
+            rescue CLI::Errors::NotFoundError
+              # Error message already displayed by handler, just exit gracefully
+              exit 1
+            end
           end
 
           def display_agent_created(agent, ctx, _description, _synthesis_result)
