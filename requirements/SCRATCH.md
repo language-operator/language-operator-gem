@@ -95,11 +95,11 @@ Critical insights and patterns for the language-operator Ruby gem.
 
 ## Recently Resolved (Last 5)
 
-1. **#118** (2025-11-28) - Parallel execution test failures - 6 failures fixed via timing relaxation and AST validator compliance
-2. **#117** (2025-11-28) - Schema changelog missing v0.1.64 entry - documentation update
-3. **#109** (2025-11-27) - Agent persistent mode for autonomous agents - prevents CrashLoopBackOff
-4. **#108** (2025-11-27) - Universal cluster association (clusterRef) - fixes finalizer cleanup
-5. **#111** (2025-11-27) - Neural task JSON parsing resilience - crash rate 66% → <10%
+1. **#125** (2025-12-02) - Remove aictl agent learning command - Integrated learning status into agent inspect
+2. **#118** (2025-11-28) - Parallel execution test failures - 6 failures fixed via timing relaxation and AST validator compliance
+3. **#117** (2025-11-28) - Schema changelog missing v0.1.64 entry - documentation update
+4. **#109** (2025-11-27) - Agent persistent mode for autonomous agents - prevents CrashLoopBackOff
+5. **#108** (2025-11-27) - Universal cluster association (clusterRef) - fixes finalizer cleanup
 
 ## Key Learnings
 

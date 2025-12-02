@@ -10,9 +10,10 @@ create:
 run:
 	@JOB_NAME=$(AGENT)-$(shell date +%s); \
 	kubectl create job --from=cronjob/$(AGENT) $$JOB_NAME && \
-	trap "kubectl delete job $$JOB_NAME" EXIT; \
 	kubectl wait --for=condition=ready pod -l job-name=$$JOB_NAME --timeout=60s && \
-	kubectl logs -f job/$$JOB_NAME
+	kubectl logs -f job/$$JOB_NAME && \
+	sleep 15 && \
+	kubectl delete job $$JOB_NAME
 
 code:
 	$(AICTL) code $(AGENT)
