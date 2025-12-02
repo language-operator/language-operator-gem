@@ -164,8 +164,8 @@ module LanguageOperator
 
               begin
                 agent = ctx.client.get_resource(RESOURCE_AGENT, name, ctx.namespace)
-              rescue K8s::Error::NotFound
-                handle_agent_not_found(name, ctx)
+              rescue K8s::Error::NotFound => e
+                handle_agent_not_found(name, ctx, e)
                 return
               end
 
