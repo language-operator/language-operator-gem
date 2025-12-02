@@ -360,13 +360,13 @@ module LanguageOperator
             runs_pending_learning = agent.dig('status', 'runsPendingLearning') || 0
             learning_threshold = 10  # Standard threshold
             
-            # Calculate progress
+            # Calculate progress percentage
             progress_percent = [(runs_pending_learning.to_f / learning_threshold * 100).round, 100].min
-            progress = if runs_pending_learning >= learning_threshold
-                         "#{pastel.green('Ready for learning')} (#{runs_pending_learning}/#{learning_threshold})"
-                       else
-                         "#{progress_percent}% toward learning threshold (#{runs_pending_learning}/#{learning_threshold})"
-                       end
+            runs_display = if runs_pending_learning >= learning_threshold
+                             "#{runs_pending_learning}/#{learning_threshold} #{pastel.green('(Ready)')}"
+                           else
+                             "#{runs_pending_learning}/#{learning_threshold} (#{progress_percent}%)"
+                           end
             
             status_color = learning_enabled ? :green : :yellow
             status_text = learning_enabled ? 'Enabled' : 'Disabled'
@@ -378,8 +378,7 @@ module LanguageOperator
                 'Status' => pastel.send(status_color).bold(status_text),
                 'Threshold' => "#{pastel.cyan('10 successful runs')} (auto-learning trigger)",
                 'Confidence Target' => "#{pastel.cyan('85%')} (pattern detection)",
-                'Runs Processed' => "#{runs_pending_learning}/#{learning_threshold}",
-                'Progress' => progress
+                'Runs Recorded' => runs_display
               }
             )
           end
