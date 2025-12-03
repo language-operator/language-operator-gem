@@ -190,7 +190,6 @@ module LanguageOperator
                 exec_data = get_execution_data(name, ctx)
 
                 exec_rows = {
-                  'Total Runs' => exec_data[:total_runs],
                   'Last Run' => exec_data[:last_run] || 'Never'
                 }
                 exec_rows['Next Run'] = exec_data[:next_run] || 'N/A' if agent.dig('spec', 'schedule')
@@ -198,6 +197,10 @@ module LanguageOperator
                 highlighted_box(title: 'Executions', rows: exec_rows, color: :blue)
                 puts
               end
+
+              # Learning status
+              display_learning_section(agent, name, ctx)
+              puts
 
               # Resources
               resources = agent.dig('spec', 'resources')
@@ -258,10 +261,6 @@ module LanguageOperator
                 )
                 puts
               end
-
-              # Learning status
-              display_learning_section(agent, name, ctx)
-              puts
 
               # Conditions
               conditions = agent.dig('status', 'conditions') || []
