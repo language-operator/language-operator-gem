@@ -307,58 +307,20 @@ module LanguageOperator
             end
           end
 
-          desc 'versions NAME', 'Show ConfigMap versions managed by operator'
-          long_desc <<-DESC
-            List the versioned ConfigMaps created by the operator for an agent.
-
-            Shows the automatic optimization history and available versions for rollback.
-
-            Examples:
-              aictl agent versions my-agent
-              aictl agent versions my-agent --cluster production
-          DESC
-          option :cluster, type: :string, desc: 'Override current cluster context'
-          def versions(name)
-            handle_command_error('list agent versions') do
-              ctx = CLI::Helpers::ClusterContext.from_options(options)
-
-              # Get agent to verify it exists
-              get_resource_or_exit(RESOURCE_AGENT, name)
-
-              # List all ConfigMaps with the agent label
-              config_maps = ctx.client.list_resources('ConfigMap', namespace: ctx.namespace)
-
-              # Filter for versioned ConfigMaps for this agent
-              agent_configs = config_maps.select do |cm|
-                labels = cm.dig('metadata', 'labels') || {}
-                labels['agent'] == name && labels['version']
-              end
-
-              # Sort by version (assuming numeric versions)
-              agent_configs.sort! do |a, b|
-                version_a = a.dig('metadata', 'labels', 'version').to_i
-                version_b = b.dig('metadata', 'labels', 'version').to_i
-                version_b <=> version_a # Reverse order (newest first)
-              end
-
-              display_agent_versions(agent_configs, name, ctx.name)
-            end
-          end
-
           private
 
           # Display learning status section in agent inspect
-          def display_learning_section(agent, name, ctx)
+          def display_learning_section(agent, _name, _ctx)
             annotations = agent.dig('metadata', 'annotations')
             annotations = annotations.respond_to?(:to_h) ? annotations.to_h : (annotations || {})
-            
+
             # Determine learning state
             learning_enabled = !annotations.key?(Constants::KubernetesLabels::LEARNING_DISABLED_LABEL)
-            
+
             # Get runs pending learning from agent status
             runs_pending_learning = agent.dig('status', 'runsPendingLearning') || 0
-            learning_threshold = 10  # Standard threshold
-            
+            learning_threshold = 10 # Standard threshold
+
             # Calculate progress percentage
             progress_percent = [(runs_pending_learning.to_f / learning_threshold * 100).round, 100].min
             runs_display = if runs_pending_learning >= learning_threshold
@@ -366,10 +328,10 @@ module LanguageOperator
                            else
                              "#{runs_pending_learning}/#{learning_threshold} (#{progress_percent}%)"
                            end
-            
+
             status_color = learning_enabled ? :green : :yellow
             status_text = learning_enabled ? 'Enabled' : 'Disabled'
-            
+
             highlighted_box(
               title: 'Learning',
               color: :cyan,
@@ -381,7 +343,6 @@ module LanguageOperator
               }
             )
           end
-          
 
           # Shared helper methods that are used across multiple commands
           # These will be extracted from the original agent.rb
@@ -393,14 +354,14 @@ module LanguageOperator
 
             # Create error if not provided
             error ||= K8s::Error::NotFound.new('GET', "/apis/langop.io/v1alpha1/namespaces/#{ctx.namespace}/languageagents/#{name}", 404, 'Not Found')
-            
+
             begin
               CLI::Errors::Handler.handle_not_found(error, {
-                                                    resource_type: RESOURCE_AGENT,
-                                                    resource_name: name,
-                                                    cluster: ctx.name,
-                                                    available_resources: available_names
-                                                  })
+                                                      resource_type: RESOURCE_AGENT,
+                                                      resource_name: name,
+                                                      cluster: ctx.name,
+                                                      available_resources: available_names
+                                                    })
             rescue CLI::Errors::NotFoundError
               # Error message already displayed by handler, just exit gracefully
               exit 1
