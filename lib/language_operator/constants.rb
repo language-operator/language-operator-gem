@@ -60,6 +60,7 @@ module LanguageOperator
     # Kubernetes Custom Resource Definitions (CRD) kinds
     # These replace magic strings scattered across CLI commands
     RESOURCE_AGENT = 'LanguageAgent'
+    RESOURCE_AGENT_VERSION = 'LanguageAgentVersion'
     RESOURCE_MODEL = 'LanguageModel'
     RESOURCE_TOOL = 'LanguageTool'
     RESOURCE_PERSONA = 'LanguagePersona'

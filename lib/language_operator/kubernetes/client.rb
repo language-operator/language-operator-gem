@@ -385,7 +385,7 @@ module LanguageOperator
 
       def default_api_version(kind)
         case kind.downcase
-        when 'languagecluster', 'languageagent', 'languagetool', 'languagemodel', 'languageclient', 'languagepersona'
+        when 'languagecluster', 'languageagent', 'languageagentversion', 'languagetool', 'languagemodel', 'languageclient', 'languagepersona'
           'langop.io/v1alpha1'
         when 'namespace', 'configmap', 'secret', 'service'
           'v1'

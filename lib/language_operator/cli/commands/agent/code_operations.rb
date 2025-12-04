@@ -4,61 +4,56 @@ module LanguageOperator
   module CLI
     module Commands
       module Agent
-        # Code viewing and editing for agents
+        # Code viewing and editing for agents using LanguageAgentVersion CRD
         module CodeOperations
           def self.included(base)
             base.class_eval do
-              desc 'code NAME', 'Display synthesized agent code'
+              desc 'code NAME', 'Display agent code from LanguageAgentVersion'
               option :cluster, type: :string, desc: 'Override current cluster context'
               option :raw, type: :boolean, default: false, desc: 'Output raw code without formatting'
               option :version, type: :string, desc: 'Display specific version (e.g., --version=2)'
-              option :original, type: :boolean, default: false, desc: 'Display original code before optimization'
               def code(name)
                 handle_command_error('get code') do
                   require_relative '../../formatters/code_formatter'
 
                   ctx = CLI::Helpers::ClusterContext.from_options(options)
 
-                  if options[:original]
-                    # Get original code from the base ConfigMap
-                    configmap_name = "#{name}-code"
-                    begin
-                      configmap = ctx.client.get_resource('ConfigMap', configmap_name, ctx.namespace)
-                    rescue K8s::Error::NotFound
-                      Formatters::ProgressFormatter.error("Original code not found for agent '#{name}'")
-                      puts
-                      puts 'Possible reasons:'
-                      puts '  - Agent synthesis not yet complete'
-                      puts '  - Agent synthesis failed'
-                      puts
-                      puts 'Check synthesis status with:'
-                      puts "  aictl agent inspect #{name}"
-                      exit 1
-                    end
+                  # Get the LanguageAgentVersion resource
+                  version_resource = get_agent_version_resource(ctx, name, options[:version])
 
-                    code_content = configmap.dig('data', 'agent.rb')
-                    unless code_content
-                      Formatters::ProgressFormatter.error('Code content not found in ConfigMap')
-                      exit 1
-                    end
-
-                    title = "Original Code for Agent: #{name}"
-                  else
-                    # Get versioned code (current active or specific version)
-                    configmap, version_info = get_versioned_configmap(ctx, name, options[:version])
-
-                    code_content = configmap.dig('data', 'agent.rb')
-                    unless code_content
-                      Formatters::ProgressFormatter.error('Code content not found in ConfigMap')
-                      exit 1
-                    end
-
-                    title = if options[:version]
-                              "Code for Agent: #{name} (Version #{options[:version]})"
-                            else
-                              "Current Code for Agent: #{name} (Version #{version_info})"
-                            end
+                  unless version_resource
+                    Formatters::ProgressFormatter.error("No code versions found for agent '#{name}'")
+                    puts
+                    puts 'This may indicate:'
+                    puts '  - Agent has not been synthesized yet'
+                    puts '  - Agent synthesis failed'
+                    puts
+                    puts 'Check agent status with:'
+                    puts "  aictl agent inspect #{name}"
+                    exit 1
                   end
+
+                  # Get code from LanguageAgentVersion spec
+                  code_content = version_resource.dig('spec', 'code')
+                  unless code_content
+                    Formatters::ProgressFormatter.error('Code content not found in LanguageAgentVersion')
+                    exit 1
+                  end
+
+                  # Determine version info for title
+                  version_num = version_resource.dig('spec', 'version')
+                  source_type = version_resource.dig('spec', 'sourceType') || 'manual'
+                  
+                  title = if options[:version]
+                            "Code for Agent: #{name} (Version #{version_num})"
+                          else
+                            active_version = get_active_version(ctx, name)
+                            if version_num.to_s == active_version
+                              "Current Code for Agent: #{name} (Version #{version_num} - #{source_type})"
+                            else
+                              "Code for Agent: #{name} (Version #{version_num} - #{source_type})"
+                            end
+                          end
 
                   # Raw output mode - just print the code
                   if options[:raw]
@@ -74,7 +69,7 @@ module LanguageOperator
                 end
               end
 
-              desc 'versions NAME', 'List available code versions'
+              desc 'versions NAME', 'List available LanguageAgentVersion resources'
               option :cluster, type: :string, desc: 'Override current cluster context'
               def versions(name)
                 handle_command_error('list versions') do
@@ -83,85 +78,39 @@ module LanguageOperator
                   # Get agent to verify it exists
                   get_resource_or_exit(Constants::RESOURCE_AGENT, name)
 
-                  # Find all versioned ConfigMaps for this agent
-                  label_selector = "langop.io/agent=#{name}"
-                  configmaps = ctx.client.list_resources('ConfigMap', namespace: ctx.namespace, label_selector: label_selector)
+                  # Find all LanguageAgentVersion resources for this agent
+                  versions = ctx.client.list_resources(Constants::RESOURCE_AGENT_VERSION, namespace: ctx.namespace)
+                                      .select { |v| v.dig('spec', 'agentRef', 'name') == name }
+                                      .sort_by { |v| v.dig('spec', 'version').to_i }
 
-                  # Get current active version from agent deployment
-                  active_version = get_active_version(ctx, name)
-
-                  if configmaps.empty?
-                    # Show table with just original version
-                    table_data = [{
-                      version: 'original',
-                      status: 'current',
-                      type: 'Original',
-                      created: 'N/A'
-                    }]
-
-                    headers = %w[VERSION STATUS TYPE CREATED]
-                    rows = table_data.map do |row|
-                      status_indicator = pastel.green('●')
-                      status_text = pastel.green('current')
-
-                      [
-                        row[:version],
-                        "#{status_indicator} #{status_text}",
-                        row[:type],
-                        row[:created]
-                      ]
-                    end
-
+                  if versions.empty?
                     puts
-                    puts "Code versions for agent: #{pastel.bold(name)}"
+                    puts "No LanguageAgentVersion resources found for agent: #{pastel.bold(name)}"
                     puts
-                    puts table(headers, rows)
+                    puts pastel.yellow('No versions have been created yet.')
                     puts
-                    puts pastel.yellow('No optimized versions created yet.')
-                    puts
-                    puts 'Optimized versions are created automatically after 10+ successful agent runs.'
+                    puts 'Versions are created automatically during agent synthesis.'
                     puts "Check agent status: #{pastel.dim("aictl agent inspect #{name}")}"
                     return
                   end
 
+                  # Get current active version
+                  active_version = get_active_version(ctx, name)
+
                   # Build table data
-                  table_data = []
-
-                  # Add original version
-                  original_status = active_version == 'original' ? 'current' : 'available'
-                  table_data << {
-                    version: 'original',
-                    status: original_status,
-                    type: 'Original',
-                    created: 'N/A'
-                  }
-
-                  # Add optimized versions
-                  configmaps.each do |cm|
-                    version = cm.dig('metadata', 'labels', 'langop.io/version')
-                    next unless version
-
-                    status = version == active_version ? 'current' : 'available'
-                    created = cm.dig('metadata', 'creationTimestamp')
+                  table_data = versions.map do |version_resource|
+                    version_num = version_resource.dig('spec', 'version').to_s
+                    status = version_num == active_version ? 'current' : 'available'
+                    source_type = version_resource.dig('spec', 'sourceType') || 'manual'
+                    created = version_resource.dig('metadata', 'creationTimestamp')
                     created = created ? Time.parse(created).strftime('%Y-%m-%d %H:%M') : 'Unknown'
 
-                    table_data << {
-                      version: version,
+                    {
+                      version: "v#{version_num}",
                       status: status,
-                      type: 'Optimized',
+                      type: source_type.capitalize,
                       created: created
                     }
-                  end
-
-                  # Sort by version number (original first, then by version number)
-                  table_data.sort! do |a, b|
-                    if a[:version] == 'original'
-                      -1
-                    elsif b[:version] == 'original'
-                      1
-                    else
-                      a[:version].to_i <=> b[:version].to_i
-                    end
                   end
 
                   # Display table
@@ -186,111 +135,63 @@ module LanguageOperator
                   puts 'Usage:'
                   puts "  #{pastel.dim("aictl agent code #{name}")}"
                   puts "  #{pastel.dim("aictl agent code #{name} --version=X")}"
-                  puts "  #{pastel.dim("aictl agent code #{name} --original")}"
                 end
               end
 
               private
 
               def get_active_version(ctx, agent_name)
-                # Try to get CronJob first (for scheduled agents), then Deployment (for autonomous agents)
-                %w[CronJob Deployment].each do |resource_type|
-                  resource = ctx.client.get_resource(resource_type, agent_name, ctx.namespace)
+                begin
+                  agent = ctx.client.get_resource(Constants::RESOURCE_AGENT, agent_name, ctx.namespace)
+                  version_ref = agent.dig('spec', 'agentVersionRef', 'name')
+                  return nil unless version_ref
 
-                  # Look for version annotation or label
-                  version = resource.dig('spec', 'jobTemplate', 'metadata', 'labels', 'langop.io/version') ||
-                            resource.dig('spec', 'template', 'metadata', 'labels', 'langop.io/version') ||
-                            resource.dig('metadata', 'labels', 'langop.io/version') ||
-                            resource.dig('spec', 'jobTemplate', 'metadata', 'annotations', 'langop.io/version') ||
-                            resource.dig('spec', 'template', 'metadata', 'annotations', 'langop.io/version') ||
-                            resource.dig('metadata', 'annotations', 'langop.io/version')
-
-                  return version if version
+                  # Extract version number from "agent-name-vX" format
+                  version_ref.split('-v').last
                 rescue K8s::Error::NotFound
-                  # Try the next resource type
-                  next
+                  nil
                 end
-
-                # Default to original if no version info found
-                'original'
               end
 
-              def get_versioned_configmap(ctx, agent_name, requested_version = nil)
-                label_selector = "langop.io/agent=#{agent_name}"
-                configmaps = ctx.client.list_resources('ConfigMap', namespace: ctx.namespace, label_selector: label_selector)
+              def get_agent_version_resource(ctx, agent_name, requested_version = nil)
+                # Query LanguageAgentVersion resources for this agent
+                versions = ctx.client.list_resources(Constants::RESOURCE_AGENT_VERSION, namespace: ctx.namespace)
+                                    .select { |v| v.dig('spec', 'agentRef', 'name') == agent_name }
 
-                if configmaps.empty?
-                  # Fall back to original code if no optimized versions exist
-                  configmap_name = "#{agent_name}-code"
-                  begin
-                    original_configmap = ctx.client.get_resource('ConfigMap', configmap_name, ctx.namespace)
-                    return [original_configmap, 'original']
-                  rescue K8s::Error::NotFound
-                    Formatters::ProgressFormatter.error("No code found for agent '#{agent_name}'")
-                    puts
-                    puts 'Possible reasons:'
-                    puts '  - Agent synthesis not yet complete'
-                    puts '  - Agent synthesis failed'
-                    puts
-                    puts 'Check synthesis status with:'
-                    puts "  aictl agent inspect #{agent_name}"
-                    exit 1
-                  end
+                if versions.empty?
+                  return nil
                 end
 
                 if requested_version
                   # Find specific version
-                  target_configmap = configmaps.find do |cm|
-                    cm.dig('metadata', 'labels', 'langop.io/version') == requested_version
-                  end
-
-                  unless target_configmap
+                  target_version = versions.find { |v| v.dig('spec', 'version').to_s == requested_version }
+                  
+                  unless target_version
                     Formatters::ProgressFormatter.error("Version #{requested_version} not found for agent '#{agent_name}'")
                     puts
                     puts 'Available versions:'
-                    configmaps.each do |cm|
-                      version = cm.dig('metadata', 'labels', 'langop.io/version')
-                      puts "  #{version}" if version
+                    versions.each do |v|
+                      version_num = v.dig('spec', 'version')
+                      puts "  v#{version_num}"
                     end
                     puts
                     puts "Use 'aictl agent versions #{agent_name}' to see all available versions"
                     exit 1
                   end
 
-                  [target_configmap, requested_version]
+                  return target_version
                 else
-                  # Get the currently active version (not just the latest)
+                  # Get currently active version
                   active_version = get_active_version(ctx, agent_name)
-
-                  if active_version == 'original'
-                    # Agent is using original code
-                    configmap_name = "#{agent_name}-code"
-                    begin
-                      original_configmap = ctx.client.get_resource('ConfigMap', configmap_name, ctx.namespace)
-                      [original_configmap, 'original']
-                    rescue K8s::Error::NotFound
-                      Formatters::ProgressFormatter.error("Original code not found for agent '#{agent_name}'")
-                      exit 1
-                    end
-                  else
-                    # Find the currently active version
-                    active_configmap = configmaps.find do |cm|
-                      cm.dig('metadata', 'labels', 'langop.io/version') == active_version
-                    end
-
-                    if active_configmap
-                      [active_configmap, active_version]
-                    else
-                      # Fall back to latest if active version not found
-                      latest_configmap = configmaps.max_by do |cm|
-                        version = cm.dig('metadata', 'labels', 'langop.io/version')
-                        version ? version.to_i : 0
-                      end
-
-                      latest_version = latest_configmap.dig('metadata', 'labels', 'langop.io/version')
-                      [latest_configmap, latest_version]
-                    end
+                  
+                  if active_version
+                    # Find the currently active version resource
+                    active_version_resource = versions.find { |v| v.dig('spec', 'version').to_s == active_version }
+                    return active_version_resource if active_version_resource
                   end
+
+                  # Fall back to latest version if no active version or active version not found
+                  return versions.max_by { |v| v.dig('spec', 'version').to_i }
                 end
               end
 
