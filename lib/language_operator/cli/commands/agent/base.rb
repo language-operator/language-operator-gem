@@ -172,6 +172,9 @@ module LanguageOperator
               # Main agent information
               puts
               status = agent.dig('status', 'phase') || 'Unknown'
+              creation_timestamp = agent.dig('metadata', 'creationTimestamp')
+              formatted_created = creation_timestamp ? Formatters::ValueFormatter.time_ago(Time.parse(creation_timestamp)) : nil
+
               format_agent_details(
                 name: name,
                 namespace: ctx.namespace,
@@ -179,8 +182,8 @@ module LanguageOperator
                 status: format_status(status),
                 mode: agent.dig('spec', 'executionMode') || 'autonomous',
                 schedule: agent.dig('spec', 'schedule'),
-                persona: agent.dig('spec', 'persona'),
-                created: agent.dig('metadata', 'creationTimestamp')
+                persona: agent.dig('spec', 'persona') || 'None',
+                created: formatted_created
               )
               puts
 
@@ -304,6 +307,9 @@ module LanguageOperator
               Formatters::ProgressFormatter.with_spinner("Deleting agent '#{name}'") do
                 ctx.client.delete_resource(RESOURCE_AGENT, name, ctx.namespace)
               end
+
+              # Verify deletion completed
+              verify_agent_deletion(ctx, name)
             end
           end
 
@@ -380,8 +386,8 @@ module LanguageOperator
               status: format_status(status),
               mode: agent.dig('spec', 'executionMode') || 'autonomous',
               schedule: agent.dig('spec', 'schedule'),
-              persona: agent.dig('spec', 'persona') || '(auto-selected)',
-              created: Time.now.strftime('%Y-%m-%dT%H:%M:%SZ')
+              persona: agent.dig('spec', 'persona') || 'None',
+              created: 'just now'
             )
 
             puts
@@ -534,11 +540,17 @@ module LanguageOperator
             end
 
             table_data = agents.map do |agent|
+              status = if agent.dig('metadata', 'deletionTimestamp')
+                         'Pending Deletion'
+                       else
+                         agent.dig('status', 'phase') || 'Unknown'
+                       end
+
               {
                 name: agent.dig('metadata', 'name'),
                 namespace: agent.dig('metadata', 'namespace') || context.namespace,
                 mode: agent.dig('spec', 'executionMode') || 'autonomous',
-                status: agent.dig('status', 'phase') || 'Unknown'
+                status: status
               }
             end
 
@@ -564,11 +576,17 @@ module LanguageOperator
               agents = ctx.client.list_resources(RESOURCE_AGENT, namespace: ctx.namespace)
 
               agents.each do |agent|
+                status = if agent.dig('metadata', 'deletionTimestamp')
+                           'Pending Deletion'
+                         else
+                           agent.dig('status', 'phase') || 'Unknown'
+                         end
+
                 all_agents << {
                   cluster: cluster[:name],
                   name: agent.dig('metadata', 'name'),
                   mode: agent.dig('spec', 'executionMode') || 'autonomous',
-                  status: agent.dig('status', 'phase') || 'Unknown',
+                  status: status,
                   next_run: agent.dig('status', 'nextRun') || 'N/A',
                   executions: agent.dig('status', 'executionCount') || 0
                 }
@@ -835,6 +853,73 @@ module LanguageOperator
             schedule
           rescue StandardError
             schedule
+          end
+
+          def verify_agent_deletion(ctx, name)
+            max_wait = 30  # Wait up to 30 seconds
+            interval = 2   # Check every 2 seconds
+            elapsed = 0
+
+            Formatters::ProgressFormatter.with_spinner('Verifying deletion') do
+              loop do
+                begin
+                  agent = ctx.client.get_resource(RESOURCE_AGENT, name, ctx.namespace)
+                  
+                  # Check if deletion is stuck on finalizers
+                  deletion_timestamp = agent.dig('metadata', 'deletionTimestamp')
+                  if deletion_timestamp
+                    finalizers = agent.dig('metadata', 'finalizers') || []
+                    if finalizers.any?
+                      if elapsed >= max_wait
+                        deletion_stuck_error(name, finalizers)
+                        return
+                      end
+                    end
+                  end
+                rescue K8s::Error::NotFound
+                  # Agent successfully deleted
+                  break
+                end
+
+                if elapsed >= max_wait
+                  deletion_timeout_error(name)
+                  return
+                end
+
+                sleep interval
+                elapsed += interval
+              end
+            end
+
+            # Deletion verified - no additional success message needed
+          end
+
+          def deletion_stuck_error(name, finalizers)
+            puts
+            Formatters::ProgressFormatter.error("Deletion of agent '#{name}' is stuck")
+            puts
+            puts "The agent has the following finalizers preventing deletion:"
+            finalizers.each { |f| puts "  - #{pastel.yellow(f)}" }
+            puts
+            puts "This usually indicates the operator is not running properly."
+            puts
+            puts "To diagnose:"
+            puts "  kubectl get pods -n kube-system | grep language-operator"
+            puts "  kubectl logs -n kube-system -l app.kubernetes.io/name=language-operator"
+            puts
+            puts "Emergency cleanup (advanced users only):"
+            puts "  kubectl patch languageagent #{name} -p '{\"metadata\":{\"finalizers\":null}}' --type=merge"
+          end
+
+          def deletion_timeout_error(name)
+            puts
+            Formatters::ProgressFormatter.warn("Could not verify deletion of agent '#{name}' within 30 seconds")
+            puts
+            puts "Check deletion status with:"
+            puts "  aictl agent list"
+            puts "  kubectl get languageagent #{name}"
+            puts
+            puts "If the agent shows 'Unknown' status, it may be pending deletion."
           end
         end
       end

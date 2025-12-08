@@ -18,6 +18,9 @@ run:
 code:
 	$(AICTL) code $(AGENT)
 
+versions:
+	$(AICTL) versions $(AGENT)
+
 inspect:
 	$(AICTL) inspect $(AGENT)
 
