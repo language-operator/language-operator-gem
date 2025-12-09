@@ -138,6 +138,10 @@ module LanguageOperator
           # Execute with retry logic
           result = execute_with_retry(task, task_name, inputs, timeout, max_retries, execution_start)
 
+          # Add task outputs to span for learning system (if enabled)
+          current_span = OpenTelemetry::Trace.current_span
+          current_span&.set_attribute('task.outputs', result.to_json) if current_span && capture_enabled?(:outputs)
+
           # Emit Kubernetes event for successful task completion
           emit_task_execution_event(task_name, success: true, execution_start: execution_start)
 
@@ -1023,12 +1027,18 @@ module LanguageOperator
         attributes = {
           # Core task identification (CRITICAL for learning system)
           'task.name' => task_name.to_s,
-          'task.inputs' => inputs.keys.map(&:to_s).join(','),
           'task.max_retries' => max_retries,
 
           # Semantic operation name for better trace organization
           'gen_ai.operation.name' => 'execute_task'
         }
+
+        # Add task inputs - JSON-encoded if capture enabled, else just keys
+        attributes['task.inputs'] = if capture_enabled?(:inputs)
+                                      inputs.to_json
+                                    else
+                                      inputs.keys.map(&:to_s).join(',')
+                                    end
 
         # Explicitly add agent name if available (redundant with resource attribute but ensures visibility)
         if (agent_name = ENV.fetch('AGENT_NAME', nil))

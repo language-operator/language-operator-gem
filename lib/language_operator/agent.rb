@@ -4,6 +4,7 @@ require_relative 'agent/base'
 require_relative 'agent/executor'
 require_relative 'agent/task_executor'
 require_relative 'agent/web_server'
+require_relative 'agent/instrumentation'
 require_relative 'dsl'
 require_relative 'logger'
 
@@ -24,6 +25,8 @@ module LanguageOperator
   #   agent.execute_goal("Summarize daily news")
   # rubocop:disable Metrics/ModuleLength
   module Agent
+    extend LanguageOperator::Agent::Instrumentation
+
     # Module-level logger for Agent framework
     @logger = LanguageOperator::Logger.new(component: 'Agent')
 
@@ -215,22 +218,29 @@ module LanguageOperator
                   agent: agent_def.name,
                   task_count: agent_def.tasks.size)
 
-      # Get inputs from environment or default to empty hash
-      inputs = {}
+      # Execute main block within agent_executor span for learning system integration
+      with_span('agent_executor', attributes: {
+                  'agent.name' => agent_def.name,
+                  'agent.task_count' => agent_def.tasks.size,
+                  'agent.mode' => ENV.fetch('AGENT_MODE', 'unknown')
+                }) do
+        # Get inputs from environment or default to empty hash
+        inputs = {}
 
-      # Execute main block with task executor as context
-      result = agent_def.main.call(inputs, task_executor)
+        # Execute main block with task executor as context
+        result = agent_def.main.call(inputs, task_executor)
 
-      logger.info('Main block execution completed',
-                  result: result)
+        logger.info('Main block execution completed',
+                    result: result)
 
-      # Call output handler if defined
-      if agent_def.output
-        logger.debug('Executing output handler', outputs: result)
-        execute_output_handler(agent_def, result, task_executor)
+        # Call output handler if defined
+        if agent_def.output
+          logger.debug('Executing output handler', outputs: result)
+          execute_output_handler(agent_def, result, task_executor)
+        end
+
+        result
       end
-
-      result
     end
 
     # Execute main block (DSL v1) in persistent mode for autonomous agents
