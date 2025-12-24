@@ -436,6 +436,9 @@ module LanguageOperator
         # Execute agent using the correct method
         result = @chat_agent.execute_goal(prompt)
 
+        # Extract content from result (handle both String and Message objects)
+        result_content = result.is_a?(String) ? result : result.content
+
         # Build OpenAI-compatible response
         {
           id: "chatcmpl-#{SecureRandom.hex(12)}",
@@ -447,15 +450,15 @@ module LanguageOperator
               index: 0,
               message: {
                 role: 'assistant',
-                content: result
+                content: result_content
               },
               finish_reason: 'stop'
             }
           ],
           usage: {
             prompt_tokens: estimate_tokens(prompt),
-            completion_tokens: estimate_tokens(result),
-            total_tokens: estimate_tokens(prompt) + estimate_tokens(result)
+            completion_tokens: estimate_tokens(result_content),
+            total_tokens: estimate_tokens(prompt) + estimate_tokens(result_content)
           }
         }
       end
