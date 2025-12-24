@@ -36,6 +36,9 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'ruby_llm', '~> 1.8'
   spec.add_dependency 'ruby_llm-mcp', '~> 0.1'
   spec.add_dependency 'thor', '~> 1.3'
+  
+  # Explicitly constraint json-schema to prevent conflicts
+  spec.add_dependency 'json-schema', '~> 5.0'
 
   # HTTP server dependencies for MCP tools and agents
   spec.add_dependency 'puma', '~> 6.0'
