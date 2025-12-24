@@ -433,8 +433,8 @@ module LanguageOperator
         # Build prompt from messages
         prompt = build_prompt_from_messages(messages)
 
-        # Execute agent
-        result = @chat_agent.execute(prompt)
+        # Execute agent using the correct method
+        result = @chat_agent.execute_goal(prompt)
 
         # Build OpenAI-compatible response
         {
