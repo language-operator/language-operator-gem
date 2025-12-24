@@ -49,7 +49,7 @@ module LanguageOperator
       include LanguageOperator::Loggable
 
       attr_reader :name, :description, :persona, :schedule, :objectives, :main, :tasks,
-                  :constraints, :output_config, :execution_mode, :webhooks, :mcp_server, :chat_endpoint
+                  :constraints, :output_config, :execution_mode, :webhooks, :mcp_server
 
       def initialize(name)
         @name = name
@@ -314,6 +314,16 @@ module LanguageOperator
         @mcp_server
       end
 
+      # Get chat endpoint definition (always available)
+      #
+      # Returns the chat endpoint definition. If none was explicitly configured,
+      # returns a default chat endpoint with basic configuration.
+      #
+      # @return [ChatEndpointDefinition] The chat endpoint definition
+      def chat_endpoint
+        @chat_endpoint ||= create_default_chat_endpoint
+      end
+
       # Define chat endpoint capabilities
       #
       # Allows this agent to respond to OpenAI-compatible chat completion requests.
@@ -324,7 +334,7 @@ module LanguageOperator
       def as_chat_endpoint(&block)
         @chat_endpoint ||= ChatEndpointDefinition.new(@name)
         @chat_endpoint.instance_eval(&block) if block
-        @execution_mode = :reactive if @execution_mode == :autonomous
+        # Note: Don't force mode change - agents can be autonomous AND have chat endpoints
         @chat_endpoint
       end
 
@@ -352,6 +362,32 @@ module LanguageOperator
       end
 
       private
+
+      # Create default chat endpoint configuration
+      #
+      # @return [ChatEndpointDefinition] Default chat endpoint
+      def create_default_chat_endpoint
+        endpoint = ChatEndpointDefinition.new(@name)
+        
+        # Set default system prompt based on agent description
+        default_prompt = if @description
+          "You are #{@description.downcase}. Provide helpful assistance based on your capabilities."
+        else
+          "You are an AI agent named #{@name}. Provide helpful assistance to users."
+        end
+        
+        endpoint.system_prompt(default_prompt)
+        endpoint.model(@name)  # Use agent name as model name
+        endpoint.temperature(0.7)  # Balanced default
+        endpoint.max_tokens(2000)  # Reasonable default
+        
+        logger.debug('Created default chat endpoint',
+                     agent_name: @name,
+                     model_name: @name,
+                     system_prompt: default_prompt[0..100])
+                     
+        endpoint
+      end
 
       def logger_component
         "Agent:#{@name}"

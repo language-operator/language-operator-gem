@@ -159,11 +159,40 @@ module LanguageOperator
 
       case agent.mode
       when 'autonomous', 'interactive'
+        # Hybrid mode: All agents now run main work AND web server (chat endpoints always enabled)
+        logger.info('Starting hybrid agent (autonomous + web server)',
+                    agent_name: agent_def.name,
+                    chat_endpoint_enabled: true,  # Always true now
+                    has_webhooks: agent_def.webhooks.any?,
+                    has_mcp_tools: !!(agent_def.mcp_server&.tools?))
+
+        # Start web server in background thread
+        web_server = LanguageOperator::Agent::WebServer.new(agent)
+        agent_def.webhooks.each { |webhook_def| webhook_def.register(web_server) }
+        web_server.register_mcp_tools(agent_def.mcp_server) if agent_def.mcp_server&.tools?
+        web_server.register_chat_endpoint(agent_def.chat_endpoint, agent)  # Always register chat endpoint
+
+        web_thread = Thread.new do
+          web_server.start
+        rescue StandardError => e
+          logger.error('Web server error', error: e.message, backtrace: e.backtrace[0..5])
+          raise
+        end
+
+        # Set up signal handlers for graceful shutdown
+        %w[INT TERM].each do |signal|
+          Signal.trap(signal) do
+            logger.info('Received shutdown signal, stopping hybrid agent')
+            web_server.cleanup if web_server.respond_to?(:cleanup)
+            web_thread.kill if web_thread&.alive?
+            exit 0
+          end
+        end
+
+        # Run main work in foreground
         if uses_dsl_v1
-          # DSL v1: Execute main block with task executor in persistent mode
           execute_main_block_persistent(agent, agent_def)
         elsif uses_dsl_v0
-          # DSL v0: Execute workflow in autonomous mode
           executor = LanguageOperator::Agent::Executor.new(agent)
           executor.execute_workflow(agent_def)
         else
