@@ -4,6 +4,7 @@ require_relative 'agent/base'
 require_relative 'agent/executor'
 require_relative 'agent/task_executor'
 require_relative 'agent/web_server'
+require_relative 'agent/execution_state'
 require_relative 'agent/instrumentation'
 require_relative 'dsl'
 require_relative 'logger'
@@ -162,15 +163,15 @@ module LanguageOperator
         # Hybrid mode: All agents now run main work AND web server (chat endpoints always enabled)
         logger.info('Starting hybrid agent (autonomous + web server)',
                     agent_name: agent_def.name,
-                    chat_endpoint_enabled: true,  # Always true now
+                    chat_endpoint_enabled: true, # Always true now
                     has_webhooks: agent_def.webhooks.any?,
-                    has_mcp_tools: !!(agent_def.mcp_server&.tools?))
+                    has_mcp_tools: !!agent_def.mcp_server&.tools?)
 
         # Start web server in background thread
         web_server = LanguageOperator::Agent::WebServer.new(agent)
         agent_def.webhooks.each { |webhook_def| webhook_def.register(web_server) }
         web_server.register_mcp_tools(agent_def.mcp_server) if agent_def.mcp_server&.tools?
-        web_server.register_chat_endpoint(agent)  # Always register chat endpoint
+        web_server.register_chat_endpoint(agent) # Always register chat endpoint
 
         web_thread = Thread.new do
           web_server.start
@@ -199,33 +200,32 @@ module LanguageOperator
           raise 'Agent definition must have either main block (DSL v1) or workflow (DSL v0)'
         end
       when 'scheduled', 'event-driven'
-        # Scheduled mode: Execute once and exit (Kubernetes CronJob handles scheduling)
-        logger.info('Agent running in scheduled mode - executing once',
+        # Standby mode - web server only, wait for /api/v1/execute triggers
+        logger.info('Starting agent in standby mode (scheduled) - waiting for HTTP triggers',
                     agent_name: agent_def.name,
-                    dsl_version: uses_dsl_v1 ? 'v1' : 'v0')
+                    chat_endpoint_enabled: true,
+                    has_webhooks: agent_def.webhooks.any?,
+                    has_mcp_tools: !!agent_def.mcp_server&.tools?)
 
-        if uses_dsl_v1
-          # DSL v1: Execute main block once
-          execute_main_block(agent, agent_def)
-        elsif uses_dsl_v0
-          # DSL v0: Execute workflow once
-          executor = LanguageOperator::Agent::Executor.new(agent)
-          executor.execute_workflow(agent_def)
-        else
-          raise 'Agent definition must have either main block (DSL v1) or workflow (DSL v0)'
-        end
-
-        logger.info('Scheduled execution completed - exiting',
-                    agent_name: agent_def.name)
-
-        # Flush telemetry for short-lived processes
-        agent.send(:flush_telemetry)
-      when 'reactive', 'http', 'webhook'
-        # Start web server with webhooks, MCP tools, and chat endpoint
         web_server = LanguageOperator::Agent::WebServer.new(agent)
         agent_def.webhooks.each { |webhook_def| webhook_def.register(web_server) }
         web_server.register_mcp_tools(agent_def.mcp_server) if agent_def.mcp_server&.tools?
-        web_server.register_chat_endpoint(agent)  # Always register chat endpoint
+        web_server.register_chat_endpoint(agent)
+        web_server.register_execute_endpoint(agent, agent_def)
+
+        web_server.start # Blocks here, waiting for requests
+      when 'reactive', 'http', 'webhook'
+        # Standby mode - web server with webhooks, MCP tools, chat, and execute endpoint
+        logger.info('Starting agent in standby mode (reactive)',
+                    agent_name: agent_def.name,
+                    has_webhooks: agent_def.webhooks.any?)
+
+        web_server = LanguageOperator::Agent::WebServer.new(agent)
+        agent_def.webhooks.each { |webhook_def| webhook_def.register(web_server) }
+        web_server.register_mcp_tools(agent_def.mcp_server) if agent_def.mcp_server&.tools?
+        web_server.register_chat_endpoint(agent)
+        web_server.register_execute_endpoint(agent, agent_def)
+
         web_server.start
       else
         raise "Unknown agent mode: #{agent.mode}"

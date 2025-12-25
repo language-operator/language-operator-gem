@@ -107,24 +107,27 @@ module LanguageOperator
         @executor.run_loop
       end
 
-      # Run in scheduled mode (execute once - Kubernetes CronJob handles scheduling)
+      # Run in scheduled mode (standby - waits for HTTP triggers)
       #
       # @return [void]
       def run_scheduled
-        logger.info('Agent running in scheduled mode without definition - executing goal once')
+        logger.info('Agent running in scheduled mode (standby) - waiting for HTTP triggers')
 
-        goal = ENV.fetch('AGENT_INSTRUCTIONS', 'Complete the assigned task')
-        execute_goal(goal)
-
-        logger.info('Scheduled execution completed - exiting')
+        require_relative 'web_server'
+        @web_server = WebServer.new(self)
+        @web_server.register_execute_endpoint(self, nil)
+        @web_server.start
       end
 
-      # Run in reactive mode (HTTP server)
+      # Run in reactive mode (standby - HTTP server with execute endpoint)
       #
       # @return [void]
       def run_reactive
+        logger.info('Agent running in reactive mode (standby) - web server only')
+
         require_relative 'web_server'
         @web_server = WebServer.new(self)
+        @web_server.register_execute_endpoint(self, nil) # Enable /api/v1/execute endpoint
         @web_server.start
       end
 

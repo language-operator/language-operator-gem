@@ -30,6 +30,7 @@ module LanguageOperator
         @routes = {}
         @mcp_server = nil
         @mcp_transport = nil
+        @execution_state = nil # Initialized when register_execute_endpoint called
 
         # Initialize executor pool to prevent MCP connection leaks
         @executor_pool_size = ENV.fetch('EXECUTOR_POOL_SIZE', '4').to_i
@@ -118,7 +119,7 @@ module LanguageOperator
       # @return [void]
       def register_chat_endpoint(agent)
         @chat_agent = agent
-        
+
         # Create simple chat configuration (identity awareness always enabled)
         @chat_config = {
           model_name: ENV.fetch('AGENT_NAME', agent.config&.dig('agent', 'name') || 'agent'),
@@ -151,6 +152,28 @@ module LanguageOperator
         end
 
         puts "Registered identity-aware chat endpoint as model: #{@chat_config[:model_name]}"
+      end
+
+      # Register execution trigger endpoint
+      #
+      # Enables scheduled/reactive agents to execute tasks via HTTP POST.
+      # Prevents concurrent executions via ExecutionState.
+      #
+      # @param agent [LanguageOperator::Agent::Base] The agent instance
+      # @param agent_def [LanguageOperator::Dsl::AgentDefinition, nil] Optional agent definition
+      # @return [void]
+      def register_execute_endpoint(agent, agent_def = nil)
+        require_relative 'execution_state'
+
+        @execute_agent = agent
+        @execute_agent_def = agent_def
+        @execution_state = LanguageOperator::Agent::ExecutionState.new
+
+        register_route('/api/v1/execute', method: :post) do |context|
+          handle_execute_request(context)
+        end
+
+        puts 'Registered /api/v1/execute endpoint for triggered execution'
       end
 
       # Handle incoming HTTP request
@@ -207,15 +230,167 @@ module LanguageOperator
       # @param agent [LanguageOperator::Agent::Base] The agent instance
       # @return [String] Default system prompt
       def build_default_system_prompt(agent)
-        description = agent.config&.dig('agent', 'instructions') || 
-                     agent.config&.dig('agent', 'description') || 
-                     "AI assistant"
-        
+        description = agent.config&.dig('agent', 'instructions') ||
+                      agent.config&.dig('agent', 'description') ||
+                      'AI assistant'
+
         if description.downcase.start_with?('you are')
           description
         else
           "You are #{description.downcase}. Provide helpful assistance based on your capabilities."
         end
+      end
+
+      # Handle POST /api/v1/execute request
+      #
+      # @param context [Hash] Request context with :body, :headers, :request
+      # @return [Hash] Response data
+      def handle_execute_request(context)
+        # Check for concurrent execution
+        if @execution_state.running?
+          info = @execution_state.current_info
+          return {
+            status: 409,
+            body: {
+              error: 'ExecutionInProgress',
+              message: 'Agent is currently executing a task',
+              current_execution: info
+            }.to_json,
+            headers: { 'Content-Type' => 'application/json' }
+          }
+        end
+
+        # Parse request
+        request_data = JSON.parse(context[:body] || '{}')
+
+        execution_id = "exec-#{SecureRandom.hex(8)}"
+        instruction = request_data['instruction'] || get_default_instruction
+        wait_for_completion = request_data.fetch('wait', true)
+
+        # Start execution
+        @execution_state.start_execution(execution_id)
+
+        if wait_for_completion
+          execute_sync(instruction, execution_id, request_data['context'])
+        else
+          execute_async(instruction, execution_id, request_data['context'])
+        end
+      rescue JSON::ParserError
+        execute_error_response(400, 'InvalidJSON', 'Request body must be valid JSON')
+      rescue LanguageOperator::Agent::ExecutionInProgressError => e
+        execute_error_response(409, 'ExecutionInProgress', e.message)
+      rescue StandardError => e
+        @execution_state&.fail_execution(e)
+        execute_error_response(500, 'ExecutionError', e.message)
+      end
+
+      # Execute task synchronously
+      #
+      # @param instruction [String] Task instruction
+      # @param execution_id [String] Execution identifier
+      # @param context_data [Hash] Additional context data
+      # @return [Hash] Response data
+      def execute_sync(instruction, execution_id, context_data)
+        start_time = Time.now
+
+        # Execute via agent_def main block or fallback to executor
+        result = if @execute_agent_def&.main&.defined?
+                   execute_via_main_block(instruction, context_data)
+                 else
+                   @execute_agent.execute_goal(instruction)
+                 end
+
+        @execution_state.complete_execution(result)
+
+        {
+          status: 200,
+          body: {
+            status: 'completed',
+            result: result,
+            execution_id: execution_id,
+            started_at: start_time.iso8601,
+            completed_at: Time.now.iso8601,
+            duration_seconds: (Time.now - start_time).round(2)
+          }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        }
+      end
+
+      # Execute task asynchronously
+      #
+      # @param instruction [String] Task instruction
+      # @param execution_id [String] Execution identifier
+      # @param context_data [Hash] Additional context data
+      # @return [Hash] Response data
+      def execute_async(instruction, execution_id, context_data)
+        Thread.new do
+          result = if @execute_agent_def&.main&.defined?
+                     execute_via_main_block(instruction, context_data)
+                   else
+                     @execute_agent.execute_goal(instruction)
+                   end
+          @execution_state.complete_execution(result)
+        rescue StandardError => e
+          @execution_state.fail_execution(e)
+          logger.error('Async execution failed', error: e.message, execution_id: execution_id)
+        end
+
+        {
+          status: 202,
+          body: {
+            status: 'accepted',
+            execution_id: execution_id,
+            message: 'Execution started asynchronously'
+          }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        }
+      end
+
+      # Execute via agent definition main block
+      #
+      # @param instruction [String] Task instruction
+      # @param context_data [Hash] Additional context data
+      # @return [Object] Execution result
+      def execute_via_main_block(instruction, context_data)
+        # Build executor config from agent constraints
+        config = LanguageOperator::Agent.send(:build_executor_config, @execute_agent_def)
+        task_executor = LanguageOperator::Agent::TaskExecutor.new(
+          @execute_agent,
+          @execute_agent_def.tasks,
+          config
+        )
+
+        # Prepare inputs
+        inputs = context_data || {}
+        inputs['instruction'] = instruction if instruction
+
+        # Execute main block
+        @execute_agent_def.main.call(inputs, task_executor)
+      end
+
+      # Get default instruction for execution
+      #
+      # @return [String] Default instruction
+      def get_default_instruction
+        @execute_agent_def&.instructions ||
+          ENV.fetch('AGENT_INSTRUCTIONS', 'Complete the assigned task')
+      end
+
+      # Generate error response for execute endpoint
+      #
+      # @param status [Integer] HTTP status code
+      # @param error_type [String] Error type identifier
+      # @param message [String] Error message
+      # @return [Hash] Error response data
+      def execute_error_response(status, error_type, message)
+        {
+          status: status,
+          body: {
+            error: error_type,
+            message: message
+          }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        }
       end
 
       # Setup executor pool for connection reuse
@@ -534,7 +709,7 @@ module LanguageOperator
             prompt_parts << "User: #{content}"
           when 'assistant'
             prompt_parts << "Assistant: #{content}"
-          # Skip system messages - we handle them via PromptBuilder
+            # Skip system messages - we handle them via PromptBuilder
           end
         end
 
@@ -548,8 +723,8 @@ module LanguageOperator
         # Create prompt builder with identity awareness always enabled
         builder = PromptBuilder.new(
           @chat_agent,
-          nil,  # No chat config needed
-          template: :standard,  # Good default
+          nil, # No chat config needed
+          template: :standard, # Good default
           enable_identity_awareness: true
         )
 
@@ -566,7 +741,7 @@ module LanguageOperator
       def build_conversation_context
         builder = PromptBuilder.new(
           @chat_agent,
-          nil,  # No chat config needed
+          nil, # No chat config needed
           enable_identity_awareness: true
         )
 
