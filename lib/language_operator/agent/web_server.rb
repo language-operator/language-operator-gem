@@ -270,11 +270,8 @@ module LanguageOperator
         execution_id = "exec-#{SecureRandom.hex(8)}"
         puts "Generated execution ID: #{execution_id}"
 
-        instruction = request_data['instruction'] || get_default_instruction
-        puts "Got instruction: #{instruction.inspect}"
-
         wait_for_completion = request_data.fetch('wait', true)
-        puts "Execution details - ID: #{execution_id}, instruction: #{instruction.inspect}, wait: #{wait_for_completion}"
+        puts "Execution details - ID: #{execution_id}, wait: #{wait_for_completion}"
 
         # Start execution
         puts 'About to start execution state...'
@@ -282,9 +279,9 @@ module LanguageOperator
         puts "Started execution state for #{execution_id}"
 
         if wait_for_completion
-          execute_sync(instruction, execution_id, request_data['context'])
+          execute_sync(execution_id, request_data['context'])
         else
-          execute_async(instruction, execution_id, request_data['context'])
+          execute_async(execution_id, request_data['context'])
         end
       rescue JSON::ParserError
         execute_error_response(400, 'InvalidJSON', 'Request body must be valid JSON')
@@ -299,22 +296,15 @@ module LanguageOperator
 
       # Execute task synchronously
       #
-      # @param instruction [String] Task instruction
       # @param execution_id [String] Execution identifier
       # @param context_data [Hash] Additional context data
       # @return [Hash] Response data
-      def execute_sync(instruction, execution_id, context_data)
+      def execute_sync(execution_id, _context_data)
         start_time = Time.now
-        puts "Starting execution #{execution_id} with instruction: #{instruction.inspect}"
+        puts "Starting execution #{execution_id}"
 
-        # Execute via agent_def main block or fallback to executor
-        result = if @execute_agent_def&.main&.defined?
-                   puts 'Executing via agent definition main block'
-                   execute_via_main_block(instruction, context_data)
-                 else
-                   puts 'Executing via agent executor fallback'
-                   @execute_agent.execute_goal(instruction)
-                 end
+        # Execute agent main block (convention: all DSL agents have main blocks)
+        result = LanguageOperator::Agent.execute_main_block(@execute_agent, @execute_agent_def)
 
         puts "Execution #{execution_id} completed with result: #{result.inspect}"
         @execution_state.complete_execution(result)
@@ -335,17 +325,12 @@ module LanguageOperator
 
       # Execute task asynchronously
       #
-      # @param instruction [String] Task instruction
       # @param execution_id [String] Execution identifier
       # @param context_data [Hash] Additional context data
       # @return [Hash] Response data
-      def execute_async(instruction, execution_id, context_data)
+      def execute_async(execution_id, _context_data)
         Thread.new do
-          result = if @execute_agent_def&.main&.defined?
-                     execute_via_main_block(instruction, context_data)
-                   else
-                     @execute_agent.execute_goal(instruction)
-                   end
+          result = LanguageOperator::Agent.execute_main_block(@execute_agent, @execute_agent_def)
           @execution_state.complete_execution(result)
         rescue StandardError => e
           @execution_state.fail_execution(e)
@@ -363,35 +348,6 @@ module LanguageOperator
         }
       end
 
-      # Execute via agent definition main block
-      #
-      # @param instruction [String] Task instruction
-      # @param context_data [Hash] Additional context data
-      # @return [Object] Execution result
-      def execute_via_main_block(instruction, context_data)
-        # Build executor config from agent constraints
-        config = LanguageOperator::Agent.send(:build_executor_config, @execute_agent_def)
-        task_executor = LanguageOperator::Agent::TaskExecutor.new(
-          @execute_agent,
-          @execute_agent_def.tasks,
-          config
-        )
-
-        # Prepare inputs
-        inputs = context_data || {}
-        inputs['instruction'] = instruction if instruction
-
-        # Execute main block
-        @execute_agent_def.main.call(inputs, task_executor)
-      end
-
-      # Get default instruction for execution
-      #
-      # @return [String] Default instruction
-      def get_default_instruction
-        @execute_agent_def&.instructions ||
-          ENV.fetch('AGENT_INSTRUCTIONS', 'Complete the assigned task')
-      end
 
       # Generate error response for execute endpoint
       #
