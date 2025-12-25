@@ -95,11 +95,11 @@ Critical insights and patterns for the language-operator Ruby gem.
 
 ## Recently Resolved (Last 5)
 
-1. **#125** (2025-12-02) - Remove aictl agent learning command - Integrated learning status into agent inspect
-2. **#118** (2025-11-28) - Parallel execution test failures - 6 failures fixed via timing relaxation and AST validator compliance
-3. **#117** (2025-11-28) - Schema changelog missing v0.1.64 entry - documentation update
-4. **#109** (2025-11-27) - Agent persistent mode for autonomous agents - prevents CrashLoopBackOff
-5. **#108** (2025-11-27) - Universal cluster association (clusterRef) - fixes finalizer cleanup
+1. **#131** (2025-12-09) - Gem packaging issues preventing require - Fixed file permissions (600→644) and added packaging verification tests
+2. **#125** (2025-12-02) - Remove aictl agent learning command - Integrated learning status into agent inspect
+3. **#118** (2025-11-28) - Parallel execution test failures - 6 failures fixed via timing relaxation and AST validator compliance
+4. **#117** (2025-11-28) - Schema changelog missing v0.1.64 entry - documentation update
+5. **#109** (2025-11-27) - Agent persistent mode for autonomous agents - prevents CrashLoopBackOff
 
 ## Key Learnings
 
@@ -124,3 +124,9 @@ Critical insights and patterns for the language-operator Ruby gem.
 - Schema CHANGELOG.md must match gem VERSION for CI tests
 - Template at lib/language_operator/templates/schema/CHANGELOG.md
 - Test: spec/language_operator/dsl/schema_artifacts_spec.rb:116
+
+**Gem Packaging:**
+- Source file permissions are preserved in built gems (600 → 600, 644 → 644)
+- All source files must be 644 for non-root user access after gem installation
+- Packaging test at spec/language_operator/packaging_spec.rb verifies permissions and file inclusion
+- Version changes require Gemfile.lock update for CI success

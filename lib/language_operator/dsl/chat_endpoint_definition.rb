@@ -7,7 +7,7 @@ module LanguageOperator
     # Allows agents to expose an OpenAI-compatible chat completion endpoint.
     # Other systems can treat the agent as a language model.
     #
-    # @example Define chat endpoint in an agent
+    # @example Define basic chat endpoint
     #   agent "github-expert" do
     #     as_chat_endpoint do
     #       system_prompt "You are a GitHub API expert"
@@ -15,9 +15,26 @@ module LanguageOperator
     #       max_tokens 2000
     #     end
     #   end
+    #
+    # @example Define chat endpoint with identity awareness
+    #   agent "support-bot" do
+    #     as_chat_endpoint do
+    #       system_prompt "You are a helpful customer support assistant"
+    #       
+    #       # Configure identity awareness and context injection
+    #       identity_awareness do
+    #         enabled true
+    #         prompt_template :detailed
+    #         context_injection :standard
+    #       end
+    #       
+    #       temperature 0.8
+    #     end
+    #   end
     class ChatEndpointDefinition
       attr_reader :system_prompt, :temperature, :max_tokens, :model_name,
-                  :top_p, :frequency_penalty, :presence_penalty, :stop_sequences
+                  :top_p, :frequency_penalty, :presence_penalty, :stop_sequences,
+                  :identity_awareness_enabled, :prompt_template_level, :context_injection_level
 
       def initialize(agent_name)
         @agent_name = agent_name
@@ -29,6 +46,11 @@ module LanguageOperator
         @frequency_penalty = 0.0
         @presence_penalty = 0.0
         @stop_sequences = nil
+        
+        # Identity awareness and context injection settings
+        @identity_awareness_enabled = true
+        @prompt_template_level = :standard
+        @context_injection_level = :standard
       end
 
       # Set system prompt for chat mode
@@ -110,6 +132,90 @@ module LanguageOperator
 
         @stop_sequences = sequences
       end
+
+      # Enable or disable identity awareness and context injection
+      #
+      # When enabled, the system prompt will be dynamically enhanced with
+      # agent identity, operational context, and environment information.
+      #
+      # @param enabled [Boolean] Whether to enable identity awareness
+      # @return [Boolean] Current setting
+      def enable_identity_awareness(enabled = nil)
+        return @identity_awareness_enabled if enabled.nil?
+
+        @identity_awareness_enabled = enabled
+      end
+
+      # Set the prompt template level for context injection
+      #
+      # Available levels:
+      # - :minimal - Basic agent identity only
+      # - :standard - Identity + basic operational context (default)
+      # - :detailed - Full context with capabilities
+      # - :comprehensive - All available context and guidelines
+      #
+      # @param level [Symbol] Template level
+      # @return [Symbol] Current template level
+      def prompt_template(level = nil)
+        return @prompt_template_level if level.nil?
+
+        valid_levels = [:minimal, :standard, :detailed, :comprehensive]
+        unless valid_levels.include?(level)
+          raise ArgumentError, "Invalid template level: #{level}. Must be one of: #{valid_levels.join(', ')}"
+        end
+
+        @prompt_template_level = level
+      end
+
+      # Set the context injection level for conversations
+      #
+      # Controls how much operational context is injected into ongoing conversations.
+      #
+      # Available levels:
+      # - :none - No context injection
+      # - :minimal - Basic status only
+      # - :standard - Standard operational context (default)
+      # - :detailed - Full context with metrics
+      #
+      # @param level [Symbol] Context injection level
+      # @return [Symbol] Current context injection level
+      def context_injection(level = nil)
+        return @context_injection_level if level.nil?
+
+        valid_levels = [:none, :minimal, :standard, :detailed]
+        unless valid_levels.include?(level)
+          raise ArgumentError, "Invalid context level: #{level}. Must be one of: #{valid_levels.join(', ')}"
+        end
+
+        @context_injection_level = level
+      end
+
+      # Configure identity awareness with options block
+      #
+      # @example
+      #   identity_awareness do
+      #     enabled true
+      #     prompt_template :detailed
+      #     context_injection :standard
+      #   end
+      #
+      # @yield Block for configuring identity awareness options
+      def identity_awareness(&block)
+        if block_given?
+          instance_eval(&block)
+        else
+          {
+            enabled: @identity_awareness_enabled,
+            prompt_template: @prompt_template_level,
+            context_injection: @context_injection_level
+          }
+        end
+      end
+
+      # Alias methods for convenience
+      alias_method :enabled, :enable_identity_awareness
+      alias_method :template, :prompt_template
+      alias_method :context, :context_injection
     end
   end
 end

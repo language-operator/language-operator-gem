@@ -42,6 +42,14 @@ LanguageOperator::Dsl.define do
         Keep responses concise but informative.
       PROMPT
 
+      # Enable identity awareness for context-aware responses
+      # Uncomment the block below to enable persona-driven prompts
+      # identity_awareness do
+      #   enabled true
+      #   prompt_template :standard    # Options: :minimal, :standard, :detailed, :comprehensive
+      #   context_injection :standard  # Options: :none, :minimal, :standard, :detailed
+      # end
+
       # Configure the endpoint parameters
       model "github-expert-v1"  # Model name returned in API responses
       temperature 0.7           # Balanced creativity and consistency

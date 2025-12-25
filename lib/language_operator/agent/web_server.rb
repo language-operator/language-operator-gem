@@ -4,6 +4,7 @@ require 'rack'
 require 'rackup'
 require 'mcp'
 require_relative 'executor'
+require_relative 'prompt_builder'
 
 module LanguageOperator
   module Agent
@@ -489,30 +490,74 @@ module LanguageOperator
       # @param messages [Array<Hash>] Array of message objects
       # @return [String] Combined prompt
       def build_prompt_from_messages(messages)
-        # Combine all messages into a single prompt
-        # System messages become instructions
-        # User/assistant messages become conversation
         prompt_parts = []
 
-        # Add system prompt if configured
-        prompt_parts << "System: #{@chat_endpoint.system_prompt}" if @chat_endpoint.system_prompt
+        # Build dynamic system prompt using PromptBuilder
+        system_prompt = build_dynamic_system_prompt(messages)
+        prompt_parts << "System: #{system_prompt}" if system_prompt
 
-        # Add conversation history
+        # Add conversation context if enabled
+        conversation_context = build_conversation_context
+        prompt_parts << conversation_context if conversation_context
+
+        # Add conversation history (skip system messages from original array since we handle them above)
         messages.each do |msg|
           role = msg['role']
           content = msg['content']
 
           case role
-          when 'system'
-            prompt_parts << "System: #{content}"
           when 'user'
             prompt_parts << "User: #{content}"
           when 'assistant'
             prompt_parts << "Assistant: #{content}"
+          # Skip system messages - we handle them via PromptBuilder
           end
         end
 
         prompt_parts.join("\n\n")
+      end
+
+      # Build dynamic system prompt using the PromptBuilder
+      #
+      # @param messages [Array<Hash>] Array of message objects (for context)
+      # @return [String, nil] Dynamic system prompt or nil if disabled
+      def build_dynamic_system_prompt(_messages)
+        return @chat_endpoint.system_prompt unless @chat_endpoint.identity_awareness_enabled
+
+        # Create prompt builder with current configuration
+        builder = PromptBuilder.new(
+          @chat_agent,
+          @chat_endpoint,
+          template: @chat_endpoint.prompt_template_level,
+          enable_identity_awareness: @chat_endpoint.identity_awareness_enabled
+        )
+
+        builder.build_system_prompt
+      rescue StandardError => e
+        # Log error and fall back to static prompt
+        puts "Warning: Failed to build dynamic system prompt: #{e.message}"
+        @chat_endpoint.system_prompt
+      end
+
+      # Build conversation context for ongoing chats
+      #
+      # @return [String, nil] Conversation context or nil if disabled
+      def build_conversation_context
+        return nil unless @chat_endpoint.identity_awareness_enabled
+        return nil if @chat_endpoint.context_injection_level == :none
+
+        builder = PromptBuilder.new(
+          @chat_agent,
+          @chat_endpoint,
+          enable_identity_awareness: true
+        )
+
+        context = builder.build_conversation_context
+        context ? "Context: #{context}" : nil
+      rescue StandardError => e
+        # Log error and continue without context
+        puts "Warning: Failed to build conversation context: #{e.message}"
+        nil
       end
 
       # Estimate token count (rough approximation)

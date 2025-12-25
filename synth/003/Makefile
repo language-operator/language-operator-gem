@@ -27,11 +27,17 @@ inspect:
 learning-status:
 	$(AICTL) learning status $(AGENT)
 
+learn:
+	kubectl patch languageagent $(AGENT) --type='merge' -p='{"status":{"runsPendingLearning":10}}'
+
+
 logs:
 	$(AICTL) logs $(AGENT)
 
 clean:
 	$(AICTL) delete $(AGENT) --force
+	kubectl delete configmaps -l app.kubernetes.io/name=$(AGENT) --ignore-not-found=true
+	kubectl delete configmaps --field-selector metadata.name~=$(AGENT)-v --ignore-not-found=true
 
 save:
 	$(AICTL) code $(AGENT) --raw > agent.rb
