@@ -246,9 +246,12 @@ module LanguageOperator
       # @param context [Hash] Request context with :body, :headers, :request
       # @return [Hash] Response data
       def handle_execute_request(context)
+        puts "Received execute request: #{context[:body]}"
+
         # Check for concurrent execution
         if @execution_state.running?
           info = @execution_state.current_info
+          puts "Execution already running: #{info}"
           return {
             status: 409,
             body: {
@@ -262,13 +265,16 @@ module LanguageOperator
 
         # Parse request
         request_data = JSON.parse(context[:body] || '{}')
+        puts "Parsed request data: #{request_data.inspect}"
 
         execution_id = "exec-#{SecureRandom.hex(8)}"
         instruction = request_data['instruction'] || get_default_instruction
         wait_for_completion = request_data.fetch('wait', true)
+        puts "Execution details - ID: #{execution_id}, instruction: #{instruction.inspect}, wait: #{wait_for_completion}"
 
         # Start execution
         @execution_state.start_execution(execution_id)
+        puts "Started execution state for #{execution_id}"
 
         if wait_for_completion
           execute_sync(instruction, execution_id, request_data['context'])
@@ -292,14 +298,18 @@ module LanguageOperator
       # @return [Hash] Response data
       def execute_sync(instruction, execution_id, context_data)
         start_time = Time.now
+        puts "Starting execution #{execution_id} with instruction: #{instruction.inspect}"
 
         # Execute via agent_def main block or fallback to executor
         result = if @execute_agent_def&.main&.defined?
+                   puts 'Executing via agent definition main block'
                    execute_via_main_block(instruction, context_data)
                  else
+                   puts 'Executing via agent executor fallback'
                    @execute_agent.execute_goal(instruction)
                  end
 
+        puts "Execution #{execution_id} completed with result: #{result.inspect}"
         @execution_state.complete_execution(result)
 
         {
