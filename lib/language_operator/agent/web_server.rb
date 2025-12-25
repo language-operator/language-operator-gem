@@ -304,7 +304,22 @@ module LanguageOperator
         puts "Starting execution #{execution_id}"
 
         # Execute agent main block (convention: all DSL agents have main blocks)
+        puts "About to execute main block..."
+        $stdout.flush
+        
+        # Test logging capture during execution
+        original_stdout = $stdout
+        original_stderr = $stderr
+        puts "Original stdout: #{original_stdout.class}"
+        puts "Original stderr: #{original_stderr.class}"
+        $stdout.flush
+        
         result = LanguageOperator::Agent.execute_main_block(@execute_agent, @execute_agent_def)
+        
+        puts "Main block execution returned: #{result.inspect}"
+        puts "Stdout after execution: #{$stdout.class}"
+        puts "Stderr after execution: #{$stderr.class}"
+        $stdout.flush
 
         puts "Execution #{execution_id} completed with result: #{result.inspect}"
         @execution_state.complete_execution(result)
