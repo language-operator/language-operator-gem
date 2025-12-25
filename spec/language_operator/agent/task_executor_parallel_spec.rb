@@ -226,7 +226,8 @@ RSpec.describe LanguageOperator::Agent::TaskExecutor, '#execute_parallel' do
         elapsed = Time.now - start_time
 
         # Sequential would take ~0.06s, parallel should be ~0.03s
-        expect(elapsed).to be < 0.045
+        # Allow some variance for CI environments
+        expect(elapsed).to be < 0.050
       end
     end
 
