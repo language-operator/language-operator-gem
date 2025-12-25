@@ -3,14 +3,14 @@
 
 # Identity-Aware Chat Agent Example
 #
-# This example demonstrates the new persona-driven system prompts that provide
-# agents with awareness of their identity, role, environment, and operational context.
+# This example demonstrates automatic persona-driven system prompts that provide
+# ALL agents with awareness of their identity, role, environment, and operational context.
 #
-# Key Features:
+# Key Features (AUTOMATIC):
 # - Agent knows its name, role, and purpose
-# - Operational context (uptime, cluster, status) awareness
+# - Operational context (uptime, cluster, status) awareness  
 # - Environment information (namespace, tools available)
-# - Configurable levels of context injection
+# - Professional, contextual conversation style
 #
 # Usage:
 #   ruby examples/identity_aware_chat_agent.rb
@@ -27,29 +27,11 @@ require 'language_operator'
 # Define an identity-aware agent
 LanguageOperator::Dsl.define do
   agent "say-something" do
-    description "A demonstration agent that logs interesting messages and provides context-aware responses"
+    description "A helpful assistant that specializes in creating engaging, concise messages and interactions. You excel at understanding context and providing meaningful responses that fit the conversation."
     mode :reactive
 
-    # Configure the agent as a chat endpoint with full identity awareness
-    as_chat_endpoint do
-      system_prompt <<~PROMPT
-        You are a helpful assistant that specializes in creating engaging,
-        concise messages and interactions. You excel at understanding context
-        and providing meaningful responses that fit the conversation.
-      PROMPT
-
-      # Configure identity awareness and context injection
-      identity_awareness do
-        enabled true
-        prompt_template :detailed    # Options: :minimal, :standard, :detailed, :comprehensive
-        context_injection :standard  # Options: :none, :minimal, :standard, :detailed
-      end
-
-      # Model configuration
-      model "say-something-v2"
-      temperature 0.7
-      max_tokens 1000
-    end
+    # Identity-aware chat endpoint is automatic! 
+    # No configuration needed - every agent gets it by default.
 
     # Add some constraints for safety
     constraints do
@@ -64,11 +46,11 @@ end
 if __FILE__ == $PROGRAM_NAME
   puts "🚀 Starting Identity-Aware Say-Something Agent..."
   puts ""
-  puts "This agent demonstrates persona-driven system prompts with:"
+  puts "ALL agents automatically include persona-driven system prompts with:"
   puts "  ✓ Agent identity awareness (name, role, purpose)"
-  puts "  ✓ Operational context (uptime, status, environment)"
+  puts "  ✓ Operational context (uptime, status, environment)"  
   puts "  ✓ Dynamic prompt generation based on current state"
-  puts "  ✓ Configurable levels of context injection"
+  puts "  ✓ Professional, contextual conversation style"
   puts ""
   puts "Server will be available at http://localhost:8080"
   puts ""
@@ -89,8 +71,8 @@ if __FILE__ == $PROGRAM_NAME
   puts "    -H 'Content-Type: application/json' \\"
   puts '    -d \'{"model": "say-something-v2", "messages": [{"role": "user", "content": "hello"}]}\''
   puts ""
-  puts "💡 Try different questions to see context-aware responses:"
-  puts "  - 'hello' or 'hi there' for introductions"
+  puts "💡 Try different questions to see automatic identity awareness:"
+  puts "  - 'hello' or 'hi there' for context-aware introductions"
   puts "  - 'what are you?' or 'tell me about yourself'"
   puts "  - 'how long have you been running?'"
   puts "  - 'what can you do?' or 'what tools do you have?'"

@@ -3,6 +3,10 @@
 module LanguageOperator
   module Dsl
     # Chat endpoint definition for agents
+    # 
+    # DEPRECATED: This class is deprecated. All agents now automatically get
+    # identity-aware chat endpoints without configuration. The `as_chat_endpoint`
+    # DSL method is no longer needed.
     #
     # Allows agents to expose an OpenAI-compatible chat completion endpoint.
     # Other systems can treat the agent as a language model.

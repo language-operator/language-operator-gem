@@ -26,35 +26,15 @@ require 'language_operator'
 # Define an agent with chat endpoint capabilities
 LanguageOperator::Dsl.define do
   agent "github-expert" do
-    description "GitHub API and workflow expert"
+    description "You are a GitHub expert assistant with deep knowledge of GitHub API, workflows, pull requests, issues, code review, GitHub Actions, CI/CD, and repository management best practices"
     mode :reactive
 
-    # This is the key - expose the agent as an OpenAI-compatible chat endpoint
-    as_chat_endpoint do
-      system_prompt <<~PROMPT
-        You are a GitHub expert assistant with deep knowledge of:
-        - GitHub API and workflows
-        - Pull requests, issues, and code review
-        - GitHub Actions and CI/CD
-        - Repository management and best practices
-
-        Provide helpful, accurate answers about GitHub topics.
-        Keep responses concise but informative.
-      PROMPT
-
-      # Enable identity awareness for context-aware responses
-      # Uncomment the block below to enable persona-driven prompts
-      # identity_awareness do
-      #   enabled true
-      #   prompt_template :standard    # Options: :minimal, :standard, :detailed, :comprehensive
-      #   context_injection :standard  # Options: :none, :minimal, :standard, :detailed
-      # end
-
-      # Configure the endpoint parameters
-      model "github-expert-v1"  # Model name returned in API responses
-      temperature 0.7           # Balanced creativity and consistency
-      max_tokens 2000           # Limit response length
-    end
+    # Chat endpoint is automatic! No configuration needed.
+    # Every agent automatically gets:
+    # - OpenAI-compatible chat endpoint at /v1/chat/completions
+    # - Identity-aware responses with agent context
+    # - Operational state awareness (uptime, cluster, etc.)
+    # - Professional, contextual conversation style
 
     # Optional: Add constraints for safety and cost management
     constraints do

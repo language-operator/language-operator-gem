@@ -4,7 +4,6 @@ require_relative 'main_definition'
 require_relative 'task_definition'
 require_relative 'webhook_definition'
 require_relative 'mcp_server_definition'
-require_relative 'chat_endpoint_definition'
 require_relative '../logger'
 require_relative '../loggable'
 
@@ -64,7 +63,6 @@ module LanguageOperator
         @execution_mode = :autonomous
         @webhooks = []
         @mcp_server = nil
-        @chat_endpoint = nil
 
         logger.debug('Agent definition initialized',
                      name: name,
@@ -314,29 +312,6 @@ module LanguageOperator
         @mcp_server
       end
 
-      # Get chat endpoint definition (always available)
-      #
-      # Returns the chat endpoint definition. If none was explicitly configured,
-      # returns a default chat endpoint with basic configuration.
-      #
-      # @return [ChatEndpointDefinition] The chat endpoint definition
-      def chat_endpoint
-        @chat_endpoint ||= create_default_chat_endpoint
-      end
-
-      # Define chat endpoint capabilities
-      #
-      # Allows this agent to respond to OpenAI-compatible chat completion requests.
-      # Other systems can treat this agent as a language model.
-      #
-      # @yield Chat endpoint configuration block
-      # @return [ChatEndpointDefinition] The chat endpoint definition
-      def as_chat_endpoint(&block)
-        @chat_endpoint ||= ChatEndpointDefinition.new(@name)
-        @chat_endpoint.instance_eval(&block) if block
-        # Note: Don't force mode change - agents can be autonomous AND have chat endpoints
-        @chat_endpoint
-      end
 
       # Execute the agent
       #
@@ -363,31 +338,6 @@ module LanguageOperator
 
       private
 
-      # Create default chat endpoint configuration
-      #
-      # @return [ChatEndpointDefinition] Default chat endpoint
-      def create_default_chat_endpoint
-        endpoint = ChatEndpointDefinition.new(@name)
-        
-        # Set default system prompt based on agent description
-        default_prompt = if @description
-          "You are #{@description.downcase}. Provide helpful assistance based on your capabilities."
-        else
-          "You are an AI agent named #{@name}. Provide helpful assistance to users."
-        end
-        
-        endpoint.system_prompt(default_prompt)
-        endpoint.model(@name)  # Use agent name as model name
-        endpoint.temperature(0.7)  # Balanced default
-        endpoint.max_tokens(2000)  # Reasonable default
-        
-        logger.debug('Created default chat endpoint',
-                     agent_name: @name,
-                     model_name: @name,
-                     system_prompt: default_prompt[0..100])
-                     
-        endpoint
-      end
 
       def logger_component
         "Agent:#{@name}"
@@ -403,7 +353,7 @@ module LanguageOperator
                     name: @name,
                     webhooks: @webhooks.size,
                     mcp_tools: @mcp_server&.tools&.size || 0,
-                    chat_endpoint: !@chat_endpoint.nil?)
+                    chat_endpoint: true)
 
         # Create an Agent::Base instance with this definition
         require_relative '../agent/base'
@@ -427,8 +377,8 @@ module LanguageOperator
         # Register MCP tools
         web_server.register_mcp_tools(@mcp_server) if @mcp_server&.tools?
 
-        # Register chat endpoint
-        web_server.register_chat_endpoint(@chat_endpoint, agent) if @chat_endpoint
+        # Register chat endpoint - automatic for all agents
+        web_server.register_chat_endpoint(agent)
 
         # Start the server
         web_server.start

@@ -111,15 +111,21 @@ module LanguageOperator
 
       # Register chat completion endpoint
       #
-      # Sets up OpenAI-compatible chat completion endpoint.
-      # Agents can be used as drop-in LLM replacements.
+      # Sets up OpenAI-compatible chat completion endpoint for all agents.
+      # Every agent automatically gets identity-aware chat capabilities.
       #
-      # @param chat_endpoint_def [LanguageOperator::Dsl::ChatEndpointDefinition] Chat endpoint definition
       # @param agent [LanguageOperator::Agent::Base] The agent instance
       # @return [void]
-      def register_chat_endpoint(chat_endpoint_def, agent)
-        @chat_endpoint = chat_endpoint_def
+      def register_chat_endpoint(agent)
         @chat_agent = agent
+        
+        # Create simple chat configuration (identity awareness always enabled)
+        @chat_config = {
+          model_name: ENV.fetch('AGENT_NAME', agent.config&.dig('agent', 'name') || 'agent'),
+          system_prompt: build_default_system_prompt(agent),
+          temperature: 0.7,
+          max_tokens: 2000
+        }
 
         # Register OpenAI-compatible endpoint
         register_route('/v1/chat/completions', method: :post) do |context|
@@ -132,19 +138,19 @@ module LanguageOperator
             object: 'list',
             data: [
               {
-                id: chat_endpoint_def.model_name,
+                id: @chat_config[:model_name],
                 object: 'model',
                 created: Time.now.to_i,
                 owned_by: 'language-operator',
                 permission: [],
-                root: chat_endpoint_def.model_name,
+                root: @chat_config[:model_name],
                 parent: nil
               }
             ]
           }
         end
 
-        puts "Registered chat completion endpoint as model: #{chat_endpoint_def.model_name}"
+        puts "Registered identity-aware chat endpoint as model: #{@chat_config[:model_name]}"
       end
 
       # Handle incoming HTTP request
@@ -193,6 +199,24 @@ module LanguageOperator
       end
 
       private
+
+      # Build default system prompt for agent
+      #
+      # Creates a basic system prompt based on agent description
+      #
+      # @param agent [LanguageOperator::Agent::Base] The agent instance
+      # @return [String] Default system prompt
+      def build_default_system_prompt(agent)
+        description = agent.config&.dig('agent', 'instructions') || 
+                     agent.config&.dig('agent', 'description') || 
+                     "AI assistant"
+        
+        if description.downcase.start_with?('you are')
+          description
+        else
+          "You are #{description.downcase}. Provide helpful assistance based on your capabilities."
+        end
+      end
 
       # Setup executor pool for connection reuse
       #
@@ -445,7 +469,7 @@ module LanguageOperator
           id: "chatcmpl-#{SecureRandom.hex(12)}",
           object: 'chat.completion',
           created: Time.now.to_i,
-          model: @chat_endpoint.model_name,
+          model: @chat_config[:model_name],
           choices: [
             {
               index: 0,
@@ -481,22 +505,22 @@ module LanguageOperator
             'Cache-Control' => 'no-cache',
             'Connection' => 'keep-alive'
           },
-          StreamingBody.new(@chat_agent, prompt, @chat_endpoint.model_name)
+          StreamingBody.new(@chat_agent, prompt, @chat_config[:model_name])
         ]
       end
 
-      # Build prompt from OpenAI message format
+      # Build prompt from OpenAI message format with identity awareness
       #
       # @param messages [Array<Hash>] Array of message objects
-      # @return [String] Combined prompt
+      # @return [String] Combined prompt with agent identity context
       def build_prompt_from_messages(messages)
         prompt_parts = []
 
-        # Build dynamic system prompt using PromptBuilder
-        system_prompt = build_dynamic_system_prompt(messages)
+        # Build identity-aware system prompt (always enabled)
+        system_prompt = build_identity_aware_system_prompt
         prompt_parts << "System: #{system_prompt}" if system_prompt
 
-        # Add conversation context if enabled
+        # Add conversation context (always enabled)
         conversation_context = build_conversation_context
         prompt_parts << conversation_context if conversation_context
 
@@ -517,38 +541,32 @@ module LanguageOperator
         prompt_parts.join("\n\n")
       end
 
-      # Build dynamic system prompt using the PromptBuilder
+      # Build identity-aware system prompt using PromptBuilder
       #
-      # @param messages [Array<Hash>] Array of message objects (for context)
-      # @return [String, nil] Dynamic system prompt or nil if disabled
-      def build_dynamic_system_prompt(_messages)
-        return @chat_endpoint.system_prompt unless @chat_endpoint.identity_awareness_enabled
-
-        # Create prompt builder with current configuration
+      # @return [String] Dynamic system prompt with agent identity
+      def build_identity_aware_system_prompt
+        # Create prompt builder with identity awareness always enabled
         builder = PromptBuilder.new(
           @chat_agent,
-          @chat_endpoint,
-          template: @chat_endpoint.prompt_template_level,
-          enable_identity_awareness: @chat_endpoint.identity_awareness_enabled
+          nil,  # No chat config needed
+          template: :standard,  # Good default
+          enable_identity_awareness: true
         )
 
         builder.build_system_prompt
       rescue StandardError => e
         # Log error and fall back to static prompt
-        puts "Warning: Failed to build dynamic system prompt: #{e.message}"
-        @chat_endpoint.system_prompt
+        puts "Warning: Failed to build identity-aware system prompt: #{e.message}"
+        @chat_config[:system_prompt]
       end
 
       # Build conversation context for ongoing chats
       #
-      # @return [String, nil] Conversation context or nil if disabled
+      # @return [String, nil] Conversation context
       def build_conversation_context
-        return nil unless @chat_endpoint.identity_awareness_enabled
-        return nil if @chat_endpoint.context_injection_level == :none
-
         builder = PromptBuilder.new(
           @chat_agent,
-          @chat_endpoint,
+          nil,  # No chat config needed
           enable_identity_awareness: true
         )
 
