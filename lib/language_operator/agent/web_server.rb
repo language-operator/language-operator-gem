@@ -431,7 +431,7 @@ module LanguageOperator
       # @param context [Hash] Request context
       # @return [Array, Hash] Rack response or hash for streaming
       def handle_chat_completion(context)
-        return error_response(StandardError.new('Chat endpoint not configured')) unless @chat_endpoint
+        return error_response(StandardError.new('Chat endpoint not configured')) unless @chat_config
 
         # Parse request body
         request_data = JSON.parse(context[:body])
