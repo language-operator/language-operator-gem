@@ -268,11 +268,16 @@ module LanguageOperator
         puts "Parsed request data: #{request_data.inspect}"
 
         execution_id = "exec-#{SecureRandom.hex(8)}"
+        puts "Generated execution ID: #{execution_id}"
+
         instruction = request_data['instruction'] || get_default_instruction
+        puts "Got instruction: #{instruction.inspect}"
+
         wait_for_completion = request_data.fetch('wait', true)
         puts "Execution details - ID: #{execution_id}, instruction: #{instruction.inspect}, wait: #{wait_for_completion}"
 
         # Start execution
+        puts 'About to start execution state...'
         @execution_state.start_execution(execution_id)
         puts "Started execution state for #{execution_id}"
 
@@ -286,6 +291,8 @@ module LanguageOperator
       rescue LanguageOperator::Agent::ExecutionInProgressError => e
         execute_error_response(409, 'ExecutionInProgress', e.message)
       rescue StandardError => e
+        puts "Exception in handle_execute_request: #{e.class}: #{e.message}"
+        puts "Exception backtrace: #{e.backtrace.first(5).join('\n')}"
         @execution_state&.fail_execution(e)
         execute_error_response(500, 'ExecutionError', e.message)
       end
