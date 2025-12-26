@@ -3,6 +3,8 @@
 require 'rack'
 require 'rackup'
 require 'mcp'
+require 'fileutils'
+require 'securerandom'
 require_relative 'executor'
 require_relative 'prompt_builder'
 
@@ -1025,21 +1027,179 @@ module LanguageOperator
       end
 
       # Handle POST /api/v1/workspace/files - upload file
-      def handle_workspace_upload(_context)
-        # TODO: Implement file upload
-        workspace_error_response(501, 'NotImplemented', 'File upload not yet implemented')
+      def handle_workspace_upload(context)
+        request = context[:request]
+
+        # Check for multipart form data
+        content_type = request.env['CONTENT_TYPE']
+        unless content_type&.start_with?('multipart/form-data')
+          return workspace_error_response(400, 'BadRequest', 'Content-Type must be multipart/form-data')
+        end
+
+        # Parse multipart data
+        begin
+          # Get file from params (Rack automatically parses multipart data)
+          file_param = request.params['file']
+          path_param = request.params['path']
+
+          return workspace_error_response(400, 'BadRequest', 'file parameter required') unless file_param
+
+          return workspace_error_response(400, 'BadRequest', 'path parameter required') unless path_param
+
+          # Handle file upload object
+          return workspace_error_response(400, 'BadRequest', 'Invalid file upload format') unless file_param.is_a?(Hash) && file_param[:tempfile]
+
+          # Rack file upload format
+          tempfile = file_param[:tempfile]
+          original_filename = file_param[:filename]
+          content_type = file_param[:type]
+
+          # Sanitize target path
+          safe_path = sanitize_workspace_path(path_param)
+          full_path = File.join(@workspace_path, safe_path)
+
+          # Ensure target directory exists
+          target_dir = File.dirname(full_path)
+          FileUtils.mkdir_p(target_dir) unless File.directory?(target_dir)
+
+          # Check file size (limit to 100MB)
+          file_size = tempfile.size
+          return workspace_error_response(413, 'FileTooLarge', 'File too large for upload (max 100MB)') if file_size > 100 * 1024 * 1024
+
+          # Copy uploaded file to workspace
+          tempfile.rewind
+          File.open(full_path, 'wb') do |dest_file|
+            IO.copy_stream(tempfile, dest_file)
+          end
+
+          # Set reasonable permissions
+          File.chmod(0o644, full_path)
+
+          {
+            status: 201,
+            body: {
+              path: path_param,
+              size: file_size,
+              original_filename: original_filename,
+              content_type: content_type,
+              message: 'File uploaded successfully'
+            }.to_json,
+            headers: { 'Content-Type' => 'application/json' }
+          }
+        rescue StandardError => e
+          workspace_error_response(500, 'UploadError', "Upload failed: #{e.message}")
+        ensure
+          # Clean up temporary file
+          tempfile&.close if tempfile.respond_to?(:close)
+        end
       end
 
       # Handle DELETE /api/v1/workspace/files - delete file
-      def handle_workspace_delete(_context)
-        # TODO: Implement file deletion
-        workspace_error_response(501, 'NotImplemented', 'File deletion not yet implemented')
+      def handle_workspace_delete(context)
+        request = context[:request]
+        path = request.params['path']
+
+        return workspace_error_response(400, 'BadRequest', 'path parameter required') unless path
+
+        # Sanitize path to prevent directory traversal
+        safe_path = sanitize_workspace_path(path)
+        full_path = File.join(@workspace_path, safe_path)
+
+        return workspace_error_response(404, 'NotFound', "Path not found: #{path}") unless File.exist?(full_path)
+
+        begin
+          deleted_info = {
+            path: path,
+            type: File.directory?(full_path) ? 'directory' : 'file',
+            size: File.directory?(full_path) ? nil : File.size(full_path)
+          }
+
+          if File.directory?(full_path)
+            # Delete directory and all contents
+            FileUtils.rm_rf(full_path)
+            deleted_info[:message] = 'Directory deleted successfully'
+          else
+            # Delete single file
+            File.delete(full_path)
+            deleted_info[:message] = 'File deleted successfully'
+          end
+
+          {
+            status: 200,
+            body: deleted_info.to_json,
+            headers: { 'Content-Type' => 'application/json' }
+          }
+        rescue StandardError => e
+          workspace_error_response(500, 'DeleteError', "Delete failed: #{e.message}")
+        end
       end
 
       # Handle GET /api/v1/workspace/files/download - download file/archive
-      def handle_workspace_download(_context)
-        # TODO: Implement file download
-        workspace_error_response(501, 'NotImplemented', 'File download not yet implemented')
+      def handle_workspace_download(context)
+        request = context[:request]
+        path = request.params['path']
+
+        return workspace_error_response(400, 'BadRequest', 'path parameter required') unless path
+
+        # Sanitize path to prevent directory traversal
+        safe_path = sanitize_workspace_path(path)
+        full_path = File.join(@workspace_path, safe_path)
+
+        return workspace_error_response(404, 'NotFound', "Path not found: #{path}") unless File.exist?(full_path)
+
+        begin
+          if File.directory?(full_path)
+            # Create temporary tar.gz archive for directory
+            archive_name = "#{File.basename(safe_path.empty? ? 'workspace' : safe_path)}.tar.gz"
+            temp_archive = "/tmp/#{SecureRandom.hex(8)}_#{archive_name}"
+
+            # Create tar archive
+            system('tar', '-czf', temp_archive, '-C', File.dirname(full_path), File.basename(full_path))
+
+            return workspace_error_response(500, 'ArchiveError', 'Failed to create archive') unless File.exist?(temp_archive)
+
+            # Read archive contents
+            archive_data = File.binread(temp_archive)
+
+            # Clean up temporary file
+            File.delete(temp_archive)
+
+            {
+              status: 200,
+              body: archive_data,
+              headers: {
+                'Content-Type' => 'application/gzip',
+                'Content-Disposition' => "attachment; filename=\"#{archive_name}\"",
+                'Content-Length' => archive_data.length.to_s
+              }
+            }
+          else
+            # Direct file download
+            file_data = File.binread(full_path)
+            filename = File.basename(safe_path)
+            content_type = detect_content_type(full_path)
+
+            # For binary files, use application/octet-stream
+            content_disposition = if content_type == 'application/octet-stream'
+                                    "attachment; filename=\"#{filename}\""
+                                  else
+                                    # For text files, allow inline viewing
+                                    "inline; filename=\"#{filename}\""
+                                  end
+
+            {
+              status: 200,
+              body: file_data,
+              headers: {
+                'Content-Type' => content_type,
+                'Content-Disposition' => content_disposition,
+                'Content-Length' => file_data.length.to_s
+              }
+            }
+          end
+        rescue StandardError => e
+          workspace_error_response(500, 'DownloadError', "Download failed: #{e.message}")
+        end
       end
 
       private
@@ -1075,7 +1235,7 @@ module LanguageOperator
             modified: File.mtime(entry_path).iso8601
           }
         end
-        
+
         files.sort_by! { |f| [f[:type] == 'directory' ? 0 : 1, f[:name]] }
 
         {
