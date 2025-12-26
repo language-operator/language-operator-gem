@@ -266,7 +266,7 @@ module LanguageOperator
             path: path,
             size: file_size,
             contents: contents
-          }.to_json,
+          },
           headers: { 'Content-Type' => 'application/json' }
         }
       rescue StandardError => e
@@ -312,7 +312,7 @@ module LanguageOperator
               message: 'File uploaded successfully',
               path: path_param,
               size: content.bytesize
-            }.to_json,
+            },
             headers: { 'Content-Type' => 'application/json' }
           }
         else
@@ -347,7 +347,7 @@ module LanguageOperator
           body: {
             message: 'File deleted successfully',
             path: path
-          }.to_json,
+          },
           headers: { 'Content-Type' => 'application/json' }
         }
       rescue StandardError => e
@@ -446,7 +446,7 @@ module LanguageOperator
           body: {
             path: requested_path,
             files: files
-          }.to_json,
+          },
           headers: { 'Content-Type' => 'application/json' }
         }
       end
@@ -459,7 +459,7 @@ module LanguageOperator
             path: requested_path,
             size: File.size(full_path),
             type: 'file'
-          }.to_json,
+          },
           headers: { 'Content-Type' => 'application/json' }
         }
       end
@@ -521,7 +521,7 @@ module LanguageOperator
           body: {
             error: error_type,
             message: message
-          }.to_json,
+          },
           headers: { 'Content-Type' => 'application/json' }
         }
       end
