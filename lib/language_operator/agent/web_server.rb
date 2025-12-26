@@ -176,6 +176,43 @@ module LanguageOperator
         puts 'Registered /api/v1/execute endpoint for triggered execution'
       end
 
+      # Register workspace file management endpoints
+      #
+      # @param agent [LanguageOperator::Agent::Base] The agent instance
+      def register_workspace_endpoints(agent)
+        return unless agent.workspace_available?
+
+        @workspace_agent = agent
+        @workspace_path = agent.workspace_path
+
+        # List directory contents
+        register_route('/api/v1/workspace/files', method: :get) do |context|
+          handle_workspace_list(context)
+        end
+
+        # View file contents
+        register_route('/api/v1/workspace/files/view', method: :get) do |context|
+          handle_workspace_view(context)
+        end
+
+        # Upload file
+        register_route('/api/v1/workspace/files', method: :post) do |context|
+          handle_workspace_upload(context)
+        end
+
+        # Delete file
+        register_route('/api/v1/workspace/files', method: :delete) do |context|
+          handle_workspace_delete(context)
+        end
+
+        # Download file/directory
+        register_route('/api/v1/workspace/files/download', method: :get) do |context|
+          handle_workspace_download(context)
+        end
+
+        puts 'Registered /api/v1/workspace/* endpoints for file management'
+      end
+
       # Handle incoming HTTP request
       #
       # @param env [Hash] Rack environment
@@ -304,18 +341,18 @@ module LanguageOperator
         puts "Starting execution #{execution_id}"
 
         # Execute agent main block (convention: all DSL agents have main blocks)
-        puts "About to execute main block..."
+        puts 'About to execute main block...'
         $stdout.flush
-        
+
         # Test logging capture during execution
         original_stdout = $stdout
         original_stderr = $stderr
         puts "Original stdout: #{original_stdout.class}"
         puts "Original stderr: #{original_stderr.class}"
         $stdout.flush
-        
+
         result = LanguageOperator::Agent.execute_main_block(@execute_agent, @execute_agent_def)
-        
+
         puts "Main block execution returned: #{result.inspect}"
         puts "Stdout after execution: #{$stdout.class}"
         puts "Stderr after execution: #{$stderr.class}"
@@ -362,7 +399,6 @@ module LanguageOperator
           headers: { 'Content-Type' => 'application/json' }
         }
       end
-
 
       # Generate error response for execute endpoint
       #
@@ -926,6 +962,173 @@ module LanguageOperator
         stream.write("data: #{JSON.generate(error_chunk)}\n\n")
       ensure
         stream.close
+      end
+
+      # Workspace file management handlers
+
+      # Handle GET /api/v1/workspace/files - list directory contents
+      def handle_workspace_list(context)
+        request = context[:request]
+        path = request.params['path'] || '/'
+
+        # Sanitize path to prevent directory traversal
+        safe_path = sanitize_workspace_path(path)
+        full_path = File.join(@workspace_path, safe_path)
+
+        return workspace_error_response(404, 'NotFound', "Path not found: #{path}") unless File.exist?(full_path)
+
+        if File.directory?(full_path)
+          list_directory_contents(full_path, path)
+        else
+          # If it's a file, return file info
+          get_file_info(full_path, path)
+        end
+      rescue StandardError => e
+        workspace_error_response(500, 'InternalError', e.message)
+      end
+
+      # Handle GET /api/v1/workspace/files/view - view file contents
+      def handle_workspace_view(context)
+        request = context[:request]
+        path = request.params['path']
+
+        return workspace_error_response(400, 'BadRequest', 'path parameter required') unless path
+
+        # Sanitize path to prevent directory traversal
+        safe_path = sanitize_workspace_path(path)
+        full_path = File.join(@workspace_path, safe_path)
+
+        return workspace_error_response(404, 'NotFound', "File not found: #{path}") unless File.exist?(full_path)
+
+        return workspace_error_response(400, 'BadRequest', "Path is not a file: #{path}") unless File.file?(full_path)
+
+        # Check file size (limit to 10MB for API responses)
+        file_size = File.size(full_path)
+        return workspace_error_response(413, 'FileTooLarge', 'File too large for viewing (max 10MB)') if file_size > 10 * 1024 * 1024
+
+        # Read file contents
+        contents = File.read(full_path)
+
+        {
+          status: 200,
+          body: {
+            path: path,
+            size: file_size,
+            modified: File.mtime(full_path).iso8601,
+            content: contents,
+            content_type: detect_content_type(full_path)
+          }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        }
+      rescue StandardError => e
+        workspace_error_response(500, 'InternalError', e.message)
+      end
+
+      # Handle POST /api/v1/workspace/files - upload file
+      def handle_workspace_upload(_context)
+        # TODO: Implement file upload
+        workspace_error_response(501, 'NotImplemented', 'File upload not yet implemented')
+      end
+
+      # Handle DELETE /api/v1/workspace/files - delete file
+      def handle_workspace_delete(_context)
+        # TODO: Implement file deletion
+        workspace_error_response(501, 'NotImplemented', 'File deletion not yet implemented')
+      end
+
+      # Handle GET /api/v1/workspace/files/download - download file/archive
+      def handle_workspace_download(_context)
+        # TODO: Implement file download
+        workspace_error_response(501, 'NotImplemented', 'File download not yet implemented')
+      end
+
+      private
+
+      # Sanitize workspace path to prevent directory traversal attacks
+      def sanitize_workspace_path(path)
+        # Remove leading slash and resolve relative paths
+        clean_path = path.sub(%r{^/+}, '')
+
+        # Resolve and normalize the path
+        normalized = File.expand_path(clean_path, '/')
+
+        # Ensure it doesn't escape the root
+        return '' if normalized == '/' || !normalized.start_with?('/')
+
+        # Remove leading slash for joining with workspace_path
+        normalized[1..]
+      end
+
+      # List directory contents
+      def list_directory_contents(full_path, requested_path)
+        entries = Dir.entries(full_path).reject { |entry| entry.start_with?('.') }
+
+        files = entries.map do |entry|
+          entry_path = File.join(full_path, entry)
+          relative_path = File.join(requested_path == '/' ? '' : requested_path, entry)
+
+          {
+            name: entry,
+            path: "/#{relative_path}".gsub(%r{/+}, '/'),
+            type: File.directory?(entry_path) ? 'directory' : 'file',
+            size: File.directory?(entry_path) ? nil : File.size(entry_path),
+            modified: File.mtime(entry_path).iso8601
+          }
+        end
+        
+        files.sort_by! { |f| [f[:type] == 'directory' ? 0 : 1, f[:name]] }
+
+        {
+          status: 200,
+          body: {
+            path: requested_path,
+            files: files,
+            total: files.length
+          }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        }
+      end
+
+      # Get file info for a single file
+      def get_file_info(full_path, requested_path)
+        {
+          status: 200,
+          body: {
+            path: requested_path,
+            type: 'file',
+            size: File.size(full_path),
+            modified: File.mtime(full_path).iso8601
+          }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        }
+      end
+
+      # Detect content type based on file extension
+      def detect_content_type(file_path)
+        case File.extname(file_path).downcase
+        when '.txt', '.log' then 'text/plain'
+        when '.json' then 'application/json'
+        when '.yml', '.yaml' then 'application/x-yaml'
+        when '.md' then 'text/markdown'
+        when '.html' then 'text/html'
+        when '.css' then 'text/css'
+        when '.js' then 'application/javascript'
+        when '.py' then 'text/x-python'
+        when '.rb' then 'text/x-ruby'
+        else 'application/octet-stream'
+        end
+      end
+
+      # Generate workspace API error response
+      def workspace_error_response(status, error_type, message)
+        {
+          status: status,
+          body: {
+            error: error_type,
+            message: message
+          }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        }
       end
     end
   end

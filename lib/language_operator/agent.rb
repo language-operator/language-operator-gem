@@ -212,6 +212,7 @@ module LanguageOperator
         web_server.register_mcp_tools(agent_def.mcp_server) if agent_def.mcp_server&.tools?
         web_server.register_chat_endpoint(agent)
         web_server.register_execute_endpoint(agent, agent_def)
+        web_server.register_workspace_endpoints(agent)
 
         web_server.start # Blocks here, waiting for requests
       when 'reactive', 'http', 'webhook'
@@ -225,6 +226,7 @@ module LanguageOperator
         web_server.register_mcp_tools(agent_def.mcp_server) if agent_def.mcp_server&.tools?
         web_server.register_chat_endpoint(agent)
         web_server.register_execute_endpoint(agent, agent_def)
+        web_server.register_workspace_endpoints(agent)
 
         web_server.start
       else

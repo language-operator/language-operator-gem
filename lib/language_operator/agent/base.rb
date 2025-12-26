@@ -116,6 +116,7 @@ module LanguageOperator
         require_relative 'web_server'
         @web_server = WebServer.new(self)
         @web_server.register_execute_endpoint(self, nil)
+        @web_server.register_workspace_endpoints(self)
         @web_server.start
       end
 
@@ -128,6 +129,7 @@ module LanguageOperator
         require_relative 'web_server'
         @web_server = WebServer.new(self)
         @web_server.register_execute_endpoint(self, nil) # Enable /api/v1/execute endpoint
+        @web_server.register_workspace_endpoints(self)
         @web_server.start
       end
 
