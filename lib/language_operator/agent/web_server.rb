@@ -215,6 +215,201 @@ module LanguageOperator
         puts 'Registered /api/v1/workspace/* endpoints for file management'
       end
 
+      # Workspace file management handlers
+
+      # Handle GET /api/v1/workspace/files - list directory contents
+      def handle_workspace_list(context)
+        request = context[:request]
+        path = request.params['path'] || '/'
+
+        # Sanitize path to prevent directory traversal
+        safe_path = sanitize_workspace_path(path)
+        full_path = File.join(@workspace_path, safe_path)
+
+        return workspace_error_response(404, 'NotFound', "Path not found: #{path}") unless File.exist?(full_path)
+
+        if File.directory?(full_path)
+          list_directory_contents(full_path, path)
+        else
+          # If it's a file, return file info
+          get_file_info(full_path, path)
+        end
+      rescue StandardError => e
+        workspace_error_response(500, 'InternalError', e.message)
+      end
+
+      # Handle GET /api/v1/workspace/files/view - view file contents
+      def handle_workspace_view(context)
+        request = context[:request]
+        path = request.params['path']
+
+        return workspace_error_response(400, 'BadRequest', 'path parameter required') unless path
+
+        # Sanitize path to prevent directory traversal
+        safe_path = sanitize_workspace_path(path)
+        full_path = File.join(@workspace_path, safe_path)
+
+        return workspace_error_response(404, 'NotFound', "File not found: #{path}") unless File.exist?(full_path)
+
+        return workspace_error_response(400, 'BadRequest', "Path is not a file: #{path}") unless File.file?(full_path)
+
+        # Check file size (limit to 10MB for API responses)
+        file_size = File.size(full_path)
+        return workspace_error_response(413, 'FileTooLarge', 'File too large for viewing (max 10MB)') if file_size > 10 * 1024 * 1024
+
+        # Read file contents
+        contents = File.read(full_path)
+
+        {
+          status: 200,
+          body: {
+            path: path,
+            size: file_size,
+            contents: contents
+          }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        }
+      rescue StandardError => e
+        workspace_error_response(500, 'InternalError', e.message)
+      end
+
+      # Handle POST /api/v1/workspace/files - upload file
+      def handle_workspace_upload(context)
+        request = context[:request]
+        
+        # Parse multipart form data
+        if request.content_type&.start_with?('multipart/form-data')
+          boundary = request.content_type.split('boundary=')[1]
+          return workspace_error_response(400, 'BadRequest', 'Missing boundary in multipart data') unless boundary
+
+          # Parse the multipart data
+          body = request.body.read
+          parts = parse_multipart(body, boundary)
+          
+          file_part = parts.find { |part| part[:name] == 'file' }
+          path_param = parts.find { |part| part[:name] == 'path' }&.dig(:content)
+          
+          return workspace_error_response(400, 'BadRequest', 'file parameter required') unless file_part
+          return workspace_error_response(400, 'BadRequest', 'path parameter required') unless path_param
+
+          # Sanitize path to prevent directory traversal
+          safe_path = sanitize_workspace_path(path_param)
+          full_path = File.join(@workspace_path, safe_path)
+
+          # Check file size (limit to 100MB)
+          content = file_part[:content]
+          return workspace_error_response(413, 'FileTooLarge', 'File too large (max 100MB)') if content.bytesize > 100 * 1024 * 1024
+
+          # Create directory if it doesn't exist
+          FileUtils.mkdir_p(File.dirname(full_path))
+
+          # Write file
+          File.binwrite(full_path, content)
+
+          {
+            status: 201,
+            body: {
+              message: 'File uploaded successfully',
+              path: path_param,
+              size: content.bytesize
+            }.to_json,
+            headers: { 'Content-Type' => 'application/json' }
+          }
+        else
+          workspace_error_response(400, 'BadRequest', 'Expected multipart/form-data')
+        end
+      rescue StandardError => e
+        workspace_error_response(500, 'UploadError', "Upload failed: #{e.message}")
+      end
+
+      # Handle DELETE /api/v1/workspace/files - delete file
+      def handle_workspace_delete(context)
+        request = context[:request]
+        path = request.params['path']
+
+        return workspace_error_response(400, 'BadRequest', 'path parameter required') unless path
+
+        # Sanitize path to prevent directory traversal
+        safe_path = sanitize_workspace_path(path)
+        full_path = File.join(@workspace_path, safe_path)
+
+        return workspace_error_response(404, 'NotFound', "File not found: #{path}") unless File.exist?(full_path)
+
+        # Delete file or directory
+        if File.directory?(full_path)
+          FileUtils.rm_rf(full_path)
+        else
+          File.delete(full_path)
+        end
+
+        {
+          status: 200,
+          body: {
+            message: 'File deleted successfully',
+            path: path
+          }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        }
+      rescue StandardError => e
+        workspace_error_response(500, 'DeleteError', "Deletion failed: #{e.message}")
+      end
+
+      # Handle GET /api/v1/workspace/files/download - download file or directory as tar.gz
+      def handle_workspace_download(context)
+        request = context[:request]
+        path = request.params['path']
+
+        return workspace_error_response(400, 'BadRequest', 'path parameter required') unless path
+
+        # Sanitize path to prevent directory traversal
+        safe_path = sanitize_workspace_path(path)
+        full_path = File.join(@workspace_path, safe_path)
+
+        return workspace_error_response(404, 'NotFound', "Path not found: #{path}") unless File.exist?(full_path)
+
+        if File.file?(full_path)
+          # Single file download
+          content = File.binread(full_path)
+          filename = File.basename(full_path)
+          
+          {
+            status: 200,
+            body: content,
+            headers: {
+              'Content-Type' => 'application/octet-stream',
+              'Content-Disposition' => "attachment; filename=\"#{filename}\""
+            }
+          }
+        else
+          # Directory download as tar.gz
+          require 'tempfile'
+          require 'zlib'
+          require 'rubygems/package'
+
+          Tempfile.create(['workspace', '.tar.gz']) do |temp_file|
+            Zlib::GzipWriter.open(temp_file.path) do |gz|
+              Gem::Package::TarWriter.new(gz) do |tar|
+                add_directory_to_tar(tar, full_path, safe_path)
+              end
+            end
+
+            content = File.binread(temp_file.path)
+            filename = "#{File.basename(path)}.tar.gz"
+
+            {
+              status: 200,
+              body: content,
+              headers: {
+                'Content-Type' => 'application/gzip',
+                'Content-Disposition' => "attachment; filename=\"#{filename}\""
+              }
+            }
+          end
+        end
+      rescue StandardError => e
+        workspace_error_response(500, 'DownloadError', "Download failed: #{e.message}")
+      end
+
       # Handle incoming HTTP request
       #
       # @param env [Hash] Rack environment
@@ -966,243 +1161,6 @@ module LanguageOperator
         stream.close
       end
 
-      # Workspace file management handlers
-
-      # Handle GET /api/v1/workspace/files - list directory contents
-      def handle_workspace_list(context)
-        request = context[:request]
-        path = request.params['path'] || '/'
-
-        # Sanitize path to prevent directory traversal
-        safe_path = sanitize_workspace_path(path)
-        full_path = File.join(@workspace_path, safe_path)
-
-        return workspace_error_response(404, 'NotFound', "Path not found: #{path}") unless File.exist?(full_path)
-
-        if File.directory?(full_path)
-          list_directory_contents(full_path, path)
-        else
-          # If it's a file, return file info
-          get_file_info(full_path, path)
-        end
-      rescue StandardError => e
-        workspace_error_response(500, 'InternalError', e.message)
-      end
-
-      # Handle GET /api/v1/workspace/files/view - view file contents
-      def handle_workspace_view(context)
-        request = context[:request]
-        path = request.params['path']
-
-        return workspace_error_response(400, 'BadRequest', 'path parameter required') unless path
-
-        # Sanitize path to prevent directory traversal
-        safe_path = sanitize_workspace_path(path)
-        full_path = File.join(@workspace_path, safe_path)
-
-        return workspace_error_response(404, 'NotFound', "File not found: #{path}") unless File.exist?(full_path)
-
-        return workspace_error_response(400, 'BadRequest', "Path is not a file: #{path}") unless File.file?(full_path)
-
-        # Check file size (limit to 10MB for API responses)
-        file_size = File.size(full_path)
-        return workspace_error_response(413, 'FileTooLarge', 'File too large for viewing (max 10MB)') if file_size > 10 * 1024 * 1024
-
-        # Read file contents
-        contents = File.read(full_path)
-
-        {
-          status: 200,
-          body: {
-            path: path,
-            size: file_size,
-            modified: File.mtime(full_path).iso8601,
-            content: contents,
-            content_type: detect_content_type(full_path)
-          }.to_json,
-          headers: { 'Content-Type' => 'application/json' }
-        }
-      rescue StandardError => e
-        workspace_error_response(500, 'InternalError', e.message)
-      end
-
-      # Handle POST /api/v1/workspace/files - upload file
-      def handle_workspace_upload(context)
-        request = context[:request]
-
-        # Check for multipart form data
-        content_type = request.env['CONTENT_TYPE']
-        unless content_type&.start_with?('multipart/form-data')
-          return workspace_error_response(400, 'BadRequest', 'Content-Type must be multipart/form-data')
-        end
-
-        # Parse multipart data
-        begin
-          # Get file from params (Rack automatically parses multipart data)
-          file_param = request.params['file']
-          path_param = request.params['path']
-
-          return workspace_error_response(400, 'BadRequest', 'file parameter required') unless file_param
-
-          return workspace_error_response(400, 'BadRequest', 'path parameter required') unless path_param
-
-          # Handle file upload object
-          return workspace_error_response(400, 'BadRequest', 'Invalid file upload format') unless file_param.is_a?(Hash) && file_param[:tempfile]
-
-          # Rack file upload format
-          tempfile = file_param[:tempfile]
-          original_filename = file_param[:filename]
-          content_type = file_param[:type]
-
-          # Sanitize target path
-          safe_path = sanitize_workspace_path(path_param)
-          full_path = File.join(@workspace_path, safe_path)
-
-          # Ensure target directory exists
-          target_dir = File.dirname(full_path)
-          FileUtils.mkdir_p(target_dir) unless File.directory?(target_dir)
-
-          # Check file size (limit to 100MB)
-          file_size = tempfile.size
-          return workspace_error_response(413, 'FileTooLarge', 'File too large for upload (max 100MB)') if file_size > 100 * 1024 * 1024
-
-          # Copy uploaded file to workspace
-          tempfile.rewind
-          File.open(full_path, 'wb') do |dest_file|
-            IO.copy_stream(tempfile, dest_file)
-          end
-
-          # Set reasonable permissions
-          File.chmod(0o644, full_path)
-
-          {
-            status: 201,
-            body: {
-              path: path_param,
-              size: file_size,
-              original_filename: original_filename,
-              content_type: content_type,
-              message: 'File uploaded successfully'
-            }.to_json,
-            headers: { 'Content-Type' => 'application/json' }
-          }
-        rescue StandardError => e
-          workspace_error_response(500, 'UploadError', "Upload failed: #{e.message}")
-        ensure
-          # Clean up temporary file
-          tempfile&.close if tempfile.respond_to?(:close)
-        end
-      end
-
-      # Handle DELETE /api/v1/workspace/files - delete file
-      def handle_workspace_delete(context)
-        request = context[:request]
-        path = request.params['path']
-
-        return workspace_error_response(400, 'BadRequest', 'path parameter required') unless path
-
-        # Sanitize path to prevent directory traversal
-        safe_path = sanitize_workspace_path(path)
-        full_path = File.join(@workspace_path, safe_path)
-
-        return workspace_error_response(404, 'NotFound', "Path not found: #{path}") unless File.exist?(full_path)
-
-        begin
-          deleted_info = {
-            path: path,
-            type: File.directory?(full_path) ? 'directory' : 'file',
-            size: File.directory?(full_path) ? nil : File.size(full_path)
-          }
-
-          if File.directory?(full_path)
-            # Delete directory and all contents
-            FileUtils.rm_rf(full_path)
-            deleted_info[:message] = 'Directory deleted successfully'
-          else
-            # Delete single file
-            File.delete(full_path)
-            deleted_info[:message] = 'File deleted successfully'
-          end
-
-          {
-            status: 200,
-            body: deleted_info.to_json,
-            headers: { 'Content-Type' => 'application/json' }
-          }
-        rescue StandardError => e
-          workspace_error_response(500, 'DeleteError', "Delete failed: #{e.message}")
-        end
-      end
-
-      # Handle GET /api/v1/workspace/files/download - download file/archive
-      def handle_workspace_download(context)
-        request = context[:request]
-        path = request.params['path']
-
-        return workspace_error_response(400, 'BadRequest', 'path parameter required') unless path
-
-        # Sanitize path to prevent directory traversal
-        safe_path = sanitize_workspace_path(path)
-        full_path = File.join(@workspace_path, safe_path)
-
-        return workspace_error_response(404, 'NotFound', "Path not found: #{path}") unless File.exist?(full_path)
-
-        begin
-          if File.directory?(full_path)
-            # Create temporary tar.gz archive for directory
-            archive_name = "#{File.basename(safe_path.empty? ? 'workspace' : safe_path)}.tar.gz"
-            temp_archive = "/tmp/#{SecureRandom.hex(8)}_#{archive_name}"
-
-            # Create tar archive
-            system('tar', '-czf', temp_archive, '-C', File.dirname(full_path), File.basename(full_path))
-
-            return workspace_error_response(500, 'ArchiveError', 'Failed to create archive') unless File.exist?(temp_archive)
-
-            # Read archive contents
-            archive_data = File.binread(temp_archive)
-
-            # Clean up temporary file
-            File.delete(temp_archive)
-
-            {
-              status: 200,
-              body: archive_data,
-              headers: {
-                'Content-Type' => 'application/gzip',
-                'Content-Disposition' => "attachment; filename=\"#{archive_name}\"",
-                'Content-Length' => archive_data.length.to_s
-              }
-            }
-          else
-            # Direct file download
-            file_data = File.binread(full_path)
-            filename = File.basename(safe_path)
-            content_type = detect_content_type(full_path)
-
-            # For binary files, use application/octet-stream
-            content_disposition = if content_type == 'application/octet-stream'
-                                    "attachment; filename=\"#{filename}\""
-                                  else
-                                    # For text files, allow inline viewing
-                                    "inline; filename=\"#{filename}\""
-                                  end
-
-            {
-              status: 200,
-              body: file_data,
-              headers: {
-                'Content-Type' => content_type,
-                'Content-Disposition' => content_disposition,
-                'Content-Length' => file_data.length.to_s
-              }
-            }
-          end
-        rescue StandardError => e
-          workspace_error_response(500, 'DownloadError', "Download failed: #{e.message}")
-        end
-      end
-
-      private
 
       # Sanitize workspace path to prevent directory traversal attacks
       def sanitize_workspace_path(path)
