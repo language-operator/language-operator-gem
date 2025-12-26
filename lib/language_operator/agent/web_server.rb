@@ -410,6 +410,122 @@ module LanguageOperator
         workspace_error_response(500, 'DownloadError', "Download failed: #{e.message}")
       end
 
+      # Workspace helper methods
+
+      # Sanitize workspace path to prevent directory traversal attacks
+      def sanitize_workspace_path(path)
+        # Remove leading slash and resolve relative paths
+        clean_path = path.sub(%r{^/+}, '')
+
+        # Resolve and normalize the path
+        normalized = File.expand_path(clean_path, '/')
+
+        # Ensure it doesn't escape the root
+        return '' if normalized == '/' || !normalized.start_with?('/')
+
+        # Remove leading slash for joining with workspace_path
+        normalized[1..]
+      end
+
+      # List directory contents
+      def list_directory_contents(full_path, requested_path)
+        entries = Dir.entries(full_path).reject { |entry| entry.start_with?('.') }
+
+        files = entries.map do |entry|
+          entry_path = File.join(full_path, entry)
+          {
+            name: entry,
+            type: File.directory?(entry_path) ? 'directory' : 'file',
+            size: File.file?(entry_path) ? File.size(entry_path) : nil,
+            path: File.join(requested_path, entry).sub(%r{^/+}, '')
+          }
+        end
+
+        {
+          status: 200,
+          body: {
+            path: requested_path,
+            files: files
+          }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        }
+      end
+
+      # Get file information
+      def get_file_info(full_path, requested_path)
+        {
+          status: 200,
+          body: {
+            path: requested_path,
+            size: File.size(full_path),
+            type: 'file'
+          }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        }
+      end
+
+      # Parse multipart form data
+      def parse_multipart(body, boundary)
+        parts = []
+        boundary = "--#{boundary}"
+        sections = body.split(boundary)
+        
+        sections[1..-2]&.each do |section|
+          next if section.strip.empty?
+          
+          lines = section.split("\r\n")
+          content_disposition = lines.find { |line| line.include?('Content-Disposition') }
+          next unless content_disposition
+          
+          name_match = content_disposition.match(/name="([^"]+)"/)
+          next unless name_match
+          
+          name = name_match[1]
+          
+          # Find empty line separating headers from content
+          content_start = lines.index('') 
+          next unless content_start
+          
+          content = lines[(content_start + 1)..-1].join("\r\n")
+          content = content[0..-3] if content.end_with?("\r\n") # Remove trailing CRLF
+          
+          parts << { name: name, content: content }
+        end
+        
+        parts
+      end
+
+      # Add directory to tar archive recursively
+      def add_directory_to_tar(tar, source_path, archive_path)
+        Dir.entries(source_path).each do |entry|
+          next if entry.start_with?('.')
+          
+          full_path = File.join(source_path, entry)
+          tar_path = File.join(archive_path, entry)
+          
+          if File.directory?(full_path)
+            tar.mkdir(tar_path, 0755)
+            add_directory_to_tar(tar, full_path, tar_path)
+          else
+            tar.add_file(tar_path, 0644) do |io|
+              io.write(File.binread(full_path))
+            end
+          end
+        end
+      end
+
+      # Generate workspace error response
+      def workspace_error_response(status, error_type, message)
+        {
+          status: status,
+          body: {
+            error: error_type,
+            message: message
+          }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        }
+      end
+
       # Handle incoming HTTP request
       #
       # @param env [Hash] Rack environment
@@ -1162,92 +1278,6 @@ module LanguageOperator
       end
 
 
-      # Sanitize workspace path to prevent directory traversal attacks
-      def sanitize_workspace_path(path)
-        # Remove leading slash and resolve relative paths
-        clean_path = path.sub(%r{^/+}, '')
-
-        # Resolve and normalize the path
-        normalized = File.expand_path(clean_path, '/')
-
-        # Ensure it doesn't escape the root
-        return '' if normalized == '/' || !normalized.start_with?('/')
-
-        # Remove leading slash for joining with workspace_path
-        normalized[1..]
-      end
-
-      # List directory contents
-      def list_directory_contents(full_path, requested_path)
-        entries = Dir.entries(full_path).reject { |entry| entry.start_with?('.') }
-
-        files = entries.map do |entry|
-          entry_path = File.join(full_path, entry)
-          relative_path = File.join(requested_path == '/' ? '' : requested_path, entry)
-
-          {
-            name: entry,
-            path: "/#{relative_path}".gsub(%r{/+}, '/'),
-            type: File.directory?(entry_path) ? 'directory' : 'file',
-            size: File.directory?(entry_path) ? nil : File.size(entry_path),
-            modified: File.mtime(entry_path).iso8601
-          }
-        end
-
-        files.sort_by! { |f| [f[:type] == 'directory' ? 0 : 1, f[:name]] }
-
-        {
-          status: 200,
-          body: {
-            path: requested_path,
-            files: files,
-            total: files.length
-          }.to_json,
-          headers: { 'Content-Type' => 'application/json' }
-        }
-      end
-
-      # Get file info for a single file
-      def get_file_info(full_path, requested_path)
-        {
-          status: 200,
-          body: {
-            path: requested_path,
-            type: 'file',
-            size: File.size(full_path),
-            modified: File.mtime(full_path).iso8601
-          }.to_json,
-          headers: { 'Content-Type' => 'application/json' }
-        }
-      end
-
-      # Detect content type based on file extension
-      def detect_content_type(file_path)
-        case File.extname(file_path).downcase
-        when '.txt', '.log' then 'text/plain'
-        when '.json' then 'application/json'
-        when '.yml', '.yaml' then 'application/x-yaml'
-        when '.md' then 'text/markdown'
-        when '.html' then 'text/html'
-        when '.css' then 'text/css'
-        when '.js' then 'application/javascript'
-        when '.py' then 'text/x-python'
-        when '.rb' then 'text/x-ruby'
-        else 'application/octet-stream'
-        end
-      end
-
-      # Generate workspace API error response
-      def workspace_error_response(status, error_type, message)
-        {
-          status: status,
-          body: {
-            error: error_type,
-            message: message
-          }.to_json,
-          headers: { 'Content-Type' => 'application/json' }
-        }
-      end
     end
   end
 end
