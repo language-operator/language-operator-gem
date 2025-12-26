@@ -1,0 +1,117 @@
+{
+  "version": "1.0",
+  "description": "Skill activation triggers for Language Operator Ruby gem development",
+  "skills": {
+    "ruby-gem-development": {
+      "type": "domain",
+      "enforcement": "suggest", 
+      "priority": "high",
+      "description": "Ruby gem development patterns with bundler, RSpec, and RuboCop",
+      "promptTriggers": {
+        "keywords": [
+          "gem", "gemspec", "bundler", "bundle",
+          "RSpec", "rspec", "test", "spec",
+          "RuboCop", "rubocop", "lint", 
+          "Rakefile", "rake task",
+          "version", "release", "publish"
+        ],
+        "intentPatterns": [
+          "(create|add|implement|build).*?(gem|library)",
+          "(test|spec).*?(pattern|structure)",
+          "(fix|improve).*?(test|spec)", 
+          "(lint|format).*?(code|ruby)",
+          "(build|release|publish).*?(gem)",
+          "(add|create).*?(rake task)"
+        ]
+      },
+      "fileTriggers": {
+        "pathPatterns": [
+          "*.gemspec",
+          "Gemfile",
+          "Gemfile.lock", 
+          "Rakefile",
+          "lib/**/*.rb",
+          "spec/**/*_spec.rb"
+        ],
+        "pathExclusions": [
+          "vendor/**",
+          ".bundle/**"
+        ],
+        "contentPatterns": [
+          "require.*language_operator",
+          "describe.*do",
+          "it.*do",
+          "RSpec\\.describe",
+          "Gem::Specification",
+          "spec\\.add_"
+        ]
+      }
+    },
+    "thor-cli-development": {
+      "type": "domain",
+      "enforcement": "suggest",
+      "priority": "high", 
+      "description": "Thor-based CLI development patterns for aictl",
+      "promptTriggers": {
+        "keywords": [
+          "CLI", "command", "Thor", "aictl",
+          "subcommand", "argument", "option",
+          "wizard", "interactive"
+        ],
+        "intentPatterns": [
+          "(create|add|implement).*?(command|CLI)",
+          "(add|create).*?(subcommand|option)",
+          "(implement|build).*?(wizard|interactive)",
+          "(format|display).*?(output|table)"
+        ]
+      },
+      "fileTriggers": {
+        "pathPatterns": [
+          "lib/language_operator/cli/**/*.rb",
+          "bin/aictl"
+        ],
+        "contentPatterns": [
+          "class.*< Thor",
+          "desc.*,",
+          "option.*:",
+          "Commands::",
+          "Wizards::"
+        ]
+      }
+    },
+    "language-operator-dsl": {
+      "type": "domain",
+      "enforcement": "suggest",
+      "priority": "high",
+      "description": "Language Operator DSL patterns for agents, tools, and workflows",
+      "promptTriggers": {
+        "keywords": [
+          "DSL", "agent", "tool", "workflow", 
+          "MCP", "server", "schema",
+          "execution", "kubernetes", "deployment"
+        ],
+        "intentPatterns": [
+          "(create|define|implement).*?(agent|tool|workflow)",
+          "(add|modify).*?(DSL|schema)",
+          "(deploy|run).*?(agent|kubernetes)",
+          "(test|validate).*?(DSL|schema)"
+        ]
+      },
+      "fileTriggers": {
+        "pathPatterns": [
+          "lib/language_operator/dsl/**/*.rb",
+          "lib/language_operator/agent/**/*.rb",
+          "lib/language_operator/kubernetes/**/*.rb"
+        ],
+        "contentPatterns": [
+          "LanguageOperator::Dsl",
+          "agent.*do",
+          "tool.*do", 
+          "workflow.*do",
+          "execute.*do",
+          "kubernetes.*apply"
+        ]
+      }
+    }
+  }
+}
