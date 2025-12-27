@@ -142,25 +142,20 @@ module LanguageOperator
           current_span = OpenTelemetry::Trace.current_span
           current_span&.set_attribute('task.outputs', result.to_json) if current_span && capture_enabled?(:outputs)
 
-          # Emit Kubernetes event for successful task completion
-          emit_task_execution_event(task_name, success: true, execution_start: execution_start)
 
           result
         end
       rescue ArgumentError => e
         # Validation errors should not be retried - re-raise immediately
         log_task_error(task_name, e, :validation, execution_start)
-        emit_task_execution_event(task_name, success: false, execution_start: execution_start, error: e, event_type: :validation)
         raise TaskValidationError.new(task_name, e.message, e)
       rescue TaskValidationError => e
         # TaskValidationError from validate_inputs should be logged as :validation
         log_task_error(task_name, e, :validation, execution_start)
-        emit_task_execution_event(task_name, success: false, execution_start: execution_start, error: e, event_type: :validation)
         raise e
       rescue StandardError => e
         # Catch any unexpected errors that escaped retry logic
         log_task_error(task_name, e, :system, execution_start)
-        emit_task_execution_event(task_name, success: false, execution_start: execution_start, error: e)
         raise create_appropriate_error(task_name, e)
       end
 
@@ -383,38 +378,6 @@ module LanguageOperator
         'Agent::TaskExecutor'
       end
 
-      # Emit Kubernetes event for task execution
-      #
-      # @param task_name [Symbol, String] Task name
-      # @param success [Boolean] Whether task succeeded
-      # @param execution_start [Time] Task execution start time
-      # @param error [Exception, nil] Error if task failed
-      # @param event_type [Symbol, nil] Event type override (:success, :failure, :validation)
-      def emit_task_execution_event(task_name, success:, execution_start:, error: nil, event_type: nil)
-        return unless @agent.respond_to?(:kubernetes_client)
-
-        duration_ms = ((Time.now - execution_start) * 1000).round(2)
-
-        metadata = {
-          'task_type' => determine_task_type(@tasks[task_name.to_sym])
-        }
-
-        if error
-          metadata['error_type'] = error.class.name
-          metadata['error_category'] = categorize_error(error).to_s
-        end
-
-        @agent.kubernetes_client.emit_execution_event(
-          task_name.to_s,
-          success: success,
-          duration_ms: duration_ms,
-          metadata: metadata
-        )
-      rescue StandardError => e
-        logger.warn('Failed to emit task execution event',
-                    task: task_name,
-                    error: e.message)
-      end
 
       # Summarize hash values for logging (truncate long strings)
       # Optimized for performance with lazy computation
