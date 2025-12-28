@@ -192,7 +192,8 @@ module LanguageOperator
             persona_resource = Kubernetes::ResourceBuilder.build_persona(
               name: name,
               spec: persona_spec,
-              namespace: ctx.namespace
+              namespace: ctx.namespace,
+              cluster_ref: ctx.name
             )
 
             # Show preview

@@ -200,4 +200,88 @@ RSpec.describe LanguageOperator::Kubernetes::ResourceBuilder do
       expect(resource.dig('spec', 'config')).to eq({ 'key' => 'value' })
     end
   end
+
+  describe '.language_persona' do
+    it 'creates persona resource without clusterRef when not provided' do
+      resource = described_class.language_persona(
+        'test-persona',
+        description: 'A test persona',
+        tone: 'friendly',
+        system_prompt: 'You are a helpful assistant',
+        cluster: 'test-cluster'
+      )
+
+      expect(resource).to include(
+        'apiVersion' => 'langop.io/v1alpha1',
+        'kind' => 'LanguagePersona'
+      )
+      expect(resource.dig('metadata', 'name')).to eq('test-persona')
+      expect(resource.dig('metadata', 'namespace')).to eq('test-cluster')
+      expect(resource.dig('spec', 'description')).to eq('A test persona')
+      expect(resource.dig('spec', 'tone')).to eq('friendly')
+      expect(resource.dig('spec', 'systemPrompt')).to eq('You are a helpful assistant')
+      expect(resource.dig('spec', 'displayName')).to eq('Test Persona')
+      expect(resource.dig('spec', 'clusterRef')).to be_nil
+    end
+
+    it 'includes clusterRef in spec when provided' do
+      resource = described_class.language_persona(
+        'test-persona',
+        description: 'A test persona',
+        tone: 'friendly',
+        system_prompt: 'You are a helpful assistant',
+        cluster: 'test-cluster',
+        cluster_ref: 'test-cluster-ref'
+      )
+
+      expect(resource.dig('spec', 'clusterRef')).to eq('test-cluster-ref')
+      expect(resource.dig('spec', 'description')).to eq('A test persona')
+      expect(resource.dig('spec', 'tone')).to eq('friendly')
+      expect(resource.dig('spec', 'systemPrompt')).to eq('You are a helpful assistant')
+    end
+  end
+
+  describe '.build_persona' do
+    it 'creates persona resource without clusterRef when not provided' do
+      spec = {
+        'displayName' => 'Test Persona',
+        'description' => 'A test persona',
+        'tone' => 'friendly',
+        'systemPrompt' => 'You are a helpful assistant'
+      }
+      
+      resource = described_class.build_persona(
+        name: 'test-persona',
+        spec: spec,
+        namespace: 'test-cluster'
+      )
+
+      expect(resource).to include(
+        'apiVersion' => 'langop.io/v1alpha1',
+        'kind' => 'LanguagePersona'
+      )
+      expect(resource.dig('metadata', 'name')).to eq('test-persona')
+      expect(resource.dig('metadata', 'namespace')).to eq('test-cluster')
+      expect(resource.dig('spec', 'clusterRef')).to be_nil
+    end
+
+    it 'includes clusterRef in spec when provided' do
+      spec = {
+        'displayName' => 'Test Persona',
+        'description' => 'A test persona',
+        'tone' => 'friendly',
+        'systemPrompt' => 'You are a helpful assistant'
+      }
+      
+      resource = described_class.build_persona(
+        name: 'test-persona',
+        spec: spec,
+        namespace: 'test-cluster',
+        cluster_ref: 'test-cluster-ref'
+      )
+
+      expect(resource.dig('spec', 'clusterRef')).to eq('test-cluster-ref')
+      expect(resource.dig('spec', 'description')).to eq('A test persona')
+    end
+  end
 end

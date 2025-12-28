@@ -63,18 +63,18 @@ module LanguageOperator
         end
 
         # Build a LanguagePersona resource
-        def language_persona(name, description:, tone:, system_prompt:, cluster: nil, labels: {})
+        def language_persona(name, description:, tone:, system_prompt:, cluster: nil, cluster_ref: nil, labels: {})
           build_resource('LanguagePersona', name, {
                            'displayName' => name.split('-').map(&:capitalize).join(' '),
                            'description' => description,
                            'tone' => tone,
                            'systemPrompt' => system_prompt
-                         }, namespace: cluster, labels: labels)
+                         }, namespace: cluster, cluster_ref: cluster_ref, labels: labels)
         end
 
         # Build a LanguagePersona resource with full spec control
-        def build_persona(name:, spec:, namespace: nil, labels: {})
-          build_resource('LanguagePersona', name, spec, namespace: namespace, labels: labels)
+        def build_persona(name:, spec:, namespace: nil, cluster_ref: nil, labels: {})
+          build_resource('LanguagePersona', name, spec, namespace: namespace, cluster_ref: cluster_ref, labels: labels)
         end
 
         # Build a Kubernetes Service resource for a reactive agent
