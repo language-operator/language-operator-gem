@@ -15,7 +15,7 @@ module LanguageOperator
         HELM_REPO_URL = 'https://language-operator.github.io/charts'
         CHART_NAME = 'language-operator/language-operator'
         RELEASE_NAME = 'language-operator'
-        DEFAULT_NAMESPACE = 'language-operator-system'
+        DEFAULT_NAMESPACE = 'language-operator'
 
         # Long descriptions for commands
         LONG_DESCRIPTIONS = {
@@ -61,13 +61,17 @@ module LanguageOperator
               langop upgrade --version 0.2.0
           DESC
           uninstall: <<-DESC
-            Uninstall the language-operator from your Kubernetes cluster.
+            Completely uninstall the language-operator from your Kubernetes cluster.
 
-            WARNING: This will remove the operator but NOT the CRDs or custom resources.
-            Agents, tools, models, and personas will remain in the cluster.
+            This will:
+            1. Delete all custom resources (agents, tools, models, personas, clusters)
+            2. Uninstall the operator using Helm
+            3. Remove all CRDs (CustomResourceDefinitions)
+
+            WARNING: This will completely remove all language-operator resources from the cluster.
 
             Examples:
-              # Uninstall with confirmation
+              # Complete uninstall with confirmation
               langop uninstall
 
               # Force uninstall without confirmation
@@ -112,6 +116,7 @@ module LanguageOperator
         option :dry_run, type: :boolean, default: false, desc: 'Preview installation without applying'
         option :wait, type: :boolean, default: true, desc: 'Wait for deployment to complete'
         option :create_namespace, type: :boolean, default: true, desc: 'Create namespace if it does not exist'
+        option :non_interactive, type: :boolean, default: false, desc: 'Skip interactive prompts and use defaults'
         def install
           handle_command_error('install') do
             # Check if helm is available
@@ -128,19 +133,27 @@ module LanguageOperator
 
             namespace = options[:namespace]
 
-            puts 'Installing language-operator...'
-            puts "  Namespace: #{namespace}"
-            puts "  Chart: #{CHART_NAME}"
-            puts
+            # Interactive configuration unless non-interactive mode or custom values provided
+            unless options[:non_interactive] || options[:values]
+              logo(title: 'language operator installer')
+              puts 'This installer will help you configure the Language Operator for your cluster.'
+              puts
+
+              config = collect_interactive_configuration
+              values_file = generate_values_file(config)
+              # Create a mutable copy of options to avoid frozen hash error
+              @options = options.dup
+              @options[:values] = values_file
+            end
 
             # Add Helm repository
-            add_helm_repo unless options[:dry_run]
+            add_helm_repo unless (@options || options)[:dry_run]
 
-            # Build helm install command
+            # Build helm install command (use @options if we created a mutable copy)
             cmd = build_helm_command('install', namespace)
 
             # Execute helm install
-            if options[:dry_run]
+            if (@options || options)[:dry_run]
               puts 'Dry run - would execute:'
               puts "  #{cmd}"
               puts
@@ -151,13 +164,6 @@ module LanguageOperator
                 success, output = run_helm_command(cmd)
                 raise "Helm install failed: #{output}" unless success
               end
-
-              Formatters::ProgressFormatter.success('Language operator installed successfully!')
-              puts
-              puts 'Next steps:'
-              puts '  1. Create a cluster: langop cluster create my-cluster'
-              puts '  2. Create a model: langop model create gpt4 --provider openai --model gpt-4-turbo'
-              puts '  3. Create an agent: langop agent create "your agent description"'
             end
           end
         end
@@ -234,13 +240,17 @@ module LanguageOperator
 
         desc 'uninstall', 'Uninstall the language-operator using Helm'
         long_desc <<-DESC
-          Uninstall the language-operator from your Kubernetes cluster.
+          Completely uninstall the language-operator from your Kubernetes cluster.
 
-          WARNING: This will remove the operator but NOT the CRDs or custom resources.
-          Agents, tools, models, and personas will remain in the cluster.
+          This will:
+          1. Delete all custom resources (agents, tools, models, personas, clusters)
+          2. Uninstall the operator using Helm
+          3. Remove all CRDs (CustomResourceDefinitions)
+
+          WARNING: This will completely remove all language-operator resources from the cluster.
 
           Examples:
-            # Uninstall with confirmation
+            # Complete uninstall with confirmation
             langop uninstall
 
             # Force uninstall without confirmation
@@ -256,41 +266,41 @@ module LanguageOperator
             # Check if helm is available
             check_helm_installed!
 
-            # Check if operator is installed
-            unless operator_installed?
-              Formatters::ProgressFormatter.warn('Language operator is not installed')
-              return
-            end
+            # Check if operator is installed but proceed with cleanup regardless
 
             namespace = options[:namespace]
 
             # Confirm deletion unless --force
             unless options[:force]
-              puts "This will uninstall the language-operator from namespace '#{namespace}'"
+              puts 'This will completely uninstall the language-operator from your cluster:'
               puts
-              puts 'WARNING: This will NOT delete:'
-              puts '  - CRDs (CustomResourceDefinitions)'
-              puts '  - LanguageAgent resources'
-              puts '  - LanguageTool resources'
-              puts '  - LanguageModel resources'
-              puts '  - LanguagePersona resources'
+              puts '  - The language-operator Helm release'
+              puts '  - All existing clusters, agents, models, tools and personas'
+              puts '  - Persistent volumes (ClickHouse, PostgreSQL data)'
               puts
-              return unless CLI::Helpers::UserPrompts.confirm('Continue with uninstall?')
+              puts "#{pastel.bold.red('WARNING')}: #{pastel.white.bold('This action cannot be undone!')}"
+              puts
+              return unless CLI::Helpers::UserPrompts.confirm('Continue with complete uninstall?')
             end
 
-            # Build helm uninstall command
-            cmd = "helm uninstall #{RELEASE_NAME} --namespace #{namespace}"
+            # Step 1: Delete all custom resources
+            delete_all_custom_resources
 
-            # Execute helm uninstall
-            Formatters::ProgressFormatter.with_spinner('Uninstalling language-operator') do
-              success, output = run_helm_command(cmd)
-              raise "Helm uninstall failed: #{output}" unless success
+            # Step 2: Uninstall Helm release if it exists
+            if operator_installed?
+              cmd = "helm uninstall #{RELEASE_NAME} --namespace #{namespace}"
+
+              Formatters::ProgressFormatter.with_spinner('Uninstalling language-operator Helm release') do
+                success, output = run_helm_command(cmd)
+                raise "Helm uninstall failed: #{output}" unless success
+              end
             end
 
-            Formatters::ProgressFormatter.success('Language operator uninstalled successfully!')
-            puts
-            puts 'Note: CRDs and custom resources remain in the cluster.'
-            puts 'To completely remove all resources, you must manually delete them.'
+            # Step 3: Delete PVCs
+            delete_persistent_volumes
+
+            # Step 4: Delete CRDs
+            delete_language_operator_crds
           end
         end
 
@@ -358,6 +368,9 @@ module LanguageOperator
         end
 
         def build_helm_command(action, namespace)
+          # Use @options if available (from interactive mode), otherwise use options
+          opts = @options || options
+
           cmd = ['helm', action, RELEASE_NAME]
 
           # Add chart name for install
@@ -367,19 +380,19 @@ module LanguageOperator
           cmd << '--namespace' << namespace
 
           # Add create-namespace for install
-          cmd << '--create-namespace' if action == 'install' && options[:create_namespace]
+          cmd << '--create-namespace' if action == 'install' && opts[:create_namespace]
 
           # Add values file
-          cmd << '--values' << options[:values] if options[:values]
+          cmd << '--values' << opts[:values] if opts[:values]
 
           # Add version
-          cmd << '--version' << options[:version] if options[:version]
+          cmd << '--version' << opts[:version] if opts[:version]
 
           # Add wait
-          cmd << '--wait' if options[:wait]
+          cmd << '--wait' if opts[:wait]
 
           # Add dry-run
-          cmd << '--dry-run' if options[:dry_run]
+          cmd << '--dry-run' if opts[:dry_run]
 
           cmd.join(' ')
         end
@@ -388,6 +401,213 @@ module LanguageOperator
           stdout, stderr, status = Open3.capture3(cmd)
           output = stdout + stderr
           [status.success?, output.strip]
+        end
+
+        # Delete all language-operator custom resources from all namespaces
+        def delete_all_custom_resources
+          require_relative '../../kubernetes/client'
+          require_relative '../../constants'
+
+          k8s = Kubernetes::Client.new
+
+          resource_types = [
+            Constants::RESOURCE_AGENT,
+            Constants::RESOURCE_AGENT_VERSION,
+            Constants::RESOURCE_TOOL,
+            Constants::RESOURCE_MODEL,
+            Constants::RESOURCE_PERSONA,
+            'LanguageCluster'
+          ]
+
+          resource_types.each do |resource_type|
+            Formatters::ProgressFormatter.with_spinner("Deleting all #{resource_type} resources") do
+              # Get resources from all namespaces
+              resources = k8s.list_resources(resource_type, namespace: nil)
+
+              resources.each do |resource|
+                name = resource.dig('metadata', 'name')
+                namespace = resource.dig('metadata', 'namespace')
+
+                begin
+                  k8s.delete_resource(resource_type, name, namespace)
+                rescue StandardError => e
+                  # Continue deleting other resources even if one fails
+                  warn "Failed to delete #{resource_type} #{name}: #{e.message}" if ENV['DEBUG']
+                end
+              end
+            end
+          rescue StandardError => e
+            # Continue with other resource types if one fails
+            Formatters::ProgressFormatter.warn("Failed to delete #{resource_type} resources: #{e.message}")
+          end
+        end
+
+        # Delete language-operator CRDs
+        def delete_language_operator_crds
+          require_relative '../../kubernetes/client'
+          require_relative '../../constants'
+
+          k8s = Kubernetes::Client.new
+
+          crd_names = [
+            'languageagents.language-operator.dev',
+            'languagetools.language-operator.dev',
+            'languagemodels.language-operator.dev',
+            'languagepersonas.language-operator.dev',
+            'languageclusters.language-operator.dev',
+            'languageagentversions.language-operator.dev'
+          ]
+
+          Formatters::ProgressFormatter.with_spinner('Deleting language-operator CRDs') do
+            crd_names.each do |crd_name|
+              k8s.delete_resource('CustomResourceDefinition', crd_name)
+            rescue StandardError => e
+              # Continue deleting other CRDs even if one fails
+              warn "Failed to delete CRD #{crd_name}: #{e.message}" if ENV['DEBUG']
+            end
+          end
+        end
+
+        # Collect interactive configuration from user
+        def collect_interactive_configuration
+          config = {}
+
+          # Generate a random password as default
+          require 'securerandom'
+          default_password = SecureRandom.alphanumeric(12)
+
+          puts pastel.white.bold('Create a Login')
+          config[:admin_name] = prompt.ask('Full Name:', default:  'Default')
+          config[:admin_email] = prompt.ask('Email:', default: 'admin@example.com')
+          config[:admin_password] = prompt.ask('Password:', default: default_password)
+
+          puts
+          puts pastel.white.bold('Gateway')
+
+          # Check if gateways are available first
+          gateways = get_available_gateways
+
+          if gateways.empty?
+            puts 'No gateways found in the cluster.'
+            puts 'You can configure gateway access later after creating a gateway resource.'
+          else
+            create_gateway = prompt.yes?('Do you want to configure a gateway for external access?')
+            config[:gateway] = collect_gateway_configuration if create_gateway
+          end
+
+          puts
+          config
+        end
+
+        # Collect gateway configuration
+        def collect_gateway_configuration
+          gateway_config = {}
+
+          # Get available gateways (we know there are some since we checked before calling this)
+          gateways = get_available_gateways
+
+          # Create choices for the select menu
+          choices = gateways.map { |gw| { name: "#{gw[:name]} (#{gw[:namespace]})", value: gw } }
+
+          selected_gateway = prompt.select('Select a gateway:', choices)
+          gateway_config[:gateway_name] = selected_gateway[:name]
+          gateway_config[:gateway_namespace] = selected_gateway[:namespace]
+
+          gateway_config[:hostname] = prompt.ask('Hostname for the gateway:', default: 'langop.local')
+          gateway_config[:tls] = prompt.yes?('Enable TLS/HTTPS?')
+
+          gateway_config
+        end
+
+        # Get available gateways from the cluster
+        def get_available_gateways
+          require_relative '../../kubernetes/client'
+
+          begin
+            k8s = Kubernetes::Client.new
+            gateways = k8s.list_resources('Gateway', namespace: nil, api_version: 'gateway.networking.k8s.io/v1')
+            gateways.map do |gw|
+              {
+                name: gw.dig('metadata', 'name'),
+                namespace: gw.dig('metadata', 'namespace')
+              }
+            end.compact
+          rescue StandardError => e
+            warn "Failed to list gateways: #{e.message}" if ENV['DEBUG']
+            []
+          end
+        end
+
+        # Generate values.yaml file from configuration
+        def generate_values_file(config)
+          require 'tempfile'
+          require 'bcrypt'
+          require 'yaml'
+
+          # Hash the password and convert to string
+          password_hash = BCrypt::Password.create(config[:admin_password]).to_s
+
+          values = {
+            'dashboard' => {
+              'initialSetup' => {
+                'enabled' => true,
+                'adminUser' => {
+                  'name' => config[:admin_name],
+                  'email' => config[:admin_email],
+                  'passwordHash' => password_hash
+                }
+              }
+            }
+          }
+
+          # Add gateway configuration if provided
+          if config[:gateway]
+            values['gateway'] = {
+              'enabled' => true,
+              'gatewayName' => config[:gateway][:gateway_name],
+              'gatewayNamespace' => config[:gateway][:gateway_namespace],
+              'hostname' => config[:gateway][:hostname],
+              'tls' => {
+                'enabled' => config[:gateway][:tls]
+              }
+            }
+          end
+
+          # Create temporary values file
+          values_file = Tempfile.new(['langop-values', '.yaml'])
+          values_file.write(YAML.dump(values))
+          values_file.close
+
+          values_file.path
+        end
+
+        # Delete all language-operator persistent volumes
+        def delete_persistent_volumes
+          require_relative '../../kubernetes/client'
+
+          k8s = Kubernetes::Client.new
+
+          Formatters::ProgressFormatter.with_spinner('Deleting persistent volumes') do
+            # Use label selector to find language-operator PVCs
+            label_selector = 'app.kubernetes.io/instance=language-operator'
+
+            begin
+              all_pvcs = k8s.list_resources('PersistentVolumeClaim', namespace: nil, label_selector: label_selector)
+
+              all_pvcs.each do |pvc|
+                name = pvc.dig('metadata', 'name')
+                namespace = pvc.dig('metadata', 'namespace')
+
+                begin
+                  k8s.delete_resource('PersistentVolumeClaim', name, namespace)
+                rescue StandardError => e
+                  warn "Failed to delete PVC #{name}: #{e.message}" if ENV['DEBUG']
+                end
+              end
+            rescue StandardError => e
+              warn "Failed to list/delete PVCs: #{e.message}" if ENV['DEBUG']
+            end
+          end
         end
       end
     end

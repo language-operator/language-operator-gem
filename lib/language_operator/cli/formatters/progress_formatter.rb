@@ -28,7 +28,8 @@ module LanguageOperator
           end
 
           def success(message)
-            puts LogStyle.format(:success, message, pastel)
+            icon = LogStyle.styled_icon(:success, pastel)
+            puts "#{icon} #{message}"
           end
 
           def error(message)

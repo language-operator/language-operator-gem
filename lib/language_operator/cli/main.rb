@@ -13,6 +13,7 @@ require_relative 'commands/model/base'
 require_relative 'commands/quickstart'
 require_relative 'commands/install'
 require_relative 'commands/system/base'
+require_relative 'commands/ui'
 require_relative 'formatters/progress_formatter'
 require_relative 'helpers/ux_helper'
 require_relative '../config/cluster_config'
@@ -94,6 +95,16 @@ module LanguageOperator
       desc 'quickstart', 'Wizard for first-time users'
       def quickstart
         Commands::Quickstart.new.invoke(:start)
+      end
+
+      desc 'ui', 'Open the Language Operator dashboard in your browser'
+      option :port, type: :numeric, default: Commands::Ui::DEFAULT_PORT, desc: "Local port to forward to (default: #{Commands::Ui::DEFAULT_PORT})"
+      option :service, type: :string, default: Commands::Ui::DEFAULT_SERVICE_NAME, desc: "Service name to connect to (default: #{Commands::Ui::DEFAULT_SERVICE_NAME})"
+      option :service_port, type: :numeric, default: Commands::Ui::DEFAULT_SERVICE_PORT, desc: "Service port to forward from (default: #{Commands::Ui::DEFAULT_SERVICE_PORT})"
+      option :namespace, type: :string, default: 'language-operator', desc: 'Namespace to connect to (default: language-operator)'
+      option :no_open, type: :boolean, default: false, desc: 'Do not automatically open browser'
+      def ui
+        Commands::Ui.new([], options).ui
       end
 
       desc 'install', 'Install the language-operator using Helm'

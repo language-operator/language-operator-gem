@@ -93,11 +93,12 @@ Critical insights and patterns for the language-operator Ruby gem.
 - #40 - Performance optimization
 - #41 - Comprehensive test suite
 
-## Recently Resolved (Last 5)
+## Recently Resolved (Last 6)
 
-1. **#134** (2025-12-28) - Ensure clusterRef for all resource types - Added cluster_ref support to personas (4 new tests)
-2. **#140** (2025-12-27) - Remove Kubernetes events - Eliminated timeout-prone event emission code (935 lines removed)
-3. **#131** (2025-12-09) - Gem packaging issues preventing require - Fixed file permissions (600→644) and added packaging verification tests
+1. **#144** (2025-12-31) - Rename binary from aictl to langop - Comprehensive rename across 62 files (1,106 insertions, 787 deletions)
+2. **#134** (2025-12-28) - Ensure clusterRef for all resource types - Added cluster_ref support to personas (4 new tests)
+3. **#140** (2025-12-27) - Remove Kubernetes events - Eliminated timeout-prone event emission code (935 lines removed)
+4. **#131** (2025-12-09) - Gem packaging issues preventing require - Fixed file permissions (600→644) and added packaging verification tests
 4. **#125** (2025-12-02) - Remove aictl agent learning command - Integrated learning status into agent inspect
 5. **#118** (2025-11-28) - Parallel execution test failures - 6 failures fixed via timing relaxation and AST validator compliance
 

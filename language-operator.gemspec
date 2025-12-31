@@ -39,6 +39,9 @@ Gem::Specification.new do |spec|
   
   # Explicitly constraint json-schema to prevent conflicts
   spec.add_dependency 'json-schema', '~> 5.0'
+  
+  # Password hashing for installer
+  spec.add_dependency 'bcrypt', '~> 3.1'
 
   # HTTP server dependencies for MCP tools and agents
   spec.add_dependency 'puma', '~> 6.0'

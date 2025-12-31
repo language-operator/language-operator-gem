@@ -96,7 +96,6 @@ module LanguageOperator
           k8s_client = Kubernetes::Client.new
           current_context = k8s_client.current_context
           
-          Formatters::ProgressFormatter.info("Auto-importing cluster '#{name}' from Kubernetes...")
           
           Config::ClusterConfig.add_cluster(
             name,
