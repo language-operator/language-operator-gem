@@ -63,7 +63,7 @@ module LanguageOperator
             open_browser("http://localhost:#{port}") unless options[:no_open]
 
             puts
-            puts "Dashboard is now available at:"
+            puts 'If your browser was not opened automatically, your dashboard is at:'
             puts pastel.white.bold("http://localhost:#{port}")
             puts
             puts 'Press Ctrl+C to stop the port forward and exit'
@@ -121,8 +121,7 @@ module LanguageOperator
 
         def start_port_forward(service_name, service_port, local_port)
           namespace = options[:namespace]
-          # Forward directly to the dashboard pod using a specific label selector to avoid PostgreSQL pod
-          cmd = "kubectl port-forward -n #{namespace} -l langop.io/kind=Dashboard #{local_port}:#{service_port}"
+          cmd = "kubectl port-forward -n #{namespace} service/#{service_name} #{local_port}:#{service_port}"
 
           Formatters::ProgressFormatter.with_spinner('Setting up port forward') do
             # Start kubectl port-forward in background
@@ -150,24 +149,22 @@ module LanguageOperator
         end
 
         def open_browser(url)
-          Formatters::ProgressFormatter.with_spinner('Opening browser') do
-            # Detect platform and open browser accordingly
-            case RbConfig::CONFIG['host_os']
-            when /mswin|mingw|cygwin/
-              system("start #{url}")
-            when /darwin/
-              system("open #{url}")
-            when /linux|bsd/
-              # Try common Linux browsers
-              browsers = %w[xdg-open google-chrome firefox chromium-browser]
-              browser_found = browsers.any? do |browser|
-                system("which #{browser} > /dev/null 2>&1") && system("#{browser} #{url} > /dev/null 2>&1 &")
-              end
-
-              puts "Could not detect a browser to open. Please manually visit: #{url}" unless browser_found
-            else
-              puts "Unknown platform. Please manually visit: #{url}"
+          # Detect platform and open browser accordingly
+          case RbConfig::CONFIG['host_os']
+          when /mswin|mingw|cygwin/
+            system("start #{url}")
+          when /darwin/
+            system("open #{url}")
+          when /linux|bsd/
+            # Try common Linux browsers
+            browsers = %w[xdg-open google-chrome firefox chromium-browser]
+            browser_found = browsers.any? do |browser|
+              system("which #{browser} > /dev/null 2>&1") && system("#{browser} #{url} > /dev/null 2>&1 &")
             end
+
+            puts "Could not detect a browser to open. Please manually visit: #{url}" unless browser_found
+          else
+            puts "Unknown platform. Please manually visit: #{url}"
           end
         end
       end

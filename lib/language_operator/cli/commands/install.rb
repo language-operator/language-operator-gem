@@ -164,6 +164,9 @@ module LanguageOperator
                 success, output = run_helm_command(cmd)
                 raise "Helm install failed: #{output}" unless success
               end
+
+              # Post-installation verification
+              verify_installation(config)
             end
           end
         end
@@ -482,7 +485,7 @@ module LanguageOperator
           config[:admin_password] = prompt.ask('Password:', default: default_password)
 
           puts
-          puts pastel.white.bold('Gateway')
+          puts pastel.white.bold('Configure a Gateway')
 
           # Check if gateways are available first
           gateways = get_available_gateways
@@ -494,6 +497,20 @@ module LanguageOperator
             create_gateway = prompt.yes?('Do you want to configure a gateway for external access?')
             config[:gateway] = collect_gateway_configuration if create_gateway
           end
+
+          puts
+          # Check CNI support first to determine header color
+          cni_info = detect_cni_support
+          if cni_info[:supports_network_policies]
+            puts pastel.white.bold('Network Isolation')
+          else
+            if cni_info[:name] == 'Unknown'
+              puts pastel.yellow.bold('Warning: network isolation support not detected')
+            else
+              puts pastel.yellow.bold("Warning: #{cni_info[:name]} does not support network policies")
+            end
+          end
+          config[:network_isolation] = collect_network_isolation_configuration(cni_info)
 
           puts
           config
@@ -538,6 +555,101 @@ module LanguageOperator
           end
         end
 
+        # Collect network isolation configuration
+        def collect_network_isolation_configuration(cni_info)
+          if cni_info[:supports_network_policies]
+            enable_isolation = prompt.yes?("Enforce network isolation policies with #{cni_info[:name]}?")
+            { enabled: enable_isolation }
+          else
+            proceed = prompt.yes?('Continue without network isolation?')
+            exit 1 unless proceed
+            { enabled: false }
+          end
+        end
+
+        # Detect CNI and NetworkPolicy support
+        def detect_cni_support
+          require_relative '../../kubernetes/client'
+          
+          begin
+            k8s = Kubernetes::Client.new
+            
+            # Try to detect CNI by checking nodes for CNI annotations or by looking for specific resources
+            nodes = k8s.list_resources('Node', namespace: nil)
+            
+            # Check for common CNI indicators
+            cni_info = detect_cni_from_nodes(nodes)
+            
+            # Only test API availability if we couldn't determine CNI-specific support
+            if cni_info[:name] == 'Unknown'
+              begin
+                k8s.list_resources('NetworkPolicy', namespace: 'kube-system', api_version: 'networking.k8s.io/v1')
+                cni_info[:supports_network_policies] = true
+              rescue StandardError
+                cni_info[:supports_network_policies] = false
+              end
+            end
+            
+            cni_info
+          rescue StandardError => e
+            warn "Failed to detect CNI: #{e.message}" if ENV['DEBUG']
+            { name: 'Unknown', supports_network_policies: false }
+          end
+        end
+
+        # Detect CNI from CRDs (most reliable method)
+        def detect_cni_from_nodes(nodes)
+          require_relative '../../kubernetes/client'
+          k8s = Kubernetes::Client.new
+          
+          # Check for CNI-specific CRDs - this is the most reliable method
+          begin
+            crds = k8s.list_resources('CustomResourceDefinition', namespace: nil, api_version: 'apiextensions.k8s.io/v1')
+            
+            crd_names = crds.map { |crd| crd.dig('metadata', 'name') }.compact.join(' ')
+            
+            # Check for specific CNI CRDs
+            if crd_names.match?(/cilium/i)
+              return { name: 'Cilium', supports_network_policies: true }
+            elsif crd_names.match?(/(calico|projectcalico)/i)
+              return { name: 'Calico', supports_network_policies: true }
+            elsif crd_names.match?(/weave/i)
+              return { name: 'Weave Net', supports_network_policies: true }
+            elsif crd_names.match?(/antrea/i)
+              return { name: 'Antrea', supports_network_policies: true }
+            elsif crd_names.match?(/flannel/i)
+              return { name: 'Flannel', supports_network_policies: false }
+            end
+          rescue StandardError => e
+            warn "Failed to check CRDs for CNI detection: #{e.message}" if ENV['DEBUG']
+          end
+          
+          # Fallback: Check for CNI-specific pods in kube-system
+          begin
+            pods = k8s.list_resources('Pod', namespace: 'kube-system')
+            pod_names = pods.map { |pod| pod.dig('metadata', 'name') }.compact.join(' ')
+            
+            if pod_names.match?(/cilium/i)
+              return { name: 'Cilium', supports_network_policies: true }
+            elsif pod_names.match?(/calico/i)
+              return { name: 'Calico', supports_network_policies: true }
+            elsif pod_names.match?(/weave/i)
+              return { name: 'Weave Net', supports_network_policies: true }
+            elsif pod_names.match?(/antrea/i)
+              return { name: 'Antrea', supports_network_policies: true }
+            elsif pod_names.match?(/flannel/i)
+              return { name: 'Flannel', supports_network_policies: false }
+            elsif pod_names.match?(/aws-node/i)
+              return { name: 'AWS VPC CNI', supports_network_policies: false }
+            end
+          rescue StandardError => e
+            warn "Failed to check pods for CNI detection: #{e.message}" if ENV['DEBUG']
+          end
+          
+          # Final fallback - we couldn't identify the CNI
+          { name: 'Unknown', supports_network_policies: false }
+        end
+
         # Generate values.yaml file from configuration
         def generate_values_file(config)
           require 'tempfile'
@@ -557,12 +669,15 @@ module LanguageOperator
                   'passwordHash' => password_hash
                 }
               }
+            },
+            'networkIsolation' => {
+              'enabled' => config.dig(:network_isolation, :enabled) || false
             }
           }
 
           # Add gateway configuration if provided
           if config[:gateway]
-            values['gateway'] = {
+            values['dashboard']['gateway'] = {
               'enabled' => true,
               'gatewayName' => config[:gateway][:gateway_name],
               'gatewayNamespace' => config[:gateway][:gateway_namespace],
@@ -608,6 +723,107 @@ module LanguageOperator
               warn "Failed to list/delete PVCs: #{e.message}" if ENV['DEBUG']
             end
           end
+        end
+
+        # Verify installation and setup
+        def verify_installation(config)
+          # Wait a moment for pods to start
+          sleep 3
+
+          # Verify account setup
+          account_ready = verify_account_setup
+          
+          # Verify gateway setup if configured
+          gateway_ready = false
+          gateway_url = nil
+          
+          if config&.dig(:gateway)
+            gateway_ready, gateway_url = verify_gateway_setup(config[:gateway])
+          end
+
+          # Determine next steps based on verification results
+          show_post_install_message(config, account_ready, gateway_ready, gateway_url)
+        end
+
+        # Verify that the admin account was created successfully
+        def verify_account_setup
+          Formatters::ProgressFormatter.with_spinner('Verifying account setup') do
+            # Check if dashboard pod is ready
+            require_relative '../../kubernetes/client'
+            k8s = Kubernetes::Client.new
+            
+            begin
+              # Check if dashboard deployment is ready
+              deployment = k8s.get_resource('Deployment', 'language-operator-dashboard', 'language-operator')
+              ready_replicas = deployment.dig('status', 'readyReplicas') || 0
+              desired_replicas = deployment.dig('spec', 'replicas') || 1
+              
+              ready_replicas >= desired_replicas
+            rescue StandardError
+              false
+            end
+          end
+        end
+
+        # Verify gateway configuration and HTTPRoute creation
+        def verify_gateway_setup(gateway_config)
+          gateway_url = nil
+          
+          success = Formatters::ProgressFormatter.with_spinner('Verifying gateway setup') do
+            require_relative '../../kubernetes/client'
+            k8s = Kubernetes::Client.new
+            
+            begin
+              # Check if HTTPRoute was created (it should be in the gateway namespace)
+              httproute_namespace = gateway_config[:gateway_namespace]
+              httproute = k8s.get_resource('HTTPRoute', 'language-operator-dashboard', httproute_namespace, 'gateway.networking.k8s.io/v1')
+              
+              # Build the public URL
+              protocol = gateway_config[:tls] ? 'https' : 'http'
+              gateway_url = "#{protocol}://#{gateway_config[:hostname]}"
+              
+              true
+            rescue StandardError => e
+              warn "Gateway verification failed: #{e.message}" if ENV['DEBUG']
+              false
+            end
+          end
+          
+          [success, gateway_url]
+        end
+
+        # Show appropriate post-installation message and actions
+        def show_post_install_message(config, account_ready, gateway_ready, gateway_url)
+          if gateway_ready && gateway_url
+            # Gateway configured successfully - open public URL
+            puts
+            puts "Your Language Operator dashboard is available at:"
+            puts pastel.cyan.bold(gateway_url)
+            puts
+            
+            # Open browser to public URL
+            open_browser(gateway_url) unless (@options || options)[:no_open]
+            
+          elsif config&.dig(:gateway) && !gateway_ready
+            # Gateway was configured but failed
+            puts pastel.yellow('⚠') + ' Installation completed with warnings'
+            puts
+            puts pastel.yellow('Gateway configuration had issues. You can access the dashboard locally:')
+            puts "Run: #{pastel.cyan('langop ui')}"
+            
+          else
+            # No gateway configured - show local access instructions
+            puts
+            puts "Run #{pastel.cyan.bold('langop ui')} to get started!"
+          end
+          
+        end
+
+        # Open browser to URL (delegates to UI command implementation)
+        def open_browser(url)
+          require_relative 'ui'
+          ui_command = Ui.new
+          ui_command.send(:open_browser, url)
         end
       end
     end
