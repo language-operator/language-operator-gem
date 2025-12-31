@@ -131,8 +131,8 @@ module LanguageOperator
 
               To install the operator:
 
-              1. Using aictl (recommended):
-                 aictl install
+              1. Using langop (recommended):
+                 langop install
 
               2. Or manually with Helm:
                  helm repo add language-operator https://language-operator.github.io/charts
@@ -158,7 +158,7 @@ module LanguageOperator
               3. You have appropriate permissions
 
               For debugging, run with DEBUG=1:
-                DEBUG=1 aictl <command>
+                DEBUG=1 langop <command>
             MSG
           end
         end

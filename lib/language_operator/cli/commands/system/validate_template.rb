@@ -18,16 +18,16 @@ module LanguageOperator
 
                 Examples:
                   # Validate a custom template file
-                  aictl system validate_template --template /path/to/template.tmpl
+                  langop system validate_template --template /path/to/template.tmpl
 
                   # Validate the bundled agent template (default)
-                  aictl system validate_template
+                  langop system validate_template
 
                   # Validate the bundled persona template
-                  aictl system validate_template --type persona
+                  langop system validate_template --type persona
 
                   # Verbose output with all violations
-                  aictl system validate_template --template mytemplate.tmpl --verbose
+                  langop system validate_template --template mytemplate.tmpl --verbose
               DESC
               option :template, type: :string, desc: 'Path to template file (defaults to bundled template)'
               option :type, type: :string, default: 'agent', desc: 'Template type if using bundled template (agent, persona)'

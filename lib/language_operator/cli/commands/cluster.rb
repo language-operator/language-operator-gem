@@ -13,7 +13,7 @@ module LanguageOperator
         include Helpers::UxHelper
 
         desc 'create NAME', 'Create a new language cluster'
-        option :namespace, type: :string, desc: 'Kubernetes namespace (defaults to current context namespace)'
+        option :organization_id, type: :string, required: true, desc: 'Organization ID for the cluster'
         option :kubeconfig, type: :string, desc: 'Path to kubeconfig file'
         option :context, type: :string, desc: 'Kubernetes context to use'
         option :switch, type: :boolean, default: true, desc: 'Switch to new cluster context'
@@ -23,11 +23,34 @@ module LanguageOperator
           handle_command_error('create cluster') do
             kubeconfig = options[:kubeconfig]
             context = options[:context]
+            org_id = options[:organization_id]
+
+            # Create Kubernetes client to find organization namespace
+            k8s = Formatters::ProgressFormatter.with_spinner('Connecting to Kubernetes cluster') do
+              Kubernetes::Client.new(kubeconfig: kubeconfig, context: context)
+            end
+
+            # Find the organization namespace
+            namespace = Formatters::ProgressFormatter.with_spinner("Finding namespace for organization #{org_id[0..7]}") do
+              find_org_namespace(k8s, org_id)
+            end
+
+            unless namespace
+              Formatters::ProgressFormatter.error("Organization namespace not found for ID: #{org_id}")
+              puts "\nMake sure the organization exists and you have access to it."
+              puts "Available organization namespaces:"
+              list_org_namespaces(k8s)
+              exit 1
+            end
 
             # Handle dry-run: output manifest and exit early
             if options[:dry_run]
-              namespace = options[:namespace] || 'default'
-              resource = Kubernetes::ResourceBuilder.language_cluster(name, namespace: namespace, domain: options[:domain])
+              # Create a mock client to pass org context for dry run
+              mock_client = Object.new
+              def mock_client.current_org_id; @org_id; end
+              mock_client.instance_variable_set(:@org_id, org_id)
+              
+              resource = Kubernetes::ResourceBuilder.language_cluster(name, namespace: namespace, domain: options[:domain], k8s_client: mock_client)
               puts resource.to_yaml
               return
             end
@@ -38,19 +61,11 @@ module LanguageOperator
               exit 1
             end
 
-            # Create Kubernetes client
-            k8s = Formatters::ProgressFormatter.with_spinner('Connecting to Kubernetes cluster') do
-              Kubernetes::Client.new(kubeconfig: kubeconfig, context: context)
-            end
-
-            # Determine namespace: use --namespace flag, or current context namespace, or 'default'
-            namespace = options[:namespace] || k8s.current_namespace || 'default'
-
             # Check if operator is installed
             unless k8s.operator_installed?
               Formatters::ProgressFormatter.error('Language Operator not found in cluster')
               puts "\nInstall the operator first:"
-              puts '  aictl install'
+              puts '  langop install'
               exit 1
             end
 
@@ -65,7 +80,7 @@ module LanguageOperator
 
             # Create LanguageCluster resource
             Formatters::ProgressFormatter.with_spinner('Creating LanguageCluster resource') do
-              resource = Kubernetes::ResourceBuilder.language_cluster(name, namespace: namespace, domain: options[:domain])
+              resource = Kubernetes::ResourceBuilder.language_cluster(name, namespace: namespace, domain: options[:domain], k8s_client: k8s)
               k8s.apply_resource(resource)
               resource
             end
@@ -100,7 +115,7 @@ module LanguageOperator
             unless options[:switch]
               puts
               puts 'Switch to this cluster with:'
-              puts pastel.dim("  aictl use #{name}")
+              puts pastel.dim("  langop use #{name}")
             end
           end
         end
@@ -109,124 +124,73 @@ module LanguageOperator
         option :all, type: :boolean, default: false, desc: 'Show all clusters including inactive'
         def list
           handle_command_error('list clusters') do
-            clusters = Config::ClusterConfig.list_clusters
-            current = Config::ClusterConfig.current_cluster
+            # Query Kubernetes directly for all LanguageCluster resources (like kubectl get languageclusters -A)
+            k8s = Kubernetes::Client.new
+            
+            # List all LanguageCluster resources across all namespaces
+            language_clusters = k8s.list_resources('LanguageCluster', namespace: nil)
 
-            if clusters.empty?
+            if language_clusters.empty?
               Formatters::ProgressFormatter.info('No clusters found')
               puts "\nCreate a cluster with:"
-              puts '  aictl cluster create <name>'
+              puts '  langop cluster create <name>'
               return
             end
 
-            # Cache clients by kubeconfig:context to prevent resource leaks
-            clients_cache = {}
+            current = Config::ClusterConfig.current_cluster
 
-            # Build table data
-            table_data = clusters.map do |cluster|
+            # Build table data from LanguageCluster resources
+            table_data = language_clusters.map do |cluster_resource|
               begin
-                # Get cluster config for cache key and reuse clients
-                cluster_config = Config::ClusterConfig.get_cluster(cluster[:name])
-                cache_key = "#{cluster_config[:kubeconfig]}:#{cluster_config[:context]}"
+                name = cluster_resource.dig('metadata', 'name')
+                namespace = cluster_resource.dig('metadata', 'namespace')
+                status = cluster_resource.dig('status', 'phase') || 'Unknown'
+                domain = cluster_resource.dig('spec', 'domain')
+                
+                # Get organization information from the cluster resource itself
+                org_id = cluster_resource.dig('metadata', 'labels', 'langop.io/organization-id')
+                organization = org_id ? org_id[0..7] : 'legacy'
+                
+                # Check if this cluster matches the current selection
+                name_display = name
+                name_display = "#{pastel.bold(name)} (selected)" if name == current
 
-                # Reuse existing client or create new one
-                k8s = clients_cache[cache_key] ||= begin
-                  # Validate kubeconfig exists before creating client
-                  Helpers::ClusterValidator.validate_kubeconfig!(cluster_config)
-                  require_relative '../../kubernetes/client'
-                  Kubernetes::Client.new(
-                    kubeconfig: cluster_config[:kubeconfig],
-                    context: cluster_config[:context]
-                  )
-                end
-              rescue StandardError
-                # Handle cluster config or client creation errors
-                name_display = cluster[:name]
-                name_display += ' *' if cluster[:name] == current
+                # Get related resources in the same namespace
+                agents = k8s.list_resources(RESOURCE_AGENT, namespace: namespace)
+                tools = k8s.list_resources(RESOURCE_TOOL, namespace: namespace)  
+                models = k8s.list_resources(RESOURCE_MODEL, namespace: namespace)
 
-                next {
+                {
                   name: name_display,
-                  namespace: cluster[:namespace],
+                  namespace: namespace,
+                  organization: organization,
+                  agents: agents.count,
+                  tools: tools.count,
+                  models: models.count,
+                  status: status,
+                  domain: domain || ''
+                }
+              rescue StandardError => e
+                # Handle any errors gracefully
+                name = cluster_resource.dig('metadata', 'name') || 'unknown'
+                namespace = cluster_resource.dig('metadata', 'namespace') || 'unknown'
+                
+                {
+                  name: name,
+                  namespace: namespace,
+                  organization: '?',
                   agents: '?',
                   tools: '?',
                   models: '?',
-                  status: 'Config Error',
+                  status: 'Error',
                   domain: '?'
                 }
               end
-
-              # Get cluster stats
-              agents = k8s.list_resources(RESOURCE_AGENT, namespace: cluster[:namespace])
-              tools = k8s.list_resources(RESOURCE_TOOL, namespace: cluster[:namespace])
-              models = k8s.list_resources(RESOURCE_MODEL, namespace: cluster[:namespace])
-
-              # Get cluster status and domain
-              cluster_resource = k8s.get_resource('LanguageCluster', cluster[:name], cluster[:namespace])
-              status = cluster_resource.dig('status', 'phase') || 'Unknown'
-              domain = cluster_resource.dig('spec', 'domain')
-
-              name_display = cluster[:name]
-              name_display = "#{pastel.bold(cluster[:name])} (selected)" if cluster[:name] == current
-
-              {
-                name: name_display,
-                namespace: cluster[:namespace],
-                agents: agents.count,
-                tools: tools.count,
-                models: models.count,
-                status: status,
-                domain: domain
-              }
-            rescue K8s::Error::NotFound
-              # Cluster exists in local config but not in Kubernetes
-              name_display = cluster[:name]
-              name_display += ' *' if cluster[:name] == current
-
-              {
-                name: name_display,
-                namespace: cluster[:namespace],
-                agents: '-',
-                tools: '-',
-                models: '-',
-                status: 'Not Found',
-                domain: '-'
-              }
-            rescue StandardError
-              # Other errors (connection issues, auth problems, etc.)
-              name_display = cluster[:name]
-              name_display += ' *' if cluster[:name] == current
-
-              {
-                name: name_display,
-                namespace: cluster[:namespace],
-                agents: '?',
-                tools: '?',
-                models: '?',
-                status: 'Error',
-                domain: '?'
-              }
             end
 
             Formatters::TableFormatter.clusters(table_data)
 
-            puts "\nNo cluster selected. Use 'aictl use <cluster>' to select one." unless current
-
-            # Show helpful message if any clusters are not found
-            not_found_clusters = table_data.select { |c| c[:status] == 'Not Found' }
-            if not_found_clusters.any?
-              puts
-              Formatters::ProgressFormatter.warn('Some clusters exist in local config but not in Kubernetes')
-              puts
-              puts 'Clusters with "Not Found" status are defined in ~/.aictl/config.yaml'
-              puts 'but the corresponding LanguageCluster resource does not exist in Kubernetes.'
-              puts
-              puts 'To fix this:'
-              not_found_clusters.each do |cluster|
-                cluster_name = cluster[:name].gsub(' *', '')
-                puts "  • Remove from config:  aictl cluster delete #{cluster_name}"
-                puts "  • Or recreate:         aictl cluster create #{cluster_name}"
-              end
-            end
+            puts "\nNo cluster selected. Use 'langop use <cluster>' to select one." unless current
           end
         end
 
@@ -238,7 +202,7 @@ module LanguageOperator
             unless cluster_name
               Formatters::ProgressFormatter.info('No cluster selected')
               puts "\nSelect a cluster with:"
-              puts '  aictl use <cluster>'
+              puts '  langop use <cluster>'
               return
             end
 
@@ -306,7 +270,7 @@ module LanguageOperator
                 puts '  • The cluster resource no longer exists'
                 puts
                 puts 'To force removal from local configuration only, use:'
-                puts pastel.dim("  aictl cluster delete #{name} --force-local")
+                puts pastel.dim("  langop cluster delete #{name} --force-local")
                 exit 1
               end
             end
@@ -393,6 +357,52 @@ module LanguageOperator
               raise if ENV['DEBUG']
             end
           end
+        end
+
+        private
+
+        # Find the namespace for a given organization ID
+        #
+        # @param k8s_client [Kubernetes::Client] Kubernetes client
+        # @param org_id [String] Organization ID
+        # @return [String, nil] Namespace name or nil if not found
+        def find_org_namespace(k8s_client, org_id)
+          # List all namespaces with organization labels
+          namespaces = k8s_client.list_namespaces(
+            label_selector: "langop.io/organization-id=#{org_id}"
+          )
+
+          # Find the first namespace for this org ID
+          org_namespace = namespaces.find do |ns|
+            ns.dig('metadata', 'labels', 'langop.io/organization-id') == org_id
+          end
+
+          org_namespace&.dig('metadata', 'name')
+        rescue StandardError => e
+          warn "Warning: Could not find organization namespace: #{e.message}" if ENV['DEBUG']
+          nil
+        end
+
+        # List available organization namespaces for error messages
+        #
+        # @param k8s_client [Kubernetes::Client] Kubernetes client
+        def list_org_namespaces(k8s_client)
+          namespaces = k8s_client.list_namespaces(
+            label_selector: 'langop.io/type=organization'
+          )
+
+          if namespaces.any?
+            namespaces.each do |ns|
+              name = ns.dig('metadata', 'name')
+              org_id = ns.dig('metadata', 'labels', 'langop.io/organization-id')
+              plan = ns.dig('metadata', 'labels', 'langop.io/plan')
+              puts "  • #{name} (#{org_id}) [#{plan}]"
+            end
+          else
+            puts "  None found"
+          end
+        rescue StandardError => e
+          puts "  Error listing namespaces: #{e.message}"
         end
       end
     end

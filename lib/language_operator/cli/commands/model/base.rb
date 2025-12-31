@@ -22,7 +22,7 @@ module LanguageOperator
               models = list_resources_or_empty(RESOURCE_MODEL, resource_name: 'models') do
                 puts
                 puts 'Create a model with:'
-                puts '  aictl model create <name> --provider <provider> --model <model>'
+                puts '  langop model create <name> --provider <provider> --model <model>'
               end
 
               return if models.empty?
@@ -53,10 +53,10 @@ module LanguageOperator
             If NAME is omitted and no options are provided, an interactive wizard will guide you.
 
             Examples:
-              aictl model create                  # Launch interactive wizard
-              aictl model create gpt4 --provider openai --model gpt-4-turbo
-              aictl model create claude --provider anthropic --model claude-3-opus-20240229
-              aictl model create local --provider openai_compatible --model llama-3 --endpoint http://localhost:8080
+              langop model create                  # Launch interactive wizard
+              langop model create gpt4 --provider openai --model gpt-4-turbo
+              langop model create claude --provider anthropic --model claude-3-opus-20240229
+              langop model create local --provider openai_compatible --model llama-3 --endpoint http://localhost:8080
           DESC
           option :provider, type: :string, required: false, desc: 'LLM provider (e.g., openai, anthropic, openai_compatible)'
           option :model, type: :string, required: false, desc: 'Model identifier (e.g., gpt-4, claude-3-opus)'
@@ -87,7 +87,8 @@ module LanguageOperator
                 model: options[:model],
                 endpoint: options[:endpoint],
                 cluster: ctx.namespace,
-                cluster_ref: ctx.name
+                cluster_ref: ctx.name,
+                k8s_client: ctx.client
               )
 
               # Handle dry-run: output manifest and exit

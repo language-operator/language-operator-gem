@@ -47,10 +47,10 @@ module LanguageOperator
             The operator will synthesize the agent from your description and deploy it to your cluster.
 
             Examples:
-              aictl agent create "review my spreadsheet at 4pm daily and email me any errors"
-              aictl agent create "summarize Hacker News top stories every morning at 8am"
-              aictl agent create "monitor my website uptime and alert me if it goes down"
-              aictl agent create --wizard    # Interactive wizard mode
+              langop agent create "review my spreadsheet at 4pm daily and email me any errors"
+              langop agent create "summarize Hacker News top stories every morning at 8am"
+              langop agent create "monitor my website uptime and alert me if it goes down"
+              langop agent create --wizard    # Interactive wizard mode
           DESC
           option :cluster, type: :string, desc: 'Override current cluster context'
           option :create_cluster, type: :string, desc: 'Create cluster if it doesn\'t exist'
@@ -116,7 +116,8 @@ module LanguageOperator
                 persona: options[:persona],
                 tools: options[:tools] || [],
                 models: models,
-                workspace: options[:workspace]
+                workspace: options[:workspace],
+                k8s_client: ctx.client
               )
 
               # Dry-run mode: preview without applying
@@ -392,9 +393,9 @@ module LanguageOperator
 
             puts
             puts 'Next steps:'
-            puts pastel.dim("aictl agent logs #{agent_name} -f")
-            puts pastel.dim("aictl agent code #{agent_name}")
-            puts pastel.dim("aictl agent inspect #{agent_name}")
+            puts pastel.dim("langop agent logs #{agent_name} -f")
+            puts pastel.dim("langop agent code #{agent_name}")
+            puts pastel.dim("langop agent inspect #{agent_name}")
             puts
           end
 
@@ -497,7 +498,7 @@ module LanguageOperator
             Formatters::ProgressFormatter.info('No changes made (dry-run mode)')
             puts
             puts 'To create this agent for real, run:'
-            cmd_parts = ["aictl agent create \"#{description}\""]
+            cmd_parts = ["langop agent create \"#{description}\""]
             cmd_parts << "--name #{name}" if options[:name]
             cmd_parts << "--persona #{persona}" if persona
             cmd_parts << "--tools #{tools.join(' ')}" if tools.any?
@@ -535,7 +536,7 @@ module LanguageOperator
               Formatters::ProgressFormatter.info('No agents found')
               puts
               puts 'Create an agent with:'
-              puts '  aictl agent create "<description>"'
+              puts '  langop agent create "<description>"'
               return
             end
 
@@ -564,7 +565,7 @@ module LanguageOperator
               Formatters::ProgressFormatter.info('No clusters found')
               puts
               puts 'Create a cluster first:'
-              puts '  aictl cluster create <name>'
+              puts '  langop cluster create <name>'
               return
             end
 
@@ -623,7 +624,7 @@ module LanguageOperator
                   Formatters::ProgressFormatter.warn('Synthesis taking longer than expected, continuing in background...')
                   puts
                   puts 'Check synthesis status with:'
-                  puts "  aictl agent inspect #{agent_name}"
+                  puts "  langop agent inspect #{agent_name}"
                   synthesis_result = { success: true, timeout: true }
                   break
                 end
@@ -751,8 +752,8 @@ module LanguageOperator
             end
 
             puts pastel.white.bold('Available Commands:')
-            puts pastel.dim("  aictl agent learning status #{agent_name}")
-            puts pastel.dim("  aictl agent inspect #{agent_name}")
+            puts pastel.dim("  langop agent learning status #{agent_name}")
+            puts pastel.dim("  langop agent inspect #{agent_name}")
           end
 
           def get_execution_data(agent_name, ctx)
@@ -916,7 +917,7 @@ module LanguageOperator
             Formatters::ProgressFormatter.warn("Could not verify deletion of agent '#{name}' within 30 seconds")
             puts
             puts "Check deletion status with:"
-            puts "  aictl agent list"
+            puts "  langop agent list"
             puts "  kubectl get languageagent #{name}"
             puts
             puts "If the agent shows 'Unknown' status, it may be pending deletion."

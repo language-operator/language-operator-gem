@@ -28,7 +28,7 @@ Gem::Specification.new do |spec|
     end
   end
   spec.bindir        = 'bin'
-  spec.executables   = ['aictl']
+  spec.executables   = ['langop']
   spec.require_paths = ['lib']
 
   # Runtime dependencies

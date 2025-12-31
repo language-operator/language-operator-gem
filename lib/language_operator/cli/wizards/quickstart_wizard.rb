@@ -108,7 +108,7 @@ module LanguageOperator
               puts
               puts 'The operator needs to be installed first.'
               puts 'Install with:'
-              puts '  aictl install'
+              puts '  langop install'
               puts
               exit 1
             end
@@ -146,7 +146,7 @@ module LanguageOperator
           puts '     • Create cluster: kind create cluster'
           puts
           puts 'After setting up kubectl, run quickstart again:'
-          puts '  aictl quickstart'
+          puts '  langop quickstart'
           puts
         end
 
@@ -417,7 +417,8 @@ module LanguageOperator
               provider: provider,
               model: model,
               endpoint: endpoint,
-              cluster: cluster_info[:namespace]
+              cluster: cluster_info[:namespace],
+              k8s_client: k8s
             )
 
             # Add API key reference if we created a secret
@@ -471,7 +472,8 @@ module LanguageOperator
               cluster: cluster_info[:namespace],
               persona: nil,
               tools: [],
-              models: [model_info[:name]]
+              models: [model_info[:name]],
+              k8s_client: k8s
             )
 
             k8s.apply_resource(resource)
@@ -527,28 +529,28 @@ module LanguageOperator
 
           if agent_created
             puts '1. Check your agent status:'
-            puts "   #{pastel.dim('aictl agent inspect ruby-facts')}"
+            puts "   #{pastel.dim('langop agent inspect ruby-facts')}"
             puts
             puts '2. View the agent output:'
-            puts "   #{pastel.dim('aictl agent logs ruby-facts')}"
+            puts "   #{pastel.dim('langop agent logs ruby-facts')}"
             puts
             puts '3. Create another agent:'
-            puts "   #{pastel.dim('aictl agent create "your task here"')}"
+            puts "   #{pastel.dim('langop agent create "your task here"')}"
             puts
             puts '4. View all your agents:'
-            puts "   #{pastel.dim('aictl agent list')}"
+            puts "   #{pastel.dim('langop agent list')}"
           else
             puts '1. Create your own agent:'
-            puts "   #{pastel.dim('aictl agent create "your task here"')}"
+            puts "   #{pastel.dim('langop agent create "your task here"')}"
             puts
             puts '2. Use the interactive wizard:'
-            puts "   #{pastel.dim('aictl agent create --wizard')}"
+            puts "   #{pastel.dim('langop agent create --wizard')}"
             puts
             puts '3. View your agents:'
-            puts "   #{pastel.dim('aictl agent list')}"
+            puts "   #{pastel.dim('langop agent list')}"
             puts
             puts '4. Check agent status:'
-            puts "   #{pastel.dim('aictl agent inspect <agent-name>')}"
+            puts "   #{pastel.dim('langop agent inspect <agent-name>')}"
           end
 
           puts

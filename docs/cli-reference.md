@@ -1,203 +1,203 @@
-# aictl CLI Reference
+# langop CLI Reference
 
-Complete reference for the `aictl` command-line interface.
+Complete reference for the `langop` command-line interface.
 
 ## Global Commands
 
-### `aictl status`
+### `langop status`
 Show system status and overview of the current cluster.
 
 ```bash
-aictl status
+langop status
 ```
 
-### `aictl version`
-Display aictl version and operator installation status.
+### `langop version`
+Display langop version and operator installation status.
 
 ```bash
-aictl version
+langop version
 ```
 
 ## Cluster Management
 
-### `aictl cluster`
+### `langop cluster`
 Manage Kubernetes clusters for Language Operator.
 
 ```bash
 # Create a new cluster configuration
-aictl cluster create my-cluster
+langop cluster create my-cluster
 
 # List configured clusters  
-aictl cluster list
+langop cluster list
 
 # Switch active cluster context
-aictl use my-cluster
+langop use my-cluster
 
 # Remove cluster configuration
-aictl cluster delete my-cluster
+langop cluster delete my-cluster
 ```
 
 ## Agent Management
 
-### `aictl agent`
+### `langop agent`
 Create, deploy, and manage agents.
 
 ```bash
 # Create a new agent
-aictl agent create my-agent
+langop agent create my-agent
 
 # List agents in current cluster
-aictl agent list
+langop agent list
 
 # Get detailed agent information
-aictl agent inspect my-agent
+langop agent inspect my-agent
 
 # View agent logs
-aictl agent logs my-agent
+langop agent logs my-agent
 
 # Delete an agent
-aictl agent delete my-agent
+langop agent delete my-agent
 
 # Work with agent code
-aictl agent workspace my-agent
+langop agent workspace my-agent
 ```
 
 ## Model Management
 
-### `aictl model`
+### `langop model`
 Manage language models in the cluster.
 
 ```bash
 # Create a new model resource
-aictl model create
+langop model create
 
 # List available models
-aictl model list
+langop model list
 
 # Test model connectivity
-aictl model test my-model
+langop model test my-model
 ```
 
 ## Persona Management
 
-### `aictl persona`
+### `langop persona`
 Manage agent personas and system prompts.
 
 ```bash
 # Create a new persona
-aictl persona create
+langop persona create
 
 # List available personas
-aictl persona list
+langop persona list
 
 # View persona details
-aictl persona inspect my-persona
+langop persona inspect my-persona
 
 # Delete a persona
-aictl persona delete my-persona
+langop persona delete my-persona
 ```
 
 ## Tool Management
 
-### `aictl tool`
+### `langop tool`
 Manage MCP tool servers.
 
 ```bash
 # Deploy a tool server
-aictl tool deploy ./my-tool
+langop tool deploy ./my-tool
 
 # List tool deployments
-aictl tool list
+langop tool list
 
 # Test tool connectivity
-aictl tool test my-tool
+langop tool test my-tool
 
 # View tool logs
-aictl tool logs my-tool
+langop tool logs my-tool
 
 # Search for tools
-aictl tool search database
+langop tool search database
 
 # Install a tool from registry
-aictl tool install calculator
+langop tool install calculator
 ```
 
 ## System Utilities
 
-### `aictl system`
+### `langop system`
 System-level operations and utilities.
 
 ```bash
 # Validate system templates
-aictl system validate-template
+langop system validate-template
 
 # Work with synthesis templates
-aictl system synthesis-template
+langop system synthesis-template
 
 # Synthesize agent code
-aictl system synthesize
+langop system synthesize
 
 # Execute system commands
-aictl system exec
+langop system exec
 ```
 
 ## Setup and Installation
 
-### `aictl quickstart`
+### `langop quickstart`
 Interactive wizard for first-time setup.
 
 ```bash
-aictl quickstart
+langop quickstart
 ```
 
-### `aictl install`
+### `langop install`
 Install Language Operator to a Kubernetes cluster.
 
 ```bash
-aictl install
+langop install
 ```
 
-### `aictl upgrade`
+### `langop upgrade`
 Upgrade Language Operator installation.
 
 ```bash
-aictl upgrade
+langop upgrade
 ```
 
-### `aictl uninstall`
+### `langop uninstall`
 Remove Language Operator from cluster.
 
 ```bash
-aictl uninstall
+langop uninstall
 ```
 
 ## Shell Completion
 
-### `aictl completion`
-Install shell completion for aictl.
+### `langop completion`
+Install shell completion for langop.
 
 ```bash
 # Bash completion
-aictl completion bash
+langop completion bash
 
 # Zsh completion  
-aictl completion zsh
+langop completion zsh
 
 # Fish completion
-aictl completion fish
+langop completion fish
 ```
 
 To install completion:
 
 ```bash
 # Bash (add to ~/.bashrc)
-eval "$(aictl completion bash)"
+eval "$(langop completion bash)"
 
 # Zsh (add to ~/.zshrc)  
-eval "$(aictl completion zsh)"
+eval "$(langop completion zsh)"
 
 # Fish
-aictl completion fish | source
+langop completion fish | source
 ```
 
 ## Common Workflows
@@ -206,48 +206,48 @@ aictl completion fish | source
 
 ```bash
 # 1. Set up cluster
-aictl quickstart
+langop quickstart
 
 # 2. Create an agent
-aictl agent create my-agent
+langop agent create my-agent
 
 # 3. Check status
-aictl agent list
-aictl agent inspect my-agent
+langop agent list
+langop agent inspect my-agent
 
 # 4. View logs
-aictl agent logs my-agent -f
+langop agent logs my-agent -f
 ```
 
 ### Working with Models
 
 ```bash
 # 1. Create a model
-aictl model create
+langop model create
 
 # 2. Test connectivity
-aictl model test my-model
+langop model test my-model
 
 # 3. List models
-aictl model list
+langop model list
 ```
 
 ### Tool Server Development
 
 ```bash
 # 1. Deploy your tool
-aictl tool deploy ./my-custom-tools
+langop tool deploy ./my-custom-tools
 
 # 2. Test tool functionality
-aictl tool test my-custom-tools
+langop tool test my-custom-tools
 
 # 3. Monitor logs
-aictl tool logs my-custom-tools -f
+langop tool logs my-custom-tools -f
 ```
 
 ## Environment Variables
 
-aictl respects these environment variables:
+langop respects these environment variables:
 
 - `KUBECONFIG` - Path to Kubernetes config file
 - `AICTL_CLUSTER` - Default cluster name
@@ -268,7 +268,7 @@ aictl respects these environment variables:
 All commands support the `--help` flag for detailed usage:
 
 ```bash
-aictl --help
-aictl agent --help
-aictl agent create --help
+langop --help
+langop agent --help
+langop agent create --help
 ```

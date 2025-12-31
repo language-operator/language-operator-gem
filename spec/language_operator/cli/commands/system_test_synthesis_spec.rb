@@ -99,7 +99,7 @@ RSpec.describe LanguageOperator::CLI::Commands::System::Base do
 
         it 'shows no models message' do
           result = command.send(:format_models_list, nil)
-          expect(result).to eq('No models available (run: aictl model list)')
+          expect(result).to eq('No models available (run: langop model list)')
         end
       end
     end

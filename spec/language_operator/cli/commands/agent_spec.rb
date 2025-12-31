@@ -161,7 +161,7 @@ RSpec.describe LanguageOperator::CLI::Commands::Agent::Base do
       it 'displays helpful message' do
         expect($stdout).to receive(:puts).with(no_args)
         expect($stdout).to receive(:puts).with('Create an agent with:')
-        expect($stdout).to receive(:puts).with('  aictl agent create "<description>"')
+        expect($stdout).to receive(:puts).with('  langop agent create "<description>"')
         command.list
       end
     end

@@ -18,11 +18,11 @@ RSpec.describe 'Agent Lifecycle E2E', type: :e2e do
     cleanup_test_resources(E2E::Config.test_prefix) unless E2E::Config.skip_cleanup?
   end
 
-  describe 'Full agent lifecycle via aictl' do
+  describe 'Full agent lifecycle via langop' do
     it 'creates cluster, agent, verifies synthesis, edits, and re-synthesizes' do
       # Step 1: Create cluster
       puts "\n→ Creating cluster: #{cluster_name}"
-      result = run_aictl("cluster create #{cluster_name}")
+      result = run_langop("cluster create #{cluster_name}")
       expect(result[:success]).to be(true), "Cluster creation failed: #{result[:stderr]}"
 
       # Verify cluster exists
@@ -32,7 +32,7 @@ RSpec.describe 'Agent Lifecycle E2E', type: :e2e do
       # Step 2: Create agent from natural language
       puts "\n→ Creating agent from natural language"
       agent_description = 'a helpful assistant that greets users and provides weather information'
-      result = run_aictl("agent create '#{agent_description}' --cluster #{cluster_name}")
+      result = run_langop("agent create '#{agent_description}' --cluster #{cluster_name}")
       expect(result[:success]).to be(true), "Agent creation failed: #{result[:stderr]}"
 
       # Extract agent name from output (should be in the output)
@@ -49,7 +49,7 @@ RSpec.describe 'Agent Lifecycle E2E', type: :e2e do
 
       # Step 4: Verify agent code was generated
       puts "\n→ Verifying synthesized code"
-      result = run_aictl("agent code #{agent_name}")
+      result = run_langop("agent code #{agent_name}")
       expect(result[:success]).to be(true), "Failed to retrieve agent code: #{result[:stderr]}"
       expect(result[:stdout]).not_to be_empty
       expect(result[:stdout]).to include('class'), 'Expected synthesized code to contain a class definition'
@@ -73,7 +73,7 @@ RSpec.describe 'Agent Lifecycle E2E', type: :e2e do
       # Step 7: Edit agent instructions
       puts "\n→ Editing agent instructions"
       # NOTE: This requires interactive editor, so we'll test the inspect command instead
-      result = run_aictl("agent inspect #{agent_name}")
+      result = run_langop("agent inspect #{agent_name}")
       expect(result[:success]).to be(true), 'Failed to inspect agent before edit'
       result[:stdout]
 
@@ -85,14 +85,14 @@ RSpec.describe 'Agent Lifecycle E2E', type: :e2e do
       # In a real scenario, editing would trigger re-synthesis
       # We can verify the synthesis status endpoint works
       puts "\n→ Verifying synthesis status monitoring"
-      result = run_aictl("agent inspect #{agent_name}")
+      result = run_langop("agent inspect #{agent_name}")
       expect(result[:success]).to be(true)
       expect(result[:stdout]).to include('Synthesized'), 'Expected synthesis status in inspect output'
       puts '✓ Synthesis status monitoring verified'
 
       # Step 9: Verify agent deletion
       puts "\n→ Deleting agent"
-      result = run_aictl("agent delete #{agent_name}")
+      result = run_langop("agent delete #{agent_name}")
       expect(result[:success]).to be(true), "Agent deletion failed: #{result[:stderr]}"
 
       # Wait for agent to be gone
@@ -104,7 +104,7 @@ RSpec.describe 'Agent Lifecycle E2E', type: :e2e do
 
       # Step 10: Clean up cluster
       puts "\n→ Deleting cluster"
-      result = run_aictl("cluster delete #{cluster_name} --yes")
+      result = run_langop("cluster delete #{cluster_name} --yes")
       expect(result[:success]).to be(true), "Cluster deletion failed: #{result[:stderr]}"
 
       expect(cluster_exists?(cluster_name)).to be(false)
@@ -117,13 +117,13 @@ RSpec.describe 'Agent Lifecycle E2E', type: :e2e do
   describe 'Agent creation from natural language' do
     before(:all) do
       # Ensure we have a cluster for these tests
-      result = run_aictl("cluster create #{cluster_name}")
+      result = run_langop("cluster create #{cluster_name}")
       expect(result[:success]).to be(true)
     end
 
     it 'creates an agent with natural language description' do
       description = 'a bot that monitors system metrics and alerts on anomalies'
-      result = run_aictl("agent create '#{description}' --cluster #{cluster_name}")
+      result = run_langop("agent create '#{description}' --cluster #{cluster_name}")
 
       expect(result[:success]).to be(true)
       # Agent creation should provide feedback
@@ -131,7 +131,7 @@ RSpec.describe 'Agent Lifecycle E2E', type: :e2e do
     end
 
     it 'creates an agent with specific persona' do
-      result = run_aictl("agent create 'a coding assistant' --persona helpful-assistant --cluster #{cluster_name}")
+      result = run_langop("agent create 'a coding assistant' --persona helpful-assistant --cluster #{cluster_name}")
 
       expect(result[:success]).to be(true)
       expect(result[:stdout]).not_to be_empty
@@ -143,8 +143,8 @@ RSpec.describe 'Agent Lifecycle E2E', type: :e2e do
 
     before(:all) do
       # Create cluster and agent
-      run_aictl("cluster create #{cluster_name}")
-      run_aictl("agent create 'test assistant' --cluster #{cluster_name}")
+      run_langop("cluster create #{cluster_name}")
+      run_langop("agent create 'test assistant' --cluster #{cluster_name}")
     end
 
     it 'verifies agent synthesis completes' do
@@ -161,7 +161,7 @@ RSpec.describe 'Agent Lifecycle E2E', type: :e2e do
         agent_synthesized?(test_agent, cluster: cluster_name)
       end
 
-      result = run_aictl("agent code #{test_agent}")
+      result = run_langop("agent code #{test_agent}")
       expect(result[:success]).to be(true)
       expect(result[:stdout]).to include('class')
     end
@@ -171,8 +171,8 @@ RSpec.describe 'Agent Lifecycle E2E', type: :e2e do
     let(:test_agent) { "#{test_prefix}-log-test" }
 
     before(:all) do
-      run_aictl("cluster create #{cluster_name}")
-      run_aictl("agent create 'logging test agent' --cluster #{cluster_name}")
+      run_langop("cluster create #{cluster_name}")
+      run_langop("agent create 'logging test agent' --cluster #{cluster_name}")
 
       # Wait for agent to be running
       wait_for_condition(timeout: 120) do
@@ -190,7 +190,7 @@ RSpec.describe 'Agent Lifecycle E2E', type: :e2e do
     it 'follows agent logs with -f flag' do
       # NOTE: Following logs requires background process handling
       # For now, we verify the command accepts the flag
-      result = run_aictl("agent logs #{test_agent} --help")
+      result = run_langop("agent logs #{test_agent} --help")
       expect(result[:success]).to be(true)
       expect(result[:stdout]).to(include('follow').or(include('-f')))
     end

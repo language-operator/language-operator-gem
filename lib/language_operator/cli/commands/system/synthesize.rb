@@ -26,25 +26,25 @@ module LanguageOperator
 
                 Examples:
                   # Test with dry-run (show prompt only)
-                  aictl system synthesize "Monitor GitHub issues daily" --dry-run
+                  langop system synthesize "Monitor GitHub issues daily" --dry-run
 
                   # Generate code from instructions (auto-selects first available model)
-                  aictl system synthesize "Send daily reports to Slack"
+                  langop system synthesize "Send daily reports to Slack"
 
                   # Use a specific cluster model
-                  aictl system synthesize "Process webhooks from GitHub" --model my-claude
+                  langop system synthesize "Process webhooks from GitHub" --model my-claude
 
                   # Output raw code without formatting (useful for piping to files)
-                  aictl system synthesize "Monitor logs" --raw > agent.rb
+                  langop system synthesize "Monitor logs" --raw > agent.rb
 
                   # Read instructions from STDIN
-                  cat instructions.txt | aictl system synthesize > agent.rb
+                  cat instructions.txt | langop system synthesize > agent.rb
 
                   # Read from STDIN with pipe
-                  echo "Monitor GitHub issues" | aictl system synthesize --raw
+                  echo "Monitor GitHub issues" | langop system synthesize --raw
 
                   # Specify custom agent name and tools
-                  aictl system synthesize "Process webhooks from GitHub" \\
+                  langop system synthesize "Process webhooks from GitHub" \\
                     --agent-name github-processor \\
                     --tools github,slack \\
                     --model my-gpt4
@@ -64,8 +64,8 @@ module LanguageOperator
                       Formatters::ProgressFormatter.error('No instructions provided')
                       puts
                       puts 'Provide instructions either as an argument or via STDIN:'
-                      puts '  aictl system synthesize "Your instructions here"'
-                      puts '  cat instructions.txt | aictl system synthesize'
+                      puts '  langop system synthesize "Your instructions here"'
+                      puts '  cat instructions.txt | langop system synthesize'
                       exit 1
                     else
                       instructions = $stdin.read.strip
@@ -73,8 +73,8 @@ module LanguageOperator
                         Formatters::ProgressFormatter.error('No instructions provided')
                         puts
                         puts 'Provide instructions either as an argument or via STDIN:'
-                        puts '  aictl system synthesize "Your instructions here"'
-                        puts '  cat instructions.txt | aictl system synthesize'
+                        puts '  langop system synthesize "Your instructions here"'
+                        puts '  cat instructions.txt | langop system synthesize'
                         exit 1
                       end
                     end
@@ -177,7 +177,7 @@ module LanguageOperator
                   models = detect_available_models
                   return models.map { |model| "- #{model}" }.join("\n") unless models.empty?
 
-                  return 'No models available (run: aictl model list)'
+                  return 'No models available (run: langop model list)'
                 end
 
                 models = models_str.split(',').map(&:strip)
@@ -205,10 +205,10 @@ module LanguageOperator
                   Formatters::ProgressFormatter.error('No models available in cluster')
                   puts
                   puts 'Please create a model first:'
-                  puts '  aictl model create'
+                  puts '  langop model create'
                   puts
                   puts 'Or list existing models:'
-                  puts '  aictl model list'
+                  puts '  langop model list'
                   exit 1
                 end
 

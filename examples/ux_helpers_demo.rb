@@ -119,10 +119,10 @@ class UxDemo
 
     # Multi-line box
     puts box(<<~MSG, title: 'Next Steps', padding: 2)
-      1. Monitor logs:    aictl agent logs my-agent
-      2. Check status:    aictl agent inspect my-agent
-      3. View metrics:    aictl agent metrics my-agent
-      4. Scale replicas:  aictl agent scale my-agent --replicas=3
+      1. Monitor logs:    langop agent logs my-agent
+      2. Check status:    langop agent inspect my-agent
+      3. View metrics:    langop agent metrics my-agent
+      4. Scale replicas:  langop agent scale my-agent --replicas=3
     MSG
     puts "\n"
   end

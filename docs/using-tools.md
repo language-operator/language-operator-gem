@@ -210,7 +210,7 @@ For advanced use cases, you can specify tool requirements:
 
 ```bash
 # During agent creation
-aictl agent create my-agent \
+langop agent create my-agent \
   --tools database,slack,github \
   --database-url postgres://... \
   --slack-token xoxb-... \
@@ -242,13 +242,13 @@ Language Operator provides basic tool management commands:
 
 ```bash
 # Deploy a tool server to your cluster
-aictl tool deploy ./path/to/tool
+langop tool deploy ./path/to/tool
 
 # Test tool connectivity
-aictl tool test my-tool
+langop tool test my-tool
 
 # View tool logs
-aictl tool logs my-tool
+langop tool logs my-tool
 ```
 
 For available tools, check the `components/tool/examples/` directory in the repository.
@@ -323,10 +323,10 @@ end
 
 ```bash
 # Deploy your custom tool server
-aictl tool deploy ./my-custom-tools
+langop tool deploy ./my-custom-tools
 
 # Register with Language Operator
-aictl tool register my-custom-tools \
+langop tool register my-custom-tools \
   --endpoint https://my-tools.company.com
 ```
 
@@ -369,10 +369,10 @@ All tool usage is logged for security and debugging:
 
 ```bash
 # View tool usage logs
-aictl agent logs my-agent --tools-only
+langop agent logs my-agent --tools-only
 
 # Audit specific tool usage
-aictl tool audit database --agent my-agent --since 24h
+langop tool audit database --agent my-agent --since 24h
 ```
 
 ## Performance Optimization
@@ -434,13 +434,13 @@ end
 
 ```bash
 # Test tool connectivity
-aictl tool test database
+langop tool test database
 
 # Check tool configuration
-aictl tool config database
+langop tool config database
 
 # View tool logs
-aictl tool logs database --since 1h
+langop tool logs database --since 1h
 ```
 
 ### Common Issues

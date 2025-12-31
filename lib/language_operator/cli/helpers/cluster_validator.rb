@@ -77,9 +77,9 @@ module LanguageOperator
             puts 'The kubeconfig file for this cluster does not exist.'
             puts
             puts 'To fix this issue:'
-            puts '  1. Verify the kubeconfig path in ~/.aictl/config.yaml'
+            puts '  1. Verify the kubeconfig path in ~/.langop/config.yaml'
             puts '  2. Re-create the cluster configuration:'
-            puts "     aictl cluster create #{cluster_config[:name]}"
+            puts "     langop cluster create #{cluster_config[:name]}"
             exit 1
           end
 

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **BREAKING**: Renamed CLI binary from `aictl` to `langop`
+  - Binary renamed: `bin/aictl` → `bin/langop`
+  - Shell completions updated: `completions/aictl.*` → `completions/langop.*`
+  - All documentation updated to reference `langop`
+  - Migration required: Replace `aictl` with `langop` in scripts and automation
+
 ### Removed
 - **BREAKING**: Removed deprecated DSL v0 (workflow/step model)
   - Deleted `WorkflowDefinition` and `StepDefinition` classes

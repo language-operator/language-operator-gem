@@ -34,7 +34,7 @@ module LanguageOperator
                     Formatters::ProgressFormatter.warn('Synthesis taking longer than expected, continuing in background...')
                     puts
                     puts 'Check synthesis status with:'
-                    puts "  aictl agent inspect #{agent_name}"
+                    puts "  langop agent inspect #{agent_name}"
                     synthesis_result = { success: true, timeout: true }
                     break
                   end

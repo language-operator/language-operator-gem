@@ -9,7 +9,7 @@ Complete guide to using Language Operator to build, deploy, and manage AI agents
 gem install language-operator
 
 # Interactive setup (recommended)
-aictl quickstart
+langop quickstart
 ```
 
 **New to Language Operator?** Start with the [Installation Guide](installation.md) and [Quickstart Guide](quickstart.md).
@@ -17,7 +17,7 @@ aictl quickstart
 ## Table of Contents
 
 ### Getting Started
-- **[Installation](installation.md)** - Install aictl and configure your environment  
+- **[Installation](installation.md)** - Install langop and configure your environment  
 - **[Quickstart Guide](quickstart.md)** - Create your first agent in 5 minutes
 - **[CLI Reference](cli-reference.md)** - Complete command documentation
 
@@ -42,14 +42,14 @@ aictl quickstart
 ## Available Commands
 
 ```bash
-aictl status              # Show system status
-aictl cluster            # Manage Kubernetes clusters
-aictl agent              # Create and manage agents  
-aictl model              # Manage language models
-aictl persona            # Manage agent personas
-aictl tool               # Manage MCP tool servers
-aictl system             # System utilities and templates
-aictl quickstart         # First-time setup wizard
+langop status              # Show system status
+langop cluster            # Manage Kubernetes clusters
+langop agent              # Create and manage agents  
+langop model              # Manage language models
+langop persona            # Manage agent personas
+langop tool               # Manage MCP tool servers
+langop system             # System utilities and templates
+langop quickstart         # First-time setup wizard
 ```
 
 ## Getting Help

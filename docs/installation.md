@@ -19,17 +19,17 @@ gem install language-operator
 ### Verify Installation
 
 ```bash
-aictl version
+langop version
 ```
 
-You should see the aictl version and operator status information.
+You should see the langop version and operator status information.
 
 ## Initial Setup
 
 ### 1. Check System Status
 
 ```bash
-aictl status
+langop status
 ```
 
 This command shows:
@@ -42,7 +42,7 @@ This command shows:
 For first-time users, the quickstart wizard guides you through setup:
 
 ```bash
-aictl quickstart
+langop quickstart
 ```
 
 The wizard will:
@@ -57,16 +57,16 @@ If you prefer manual configuration:
 
 ```bash
 # Create cluster configuration
-aictl cluster create my-cluster
+langop cluster create my-cluster
 
 # Switch to the cluster
-aictl use my-cluster
+langop use my-cluster
 
 # Install Language Operator
-aictl install
+langop install
 
 # Verify installation
-aictl status
+langop status
 ```
 
 ## Kubernetes Setup
@@ -80,20 +80,20 @@ minikube start
 # Or start kind cluster
 kind create cluster --name language-operator
 
-# Configure aictl
-aictl cluster create local --kubeconfig ~/.kube/config
-aictl use local
+# Configure langop
+langop cluster create local --kubeconfig ~/.kube/config
+langop use local
 ```
 
 ### Production Clusters
 
 ```bash
 # Configure cluster with specific context
-aictl cluster create production \
+langop cluster create production \
   --kubeconfig /path/to/kubeconfig \
   --context production-context
 
-aictl use production
+langop use production
 ```
 
 ## Model Configuration
@@ -104,14 +104,14 @@ Language Operator requires language model access. Configure your preferred provi
 
 ```bash
 export OPENAI_API_KEY="sk-your-api-key"
-aictl model create openai-gpt4 --provider openai --model gpt-4-turbo
+langop model create openai-gpt4 --provider openai --model gpt-4-turbo
 ```
 
 ### Anthropic (Claude)
 
 ```bash
 export ANTHROPIC_API_KEY="sk-your-api-key"  
-aictl model create claude-sonnet --provider anthropic --model claude-3-sonnet
+langop model create claude-sonnet --provider anthropic --model claude-3-sonnet
 ```
 
 ### Local Models (Ollama)
@@ -121,7 +121,7 @@ aictl model create claude-sonnet --provider anthropic --model claude-3-sonnet
 ollama serve
 
 # Configure local model
-aictl model create local-llama --provider ollama --model llama3
+langop model create local-llama --provider ollama --model llama3
 ```
 
 ## Verification
@@ -130,23 +130,23 @@ aictl model create local-llama --provider ollama --model llama3
 
 ```bash
 # Check overall status
-aictl status
+langop status
 
 # List models
-aictl model list
+langop model list
 
 # Create a test agent
-aictl agent create test-agent
+langop agent create test-agent
 
 # View agent status  
-aictl agent list
-aictl agent inspect test-agent
+langop agent list
+langop agent inspect test-agent
 ```
 
 ### Sample Output
 
 ```bash
-$ aictl status
+$ langop status
 
 Language Operator Status
 ========================
@@ -167,28 +167,28 @@ Enable command completion for better CLI experience:
 ### Bash
 
 ```bash
-echo 'eval "$(aictl completion bash)"' >> ~/.bashrc
+echo 'eval "$(langop completion bash)"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
 ### Zsh
 
 ```bash
-echo 'eval "$(aictl completion zsh)"' >> ~/.zshrc
+echo 'eval "$(langop completion zsh)"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
 ### Fish
 
 ```bash
-aictl completion fish | source
+langop completion fish | source
 ```
 
 ## Troubleshooting
 
 ### Common Issues
 
-**Command not found: aictl**
+**Command not found: langop**
 - Ensure Ruby gem bin directory is in PATH
 - Run `gem env` to check installation paths
 
@@ -198,17 +198,17 @@ aictl completion fish | source
 - Ensure cluster context is correct
 
 **Language Operator not found**
-- Run `aictl install` to install to current cluster
+- Run `langop install` to install to current cluster
 - Check installation: `kubectl get pods -n language-operator`
 
 **Model configuration issues**
 - Verify API keys are set correctly
-- Test model connectivity: `aictl model test my-model`
+- Test model connectivity: `langop model test my-model`
 
 ### Getting Help
 
-- Check command help: `aictl --help`
-- View logs: `aictl agent logs my-agent`
+- Check command help: `langop --help`
+- View logs: `langop agent logs my-agent`
 - Report issues: [GitHub Issues](https://github.com/language-operator/language-operator-gem/issues)
 
 ## Next Steps

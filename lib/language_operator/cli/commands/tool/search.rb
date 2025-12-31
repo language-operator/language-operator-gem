@@ -18,9 +18,9 @@ module LanguageOperator
                 With a pattern, filters tools by name or description (case-insensitive).
 
                 Examples:
-                  aictl tool search              # List all tools
-                  aictl tool search web          # Find tools matching "web"
-                  aictl tool search email        # Find tools matching "email"
+                  langop tool search              # List all tools
+                  langop tool search web          # Find tools matching "web"
+                  langop tool search email        # Find tools matching "email"
               DESC
               def search(pattern = nil)
                 handle_command_error('search tools') do

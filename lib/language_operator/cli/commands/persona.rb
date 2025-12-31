@@ -21,7 +21,7 @@ module LanguageOperator
               puts 'Personas define the personality and capabilities of agents.'
               puts
               puts 'Create a persona with:'
-              puts '  aictl persona create <name>'
+              puts '  langop persona create <name>'
             end
 
             return if personas.empty?
@@ -95,7 +95,7 @@ module LanguageOperator
             puts '═' * 80
             puts
             Formatters::ProgressFormatter.info('Use this persona when creating agents:')
-            puts "  aictl agent create \"description\" --persona #{name}"
+            puts "  langop agent create \"description\" --persona #{name}"
             puts
           end
         end
@@ -105,8 +105,8 @@ module LanguageOperator
           Create a new persona with the specified name using an interactive wizard.
 
           Examples:
-            aictl persona create helpful-assistant
-            aictl persona create code-reviewer --from helpful-assistant
+            langop persona create helpful-assistant
+            langop persona create code-reviewer --from helpful-assistant
         DESC
         option :cluster, type: :string, desc: 'Override current cluster context'
         option :from, type: :string, desc: 'Copy from existing persona as starting point'
@@ -118,7 +118,7 @@ module LanguageOperator
               Formatters::ProgressFormatter.error("Persona '#{name}' already exists in cluster '#{ctx.name}'")
               puts
               puts 'Use a different name or delete the existing persona first:'
-              puts "  aictl persona delete #{name}"
+              puts "  langop persona delete #{name}"
               exit 1
             rescue K8s::Error::NotFound
               # Good - persona doesn't exist yet
@@ -193,7 +193,8 @@ module LanguageOperator
               name: name,
               spec: persona_spec,
               namespace: ctx.namespace,
-              cluster_ref: ctx.name
+              cluster_ref: ctx.name,
+              k8s_client: ctx.client
             )
 
             # Show preview
@@ -219,7 +220,7 @@ module LanguageOperator
             Formatters::ProgressFormatter.success("Persona '#{name}' created successfully")
             puts
             puts 'Use this persona when creating agents:'
-            puts "  aictl agent create \"description\" --persona #{name}"
+            puts "  langop agent create \"description\" --persona #{name}"
           end
         end
 
@@ -231,7 +232,7 @@ module LanguageOperator
           Any agents using this persona will be automatically re-synthesized.
 
           Example:
-            aictl persona edit helpful-assistant
+            langop persona edit helpful-assistant
         DESC
         option :cluster, type: :string, desc: 'Override current cluster context'
         def edit(name)

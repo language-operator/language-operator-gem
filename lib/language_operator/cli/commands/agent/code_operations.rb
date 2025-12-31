@@ -29,7 +29,7 @@ module LanguageOperator
                     puts '  - Agent synthesis failed'
                     puts
                     puts 'Check agent status with:'
-                    puts "  aictl agent inspect #{name}"
+                    puts "  langop agent inspect #{name}"
                     exit 1
                   end
 
@@ -90,7 +90,7 @@ module LanguageOperator
                     puts pastel.yellow('No versions have been created yet.')
                     puts
                     puts 'Versions are created automatically during agent synthesis.'
-                    puts "Check agent status: #{pastel.dim("aictl agent inspect #{name}")}"
+                    puts "Check agent status: #{pastel.dim("langop agent inspect #{name}")}"
                     return
                   end
 
@@ -133,8 +133,8 @@ module LanguageOperator
                   puts table(headers, rows)
                   puts
                   puts 'Usage:'
-                  puts "  #{pastel.dim("aictl agent code #{name}")}"
-                  puts "  #{pastel.dim("aictl agent code #{name} --version=X")}"
+                  puts "  #{pastel.dim("langop agent code #{name}")}"
+                  puts "  #{pastel.dim("langop agent code #{name} --version=X")}"
                 end
               end
 
@@ -175,7 +175,7 @@ module LanguageOperator
                       puts "  v#{version_num}"
                     end
                     puts
-                    puts "Use 'aictl agent versions #{agent_name}' to see all available versions"
+                    puts "Use 'langop agent versions #{agent_name}' to see all available versions"
                     exit 1
                   end
 
@@ -231,7 +231,7 @@ module LanguageOperator
                   puts 'The operator will automatically re-synthesize the agent code.'
                   puts
                   puts 'Watch synthesis progress with:'
-                  puts "  aictl agent inspect #{name}"
+                  puts "  langop agent inspect #{name}"
                 end
               end
             end

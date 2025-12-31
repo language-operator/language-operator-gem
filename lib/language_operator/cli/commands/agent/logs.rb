@@ -18,8 +18,8 @@ module LanguageOperator
                 Use -f to follow logs continuously (like tail -f).
 
                 Examples:
-                  aictl agent logs my-agent
-                  aictl agent logs my-agent -f
+                  langop agent logs my-agent
+                  langop agent logs my-agent -f
               DESC
               option :cluster, type: :string, desc: 'Override current cluster context'
               option :follow, type: :boolean, aliases: '-f', default: false, desc: 'Follow logs'

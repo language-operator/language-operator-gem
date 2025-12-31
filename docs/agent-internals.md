@@ -358,7 +358,7 @@ The agent runtime uses these environment variables (injected by the operator):
 
 ### 1. User creates agent
 ```bash
-$ aictl agent create "check my inbox every hour and send me a summary"
+$ langop agent create "check my inbox every hour and send me a summary"
 ```
 
 ### 2. Operator synthesizes code

@@ -31,7 +31,7 @@ module LanguageOperator
               tools = list_resources_or_empty(RESOURCE_TOOL, resource_name: 'tools') do
                 puts
                 puts 'Install a tool with:'
-                puts '  aictl tool install <name>'
+                puts '  langop tool install <name>'
               end
 
               return if tools.empty?

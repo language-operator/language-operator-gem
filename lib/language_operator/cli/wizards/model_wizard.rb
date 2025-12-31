@@ -191,8 +191,8 @@ module LanguageOperator
             ctx.client.get_resource('LanguageModel', model_name, ctx.namespace)
             Formatters::ProgressFormatter.error("Model '#{model_name}' already exists in cluster '#{ctx.name}'")
             puts
-            puts "Use 'aictl model inspect #{model_name}' to view details"
-            puts "Use 'aictl model edit #{model_name}' to modify it"
+            puts "Use 'langop model inspect #{model_name}' to view details"
+            puts "Use 'langop model edit #{model_name}' to modify it"
             return false
           rescue K8s::Error::NotFound
             # Expected - model doesn't exist yet
@@ -260,9 +260,9 @@ module LanguageOperator
           puts 'Next steps:'
           puts
           puts '1. Use this model in an agent:'
-          puts "   #{pastel.dim("aictl agent create --model #{model_name}")}"
+          puts "   #{pastel.dim("langop agent create --model #{model_name}")}"
           puts '2. View model details:'
-          puts "   #{pastel.dim("aictl model inspect #{model_name}")}"
+          puts "   #{pastel.dim("langop model inspect #{model_name}")}"
           puts
         end
       end

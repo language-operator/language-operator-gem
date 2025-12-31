@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative '../spec_helper'
-require_relative 'support/aictl_helper'
+require_relative 'support/langop_helper'
 
 RSpec.configure do |config|
   # Include E2E helper methods in all E2E specs

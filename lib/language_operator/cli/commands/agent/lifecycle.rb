@@ -49,7 +49,7 @@ module LanguageOperator
                   puts 'The agent will not execute on its schedule until resumed.'
                   puts
                   puts 'Resume with:'
-                  puts "  aictl agent resume #{name}"
+                  puts "  langop agent resume #{name}"
                 end
               end
 
@@ -90,7 +90,7 @@ module LanguageOperator
                   puts 'The agent will now execute according to its schedule.'
                   puts
                   puts 'View next execution time with:'
-                  puts "  aictl agent inspect #{name}"
+                  puts "  langop agent inspect #{name}"
                 end
               end
             end

@@ -1,7 +1,7 @@
 .PHONY: create code logs clean events validate run
 
 AGENT := s004
-AICTL := bundle exec ../../bin/aictl agent
+AICTL := bundle exec ../../bin/langop agent
 TOOLS := workspace
 
 create:

@@ -7,7 +7,7 @@ Language Operator transforms your natural language descriptions into working AI 
 ### 1. You Describe What You Want
 
 ```bash
-aictl agent create daily-report
+langop agent create daily-report
 # Interactive wizard asks:
 # - What should this agent do?
 # - When should it run?

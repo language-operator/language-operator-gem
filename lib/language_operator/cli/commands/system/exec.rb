@@ -22,22 +22,22 @@ module LanguageOperator
 
                 Examples:
                   # Execute a synthesized agent file
-                  aictl system exec agent.rb
+                  langop system exec agent.rb
 
                   # Execute with a custom agent name
-                  aictl system exec agent.rb --agent-name my-test
+                  langop system exec agent.rb --agent-name my-test
 
                   # Keep the pod after execution for debugging
-                  aictl system exec agent.rb --keep-pod
+                  langop system exec agent.rb --keep-pod
 
                   # Use a different agent image
-                  aictl system exec agent.rb --image ghcr.io/language-operator/agent:v0.1.0
+                  langop system exec agent.rb --image ghcr.io/language-operator/agent:v0.1.0
 
                   # Read agent code from STDIN
-                  cat agent.rb | aictl system exec
+                  cat agent.rb | langop system exec
 
                   # Pipe synthesized code directly to execution
-                  cat agent.txt | aictl system synthesize | aictl system exec
+                  cat agent.txt | langop system synthesize | langop system exec
               DESC
               option :agent_name, type: :string, default: 'test-agent', desc: 'Name for the test agent pod'
               option :keep_pod, type: :boolean, default: false, desc: 'Keep the pod after execution (for debugging)'
@@ -68,8 +68,8 @@ module LanguageOperator
                                  Formatters::ProgressFormatter.error('No agent code provided')
                                  puts
                                  puts 'Provide agent code either as a file or via STDIN:'
-                                 puts '  aictl system exec agent.rb'
-                                 puts '  cat agent.rb | aictl system exec'
+                                 puts '  langop system exec agent.rb'
+                                 puts '  cat agent.rb | langop system exec'
                                  exit 1
                                else
                                  code = $stdin.read.strip
@@ -77,8 +77,8 @@ module LanguageOperator
                                    Formatters::ProgressFormatter.error('No agent code provided')
                                    puts
                                    puts 'Provide agent code either as a file or via STDIN:'
-                                   puts '  aictl system exec agent.rb'
-                                   puts '  cat agent.rb | aictl system exec'
+                                   puts '  langop system exec agent.rb'
+                                   puts '  cat agent.rb | langop system exec'
                                    exit 1
                                  end
                                  code

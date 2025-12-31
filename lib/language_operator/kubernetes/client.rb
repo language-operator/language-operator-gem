@@ -3,12 +3,13 @@
 require 'k8s-ruby'
 require 'yaml'
 require_relative '../utils/secure_path'
+require_relative '../utils/org_context'
 
 module LanguageOperator
   module Kubernetes
     # Kubernetes client wrapper for interacting with language-operator resources
     class Client
-      attr_reader :client
+      attr_reader :client, :context
 
       # Get singleton K8s client instance with automatic config detection
       # @return [LanguageOperator::Kubernetes::Client] Client instance
@@ -163,8 +164,6 @@ module LanguageOperator
         create_resource(resource)
       end
 
-
-
       # Check if operator is installed
       def operator_installed?
         # Check if LanguageCluster CRD exists
@@ -184,8 +183,52 @@ module LanguageOperator
         nil
       end
 
-      private
+      # Get the current organization ID from cluster resources
+      #
+      # @return [String, nil] Organization ID or nil if not found/legacy mode
+      def current_org_id
+        Utils::OrgContext.current_org_id(self)
+      end
 
+      # Check if the current cluster has organization context
+      #
+      # @return [Boolean] True if organization context is available
+      def org_context?
+        !current_org_id.nil?
+      end
+
+      # Get organization information for cluster listing
+      #
+      # @return [Hash] Organization info with id, namespace, and display name
+      def org_info
+        org_id = current_org_id
+        return { id: nil, display: 'legacy' } unless org_id
+
+        {
+          id: org_id,
+          display: org_id[0..7] # Show first 8 chars for readability
+        }
+      end
+
+      # List namespaces with optional label selector
+      #
+      # @param label_selector [String, nil] Label selector for filtering
+      # @return [Array<Hash>] Array of namespace resources
+      def list_namespaces(label_selector: nil)
+        namespaces_api = @client.api('v1').resource('namespaces')
+        result = if label_selector
+                   namespaces_api.list(labelSelector: label_selector)
+                 else
+                   namespaces_api.list
+                 end
+        # k8s-ruby returns an Array directly, not an object with .items
+        Array(result)
+      rescue StandardError => e
+        warn "Warning: Could not list namespaces: #{e.message}" if ENV['DEBUG']
+        []
+      end
+
+      private
 
       # Build singleton instance with automatic config detection
       def self.build_singleton

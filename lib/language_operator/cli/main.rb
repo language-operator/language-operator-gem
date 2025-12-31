@@ -21,7 +21,7 @@ require_relative 'errors/thor_errors'
 
 module LanguageOperator
   module CLI
-    # Main CLI class for aictl command
+    # Main CLI class for langop command
     #
     # Provides commands for creating, running, and managing language-operator resources.
     class Main < Thor
@@ -36,7 +36,7 @@ module LanguageOperator
         Commands::Status.new.invoke(:overview)
       end
 
-      desc 'version', 'Show aictl and operator version'
+      desc 'version', 'Show langop and operator version'
       def version
         # Check operator installation status first
         current_cluster = Config::ClusterConfig.current_cluster
@@ -127,24 +127,24 @@ module LanguageOperator
         Commands::Install.new([], options).uninstall
       end
 
-      desc 'completion SHELL', 'Install shell completion for aictl (bash, zsh, fish)'
+      desc 'completion SHELL', 'Install shell completion for langop (bash, zsh, fish)'
       long_desc <<-DESC
-        Install shell completion for aictl. Supports bash, zsh, and fish.
+        Install shell completion for langop. Supports bash, zsh, and fish.
 
         Examples:
-          aictl completion bash
-          aictl completion zsh
-          aictl completion fish
+          langop completion bash
+          langop completion zsh
+          langop completion fish
 
         Manual installation:
           bash: Add to ~/.bashrc:
-            source <(aictl completion bash --stdout)
+            source <(langop completion bash --stdout)
 
           zsh: Add to ~/.zshrc:
-            source <(aictl completion zsh --stdout)
+            source <(langop completion zsh --stdout)
 
           fish: Run once:
-            aictl completion fish | source
+            langop completion fish | source
       DESC
       option :stdout, type: :boolean, desc: 'Print completion script to stdout instead of installing'
       def completion(shell)
@@ -177,28 +177,28 @@ module LanguageOperator
       private
 
       def install_bash_completion
-        completion_file = File.expand_path('../../completions/aictl.bash', __dir__)
+        completion_file = File.expand_path('../../completions/langop.bash', __dir__)
 
         if options[:stdout]
           puts File.read(completion_file)
           return
         end
 
-        target = LanguageOperator::Utils::SecurePath.expand_home_path('.bash_completion.d/aictl')
+        target = LanguageOperator::Utils::SecurePath.expand_home_path('.bash_completion.d/langop')
         FileUtils.mkdir_p(File.dirname(target))
         FileUtils.cp(completion_file, target)
 
         Formatters::ProgressFormatter.success('Bash completion installed')
         puts
         puts 'Add to your ~/.bashrc:'
-        puts '  [ -f ~/.bash_completion.d/aictl ] && source ~/.bash_completion.d/aictl'
+        puts '  [ -f ~/.bash_completion.d/langop ] && source ~/.bash_completion.d/langop'
         puts
         puts 'Then reload your shell:'
         puts '  source ~/.bashrc'
       end
 
       def install_zsh_completion
-        completion_file = File.expand_path('../../completions/_aictl', __dir__)
+        completion_file = File.expand_path('../../completions/_langop', __dir__)
 
         if options[:stdout]
           puts File.read(completion_file)
@@ -209,7 +209,7 @@ module LanguageOperator
         fpath_dir = LanguageOperator::Utils::SecurePath.expand_home_path('.zsh/completions')
         FileUtils.mkdir_p(fpath_dir)
 
-        target = File.join(fpath_dir, '_aictl')
+        target = File.join(fpath_dir, '_langop')
         FileUtils.cp(completion_file, target)
 
         Formatters::ProgressFormatter.success('Zsh completion installed')
@@ -223,14 +223,14 @@ module LanguageOperator
       end
 
       def install_fish_completion
-        completion_file = File.expand_path('../../completions/aictl.fish', __dir__)
+        completion_file = File.expand_path('../../completions/langop.fish', __dir__)
 
         if options[:stdout]
           puts File.read(completion_file)
           return
         end
 
-        target = LanguageOperator::Utils::SecurePath.expand_home_path('.config/fish/completions/aictl.fish')
+        target = LanguageOperator::Utils::SecurePath.expand_home_path('.config/fish/completions/langop.fish')
         FileUtils.mkdir_p(File.dirname(target))
         FileUtils.cp(completion_file, target)
 

@@ -21,22 +21,22 @@ module LanguageOperator
 
                 Examples:
                   # Export agent synthesis template (default)
-                  aictl system synthesis-template
+                  langop system synthesis-template
 
                   # Export persona distillation template
-                  aictl system synthesis-template --type persona
+                  langop system synthesis-template --type persona
 
                   # Export as JSON with schema included
-                  aictl system synthesis-template --format json --with-schema
+                  langop system synthesis-template --format json --with-schema
 
                   # Export as YAML
-                  aictl system synthesis-template --format yaml
+                  langop system synthesis-template --format yaml
 
                   # Validate template syntax
-                  aictl system synthesis-template --validate
+                  langop system synthesis-template --validate
 
                   # Save to file
-                  aictl system synthesis-template > agent_synthesis.tmpl
+                  langop system synthesis-template > agent_synthesis.tmpl
               DESC
               option :format, type: :string, default: 'template', desc: 'Output format (template, json, yaml)'
               option :type, type: :string, default: 'agent', desc: 'Template type (agent, persona)'

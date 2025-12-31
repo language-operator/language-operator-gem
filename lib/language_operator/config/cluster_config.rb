@@ -6,9 +6,9 @@ require_relative '../utils/secure_path'
 
 module LanguageOperator
   module Config
-    # Manages cluster configuration in ~/.aictl/config.yaml
+    # Manages cluster configuration in ~/.langop/config.yaml
     class ClusterConfig
-      CONFIG_DIR = LanguageOperator::Utils::SecurePath.expand_home_path('.aictl')
+      CONFIG_DIR = LanguageOperator::Utils::SecurePath.expand_home_path('.langop')
       CONFIG_PATH = File.join(CONFIG_DIR, 'config.yaml')
 
       class << self
@@ -90,7 +90,7 @@ module LanguageOperator
 
         def default_config
           {
-            'apiVersion' => 'aictl.langop.io/v1',
+            'apiVersion' => 'langop.langop.io/v1',
             'kind' => 'Config',
             'current-cluster' => nil,
             'clusters' => []

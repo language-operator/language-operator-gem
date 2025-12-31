@@ -50,9 +50,9 @@ module LanguageOperator
 
           def agent_not_found_suggestions(context)
             suggestions = []
-            suggestions << "List all agents: #{pastel.dim('aictl agent list')}"
-            suggestions << "Create a new agent: #{pastel.dim('aictl agent create "description"')}"
-            suggestions << "Use the wizard: #{pastel.dim('aictl agent create --wizard')}" if context[:suggest_wizard]
+            suggestions << "List all agents: #{pastel.dim('langop agent list')}"
+            suggestions << "Create a new agent: #{pastel.dim('langop agent create "description"')}"
+            suggestions << "Use the wizard: #{pastel.dim('langop agent create --wizard')}" if context[:suggest_wizard]
             suggestions
           end
 
@@ -61,45 +61,45 @@ module LanguageOperator
             tool_name = context[:tool_name]
 
             if tool_name
-              suggestions << "Install from registry: #{pastel.dim("aictl tool install #{tool_name}")}"
-              suggestions << "Search for tools: #{pastel.dim('aictl tool search')}"
+              suggestions << "Install from registry: #{pastel.dim("langop tool install #{tool_name}")}"
+              suggestions << "Search for tools: #{pastel.dim('langop tool search')}"
             end
 
-            suggestions << "List installed tools: #{pastel.dim('aictl tool list')}"
+            suggestions << "List installed tools: #{pastel.dim('langop tool list')}"
             suggestions
           end
 
           def model_not_found_suggestions(_context)
             suggestions = []
-            suggestions << "List all models: #{pastel.dim('aictl model list')}"
-            suggestions << "Create a new model: #{pastel.dim('aictl model create <name> --provider <provider>')}"
+            suggestions << "List all models: #{pastel.dim('langop model list')}"
+            suggestions << "Create a new model: #{pastel.dim('langop model create <name> --provider <provider>')}"
             suggestions
           end
 
           def persona_not_found_suggestions(_context)
             suggestions = []
-            suggestions << "List all personas: #{pastel.dim('aictl persona list')}"
-            suggestions << "Create a new persona: #{pastel.dim('aictl persona create <name>')}"
+            suggestions << "List all personas: #{pastel.dim('langop persona list')}"
+            suggestions << "Create a new persona: #{pastel.dim('langop persona create <name>')}"
             suggestions
           end
 
           def cluster_not_found_suggestions(_context)
             suggestions = []
-            suggestions << "List available clusters: #{pastel.dim('aictl cluster list')}"
-            suggestions << "Create a new cluster: #{pastel.dim('aictl cluster create <name>')}"
+            suggestions << "List available clusters: #{pastel.dim('langop cluster list')}"
+            suggestions << "Create a new cluster: #{pastel.dim('langop cluster create <name>')}"
             suggestions
           end
 
           def no_cluster_selected_suggestions
             [
               'Create a new cluster:',
-              "  #{pastel.dim('aictl cluster create my-cluster')}",
+              "  #{pastel.dim('langop cluster create my-cluster')}",
               '',
               'Or select an existing cluster:',
-              "  #{pastel.dim('aictl use my-cluster')}",
+              "  #{pastel.dim('langop use my-cluster')}",
               '',
               'List available clusters:',
-              "  #{pastel.dim('aictl cluster list')}"
+              "  #{pastel.dim('langop cluster list')}"
             ]
           end
 
@@ -109,20 +109,20 @@ module LanguageOperator
 
             if cluster
               suggestions << "Create a model in cluster '#{cluster}':"
-              suggestions << "  #{pastel.dim('aictl model create <name> --provider anthropic --model claude-3-5-sonnet')}"
+              suggestions << "  #{pastel.dim('langop model create <name> --provider anthropic --model claude-3-5-sonnet')}"
             else
-              suggestions << "Create a model: #{pastel.dim('aictl model create <name> --provider <provider>')}"
+              suggestions << "Create a model: #{pastel.dim('langop model create <name> --provider <provider>')}"
             end
 
             suggestions << ''
-            suggestions << "List available models: #{pastel.dim('aictl model list')}"
+            suggestions << "List available models: #{pastel.dim('langop model list')}"
             suggestions
           end
 
           def synthesis_failed_suggestions
             [
               'The description may be too vague. Try the interactive wizard:',
-              "  #{pastel.dim('aictl agent create --wizard')}",
+              "  #{pastel.dim('langop agent create --wizard')}",
               '',
               'Or provide a more detailed description with:',
               '  • What the agent should do specifically',
@@ -143,8 +143,8 @@ module LanguageOperator
             suggestions = []
 
             if resource_name
-              suggestions << "View existing #{resource_type}: #{pastel.dim("aictl #{command_for_resource(resource_type)} inspect #{resource_name}")}"
-              suggestions << "Delete and recreate: #{pastel.dim("aictl #{command_for_resource(resource_type)} delete #{resource_name}")}"
+              suggestions << "View existing #{resource_type}: #{pastel.dim("langop #{command_for_resource(resource_type)} inspect #{resource_name}")}"
+              suggestions << "Delete and recreate: #{pastel.dim("langop #{command_for_resource(resource_type)} delete #{resource_name}")}"
             end
 
             suggestions << 'Choose a different name'

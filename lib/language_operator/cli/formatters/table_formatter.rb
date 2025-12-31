@@ -14,7 +14,7 @@ module LanguageOperator
           def clusters(clusters)
             return ProgressFormatter.info('No clusters found') if clusters.empty?
 
-            headers = ['', 'NAME', 'NAMESPACE', 'STATUS', 'DOMAIN']
+            headers = ['', 'NAME', 'NAMESPACE', 'ORGANIZATION', 'STATUS', 'DOMAIN']
             rows = clusters.map do |cluster|
               # Extract asterisk for selected cluster
               name = cluster[:name].to_s.gsub(' *', '')
@@ -33,10 +33,14 @@ module LanguageOperator
                                  cluster[:domain]
                                end
 
+              # Format organization display
+              org_display = cluster[:organization] || 'legacy'
+
               [
                 StatusFormatter.dot(cluster[:status] || 'Unknown'),
                 formatted_name,
                 cluster[:namespace],
+                org_display,
                 cluster[:status] || 'Unknown',
                 domain_display
               ]

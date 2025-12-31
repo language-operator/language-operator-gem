@@ -4,7 +4,7 @@ Critical insights and patterns for the language-operator Ruby gem.
 
 ## Quick Reference
 
-- **Project**: Kubernetes agent orchestration with `aictl` CLI (`bundle exec bin/aictl`)
+- **Project**: Kubernetes agent orchestration with `langop` CLI (`bundle exec bin/langop`)
 - **DSL**: Task/Main model (v1) replaces workflow/step (v0, deprecated)
 - **Components**: TaskDefinition (contracts), MainDefinition (imperative), TypeSchema (7 types)
 - **Test Status**: Unit tests passing (384 examples), integration tests have pre-existing failures
@@ -37,7 +37,7 @@ Critical insights and patterns for the language-operator Ruby gem.
 - ✅ Learning system: TraceAnalyzer & PatternDetector (85% consistency, 10+ executions → symbolic)
 - ✅ CLI: Unified wizards pattern with UxHelper
 - ✅ Agent runtime: Persistent mode for autonomous agents (AGENT_IDLE_TIMEOUT, AGENT_NEW_INSTRUCTION)
-- ✅ Kubernetes events: Agent-operator communication via K8s Event API
+- ❌ Kubernetes events: **REMOVED** - Timeout-prone event emission replaced by OpenTelemetry observability
 
 ## Implementation Details
 
@@ -71,7 +71,7 @@ Critical insights and patterns for the language-operator Ruby gem.
 7. **WebMock:** Stub HTTP before object initialization if constructor makes requests
 8. **UX:** Always use `UxHelper` for TTY components
 
-## Current Active Issues (2025-11-28)
+## Current Active Issues (2025-12-27)
 
 **P1 - Test Failures (Integration Suite):**
 - #119 - hybrid_agent_execution_spec.rb syntax errors (5 failures)
@@ -95,11 +95,11 @@ Critical insights and patterns for the language-operator Ruby gem.
 
 ## Recently Resolved (Last 5)
 
-1. **#131** (2025-12-09) - Gem packaging issues preventing require - Fixed file permissions (600→644) and added packaging verification tests
-2. **#125** (2025-12-02) - Remove aictl agent learning command - Integrated learning status into agent inspect
-3. **#118** (2025-11-28) - Parallel execution test failures - 6 failures fixed via timing relaxation and AST validator compliance
-4. **#117** (2025-11-28) - Schema changelog missing v0.1.64 entry - documentation update
-5. **#109** (2025-11-27) - Agent persistent mode for autonomous agents - prevents CrashLoopBackOff
+1. **#134** (2025-12-28) - Ensure clusterRef for all resource types - Added cluster_ref support to personas (4 new tests)
+2. **#140** (2025-12-27) - Remove Kubernetes events - Eliminated timeout-prone event emission code (935 lines removed)
+3. **#131** (2025-12-09) - Gem packaging issues preventing require - Fixed file permissions (600→644) and added packaging verification tests
+4. **#125** (2025-12-02) - Remove aictl agent learning command - Integrated learning status into agent inspect
+5. **#118** (2025-11-28) - Parallel execution test failures - 6 failures fixed via timing relaxation and AST validator compliance
 
 ## Key Learnings
 

@@ -64,7 +64,7 @@ module LanguageOperator
               unless k8s.operator_installed?
                 puts
                 puts 'Install the operator with:'
-                puts '  aictl install'
+                puts '  langop install'
                 puts
                 return
               end
@@ -79,10 +79,10 @@ module LanguageOperator
                 end
                 puts
                 puts 'Select a cluster with:'
-                puts '  aictl use <cluster>'
+                puts '  langop use <cluster>'
               else
                 puts 'No clusters found. Create one with:'
-                puts '  aictl cluster create <name>'
+                puts '  langop cluster create <name>'
               end
             end
 

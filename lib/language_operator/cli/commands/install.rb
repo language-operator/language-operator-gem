@@ -30,16 +30,16 @@ module LanguageOperator
 
             Examples:
               # Install with defaults
-              aictl install
+              langop install
 
               # Install with custom values
-              aictl install --values my-values.yaml
+              langop install --values my-values.yaml
 
               # Install specific version
-              aictl install --version 0.1.0
+              langop install --version 0.1.0
 
               # Dry run to see what would be installed
-              aictl install --dry-run
+              langop install --dry-run
           DESC
           upgrade: <<-DESC,
             Upgrade the language-operator to a newer version using Helm.
@@ -52,13 +52,13 @@ module LanguageOperator
 
             Examples:
               # Upgrade to latest version
-              aictl upgrade
+              langop upgrade
 
               # Upgrade with custom values
-              aictl upgrade --values my-values.yaml
+              langop upgrade --values my-values.yaml
 
               # Upgrade to specific version
-              aictl upgrade --version 0.2.0
+              langop upgrade --version 0.2.0
           DESC
           uninstall: <<-DESC
             Uninstall the language-operator from your Kubernetes cluster.
@@ -68,13 +68,13 @@ module LanguageOperator
 
             Examples:
               # Uninstall with confirmation
-              aictl uninstall
+              langop uninstall
 
               # Force uninstall without confirmation
-              aictl uninstall --force
+              langop uninstall --force
 
               # Uninstall from specific namespace
-              aictl uninstall --namespace my-namespace
+              langop uninstall --namespace my-namespace
           DESC
         }.freeze
 
@@ -95,16 +95,16 @@ module LanguageOperator
 
           Examples:
             # Install with defaults
-            aictl install
+            langop install
 
             # Install with custom values
-            aictl install --values my-values.yaml
+            langop install --values my-values.yaml
 
             # Install specific version
-            aictl install --version 0.1.0
+            langop install --version 0.1.0
 
             # Dry run to see what would be installed
-            aictl install --dry-run
+            langop install --dry-run
         DESC
         option :values, type: :string, desc: 'Path to custom Helm values file'
         option :namespace, type: :string, default: DEFAULT_NAMESPACE, desc: 'Kubernetes namespace'
@@ -122,7 +122,7 @@ module LanguageOperator
               Formatters::ProgressFormatter.warn('Language operator is already installed')
               puts
               puts 'To upgrade, use:'
-              puts '  aictl upgrade'
+              puts '  langop upgrade'
               return
             end
 
@@ -155,9 +155,9 @@ module LanguageOperator
               Formatters::ProgressFormatter.success('Language operator installed successfully!')
               puts
               puts 'Next steps:'
-              puts '  1. Create a cluster: aictl cluster create my-cluster'
-              puts '  2. Create a model: aictl model create gpt4 --provider openai --model gpt-4-turbo'
-              puts '  3. Create an agent: aictl agent create "your agent description"'
+              puts '  1. Create a cluster: langop cluster create my-cluster'
+              puts '  2. Create a model: langop model create gpt4 --provider openai --model gpt-4-turbo'
+              puts '  3. Create an agent: langop agent create "your agent description"'
             end
           end
         end
@@ -174,13 +174,13 @@ module LanguageOperator
 
           Examples:
             # Upgrade to latest version
-            aictl upgrade
+            langop upgrade
 
             # Upgrade with custom values
-            aictl upgrade --values my-values.yaml
+            langop upgrade --values my-values.yaml
 
             # Upgrade to specific version
-            aictl upgrade --version 0.2.0
+            langop upgrade --version 0.2.0
         DESC
         option :values, type: :string, desc: 'Path to custom Helm values file'
         option :namespace, type: :string, default: DEFAULT_NAMESPACE, desc: 'Kubernetes namespace'
@@ -197,7 +197,7 @@ module LanguageOperator
               Formatters::ProgressFormatter.error('Language operator is not installed')
               puts
               puts 'To install, use:'
-              puts '  aictl install'
+              puts '  langop install'
               exit 1
             end
 
@@ -241,13 +241,13 @@ module LanguageOperator
 
           Examples:
             # Uninstall with confirmation
-            aictl uninstall
+            langop uninstall
 
             # Force uninstall without confirmation
-            aictl uninstall --force
+            langop uninstall --force
 
             # Uninstall from specific namespace
-            aictl uninstall --namespace my-namespace
+            langop uninstall --namespace my-namespace
         DESC
         option :namespace, type: :string, default: DEFAULT_NAMESPACE, desc: 'Kubernetes namespace'
         option :force, type: :boolean, default: false, desc: 'Skip confirmation prompt'

@@ -5,25 +5,25 @@ require 'json'
 require 'timeout'
 
 module E2E
-  # Helper module for running aictl commands in E2E tests
+  # Helper module for running langop commands in E2E tests
   #
   # Provides utilities for:
-  # - Running aictl commands and capturing output
+  # - Running langop commands and capturing output
   # - Waiting for resources to reach desired states
   # - Cleaning up test resources
   # - Validating synthesis and deployment
   module LanguageOperatorHelper
-    # Run an aictl command and return stdout, stderr, and exit status
+    # Run an langop command and return stdout, stderr, and exit status
     #
-    # @param command [String] The aictl command to run (without 'aictl' prefix)
+    # @param command [String] The langop command to run (without 'langop' prefix)
     # @param timeout [Integer] Maximum seconds to wait for command completion
     # @return [Hash] Hash with :stdout, :stderr, :status, :success keys
     #
     # @example
-    #   result = run_aictl("cluster list")
+    #   result = run_langop("cluster list")
     #   puts result[:stdout] if result[:success]
-    def run_aictl(command, timeout: 30)
-      full_command = "aictl #{command}"
+    def run_langop(command, timeout: 30)
+      full_command = "langop #{command}"
       stdout, stderr, status = nil
 
       Timeout.timeout(timeout) do
@@ -72,7 +72,7 @@ module E2E
     # @return [Boolean] True if agent exists
     def agent_exists?(name, cluster: nil)
       cmd = cluster ? "agent list --cluster #{cluster}" : 'agent list'
-      result = run_aictl(cmd)
+      result = run_langop(cmd)
       result[:success] && result[:stdout].include?(name)
     end
 
@@ -82,7 +82,7 @@ module E2E
     # @param cluster [String, nil] Cluster name (uses current if nil)
     # @return [Boolean] True if agent is synthesized
     def agent_synthesized?(name, cluster: nil)
-      result = run_aictl("agent inspect #{name}")
+      result = run_langop("agent inspect #{name}")
       return false unless result[:success]
 
       # Check for "Synthesized: True" or similar in output
@@ -119,7 +119,7 @@ module E2E
     # @param lines [Integer] Number of lines to retrieve
     # @return [String, nil] Log output or nil if failed
     def get_agent_logs(name, lines: 50)
-      result = run_aictl("agent logs #{name} --tail #{lines}")
+      result = run_langop("agent logs #{name} --tail #{lines}")
       result[:success] ? result[:stdout] : nil
     end
 
@@ -128,7 +128,7 @@ module E2E
     # @param name [String] Cluster name
     # @return [Boolean] True if cluster exists
     def cluster_exists?(name)
-      result = run_aictl('cluster list')
+      result = run_langop('cluster list')
       result[:success] && result[:stdout].include?(name)
     end
 
@@ -140,7 +140,7 @@ module E2E
     def delete_agent(name, cluster: nil)
       cmd = "agent delete #{name}"
       cmd += " --cluster #{cluster}" if cluster
-      result = run_aictl(cmd)
+      result = run_langop(cmd)
       result[:success]
     end
 
@@ -149,7 +149,7 @@ module E2E
     # @param name [String] Cluster name
     # @return [Boolean] True if deletion succeeded
     def delete_cluster(name)
-      result = run_aictl("cluster delete #{name} --yes")
+      result = run_langop("cluster delete #{name} --yes")
       result[:success]
     end
 
@@ -166,7 +166,7 @@ module E2E
         f.flush
 
         # Set EDITOR to cat the temp file content
-        result = run_aictl("agent edit #{name}")
+        result = run_langop("agent edit #{name}")
         return result[:success]
       end
     end
@@ -176,7 +176,7 @@ module E2E
     # @param prefix [String] Prefix to match (e.g., "e2e-test")
     def cleanup_test_resources(prefix)
       # Delete agents with prefix
-      result = run_aictl('agent list --all-clusters')
+      result = run_langop('agent list --all-clusters')
       if result[:success]
         result[:stdout].lines.each do |line|
           next unless line.include?(prefix)
@@ -191,7 +191,7 @@ module E2E
       end
 
       # Delete clusters with prefix
-      result = run_aictl('cluster list')
+      result = run_langop('cluster list')
       return unless result[:success]
 
       result[:stdout].lines.each do |line|

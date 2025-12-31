@@ -4,7 +4,7 @@ Get your first Language Operator agent running in 5 minutes.
 
 ## Before You Begin
 
-- Install aictl: `gem install language-operator`
+- Install langop: `gem install language-operator`
 - Have Kubernetes cluster access
 - Set up API keys for your preferred LLM provider
 
@@ -13,7 +13,7 @@ Get your first Language Operator agent running in 5 minutes.
 Run the interactive setup wizard:
 
 ```bash
-aictl quickstart
+langop quickstart
 ```
 
 The wizard will guide you through:
@@ -30,38 +30,38 @@ If you prefer step-by-step setup:
 
 ```bash
 # Create cluster configuration
-aictl cluster create my-cluster
+langop cluster create my-cluster
 
 # Switch to it
-aictl use my-cluster
+langop use my-cluster
 
 # Check connectivity
-aictl status
+langop status
 ```
 
 ### Install Language Operator
 
 ```bash
-aictl install
+langop install
 ```
 
 Wait for installation to complete, then verify:
 
 ```bash
-aictl status
+langop status
 ```
 
 ### Create a Model
 
 ```bash
 # For OpenAI (set OPENAI_API_KEY first)
-aictl model create gpt4 --provider openai --model gpt-4-turbo
+langop model create gpt4 --provider openai --model gpt-4-turbo
 
 # For Anthropic (set ANTHROPIC_API_KEY first)  
-aictl model create claude --provider anthropic --model claude-3-sonnet
+langop model create claude --provider anthropic --model claude-3-sonnet
 
 # Verify model
-aictl model list
+langop model list
 ```
 
 ## Step 3: Create Your First Agent
@@ -71,7 +71,7 @@ aictl model list
 Create an agent that runs daily:
 
 ```bash
-aictl agent create daily-reporter
+langop agent create daily-reporter
 ```
 
 You'll be prompted to describe what the agent should do. Try:
@@ -81,13 +81,13 @@ You'll be prompted to describe what the agent should do. Try:
 
 ```bash
 # List all agents
-aictl agent list
+langop agent list
 
 # Get detailed info
-aictl agent inspect daily-reporter
+langop agent inspect daily-reporter
 
 # View logs
-aictl agent logs daily-reporter -f
+langop agent logs daily-reporter -f
 ```
 
 ## Step 4: Understanding What Was Created
@@ -96,7 +96,7 @@ aictl agent logs daily-reporter -f
 
 ```bash
 # Open agent workspace
-aictl agent workspace daily-reporter
+langop agent workspace daily-reporter
 ```
 
 This shows the synthesized agent definition that Language Operator created from your description.
@@ -146,7 +146,7 @@ end
 Create an agent that responds to GitHub webhooks:
 
 ```bash
-aictl agent create github-responder
+langop agent create github-responder
 ```
 
 Description: "Respond to GitHub pull request webhooks with automated code reviews"
@@ -156,7 +156,7 @@ Description: "Respond to GitHub pull request webhooks with automated code review
 Create a conversational agent:
 
 ```bash
-aictl agent create support-bot
+langop agent create support-bot
 ```
 
 Description: "Provide customer support through a chat interface"
@@ -166,7 +166,7 @@ Description: "Provide customer support through a chat interface"
 Create an agent that runs continuously:
 
 ```bash
-aictl agent create system-monitor
+langop agent create system-monitor
 ```
 
 Description: "Continuously monitor system health and alert on issues"
@@ -176,17 +176,17 @@ Description: "Continuously monitor system health and alert on issues"
 ### View All Agents
 
 ```bash
-aictl agent list
+langop agent list
 ```
 
 ### Check Agent Logs
 
 ```bash
 # Follow logs in real-time
-aictl agent logs daily-reporter -f
+langop agent logs daily-reporter -f
 
 # View recent logs
-aictl agent logs daily-reporter --since 1h
+langop agent logs daily-reporter --since 1h
 ```
 
 ### Monitoring Agents
@@ -195,10 +195,10 @@ Monitor your agent's execution and performance:
 
 ```bash
 # View detailed agent information
-aictl agent inspect daily-reporter
+langop agent inspect daily-reporter
 
 # Check recent execution logs
-aictl agent logs daily-reporter --since 1h
+langop agent logs daily-reporter --since 1h
 ```
 
 ## Common Patterns
@@ -247,13 +247,13 @@ end
 
 ```bash
 # Check agent status
-aictl agent inspect my-agent
+langop agent inspect my-agent
 
 # View detailed logs
-aictl agent logs my-agent
+langop agent logs my-agent
 
 # Check cluster status
-aictl status
+langop status
 ```
 
 ### High Costs
@@ -262,7 +262,7 @@ Agents use LLM APIs which have costs. Monitor usage:
 
 ```bash
 # Check agent configuration
-aictl agent inspect my-agent
+langop agent inspect my-agent
 
 # Look for budget constraints
 # Adjust constraints if needed
@@ -278,7 +278,7 @@ kubectl get nodes
 kubectl get pods -n language-operator
 
 # Verify model connectivity
-aictl model test my-model
+langop model test my-model
 ```
 
 ## Next Steps
@@ -293,7 +293,7 @@ Now that you have a working agent:
 
 ## Getting Help
 
-- View command help: `aictl --help`
-- Check specific commands: `aictl agent --help`
+- View command help: `langop --help`
+- Check specific commands: `langop agent --help`
 - Report issues: [GitHub Issues](https://github.com/language-operator/language-operator-gem/issues)
 - Join discussions: [GitHub Discussions](https://github.com/language-operator/language-operator/discussions)

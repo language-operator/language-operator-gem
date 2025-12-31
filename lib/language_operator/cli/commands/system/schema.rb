@@ -21,20 +21,20 @@ module LanguageOperator
 
                 Examples:
                   # Export JSON schema (default)
-                  aictl system schema
+                  langop system schema
 
                   # Export as YAML
-                  aictl system schema --format yaml
+                  langop system schema --format yaml
 
                   # Export OpenAPI 3.0 specification
-                  aictl system schema --format openapi
+                  langop system schema --format openapi
 
                   # Show schema version only
-                  aictl system schema --version
+                  langop system schema --version
 
                   # Save to file
-                  aictl system schema > schema.json
-                  aictl system schema --format openapi > openapi.json
+                  langop system schema > schema.json
+                  langop system schema --format openapi > openapi.json
               DESC
               option :format, type: :string, default: 'json', desc: 'Output format (json, yaml, openapi)'
               option :version, type: :boolean, default: false, desc: 'Show schema version only'

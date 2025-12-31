@@ -13,7 +13,7 @@ module LanguageOperator
 
       # Language Operator specific values
       PROJECT_NAME = 'language-operator'
-      MANAGED_BY_AICTL = 'aictl'
+      MANAGED_BY_AICTL = 'langop'
       COMPONENT_AGENT = 'agent'
       COMPONENT_TEST_AGENT = 'test-agent'
 

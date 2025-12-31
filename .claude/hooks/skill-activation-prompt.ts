@@ -50,8 +50,8 @@ async function main() {
     const data: HookInput = JSON.parse(input);
     const prompt = data.prompt.toLowerCase();
 
-    // Load skill rules
-    const projectDir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+    // Load skill rules - go up two levels from hooks directory to project root
+    const projectDir = process.env.CLAUDE_PROJECT_DIR || join(process.cwd(), "..", "..");
     const rulesPath = join(projectDir, ".claude", "skills", "skill-rules.json");
     
     let rules: SkillRules;

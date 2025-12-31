@@ -8,7 +8,7 @@ module LanguageOperator
     class ResourceBuilder
       class << self
         # Build a LanguageCluster resource
-        def language_cluster(name, namespace: nil, domain: nil, labels: {})
+        def language_cluster(name, namespace: nil, domain: nil, labels: {}, k8s_client: nil)
           spec = {
             'namespace' => namespace || name,
             'resourceQuota' => default_resource_quota,
@@ -16,12 +16,12 @@ module LanguageOperator
           }
           spec['domain'] = domain if domain && !domain.empty?
 
-          build_resource('LanguageCluster', name, spec, namespace: namespace, labels: labels)
+          build_resource('LanguageCluster', name, spec, namespace: namespace, labels: labels, k8s_client: k8s_client)
         end
 
         # Build a LanguageAgent resource
         def language_agent(name, instructions:, cluster: nil, cluster_ref: nil, schedule: nil, persona: nil, tools: [], models: [],
-                           mode: nil, workspace: true, labels: {})
+                           mode: nil, workspace: true, labels: {}, k8s_client: nil)
           # Determine mode: reactive, scheduled, or autonomous
           spec_mode = mode || (schedule ? 'scheduled' : 'autonomous')
 
@@ -40,41 +40,41 @@ module LanguageOperator
           # Enable workspace by default for state persistence
           spec['workspace'] = { 'enabled' => workspace } if workspace
 
-          build_resource('LanguageAgent', name, spec, namespace: cluster, cluster_ref: cluster_ref, labels: labels)
+          build_resource('LanguageAgent', name, spec, namespace: cluster, cluster_ref: cluster_ref, labels: labels, k8s_client: k8s_client)
         end
 
         # Build a LanguageTool resource
-        def language_tool(name, type:, config: {}, cluster: nil, cluster_ref: nil, labels: {})
+        def language_tool(name, type:, config: {}, cluster: nil, cluster_ref: nil, labels: {}, k8s_client: nil)
           build_resource('LanguageTool', name, {
                            'type' => type,
                            'config' => config
-                         }, namespace: cluster, cluster_ref: cluster_ref, labels: labels)
+                         }, namespace: cluster, cluster_ref: cluster_ref, labels: labels, k8s_client: k8s_client)
         end
 
         # Build a LanguageModel resource
-        def language_model(name, provider:, model:, endpoint: nil, cluster: nil, cluster_ref: nil, labels: {})
+        def language_model(name, provider:, model:, endpoint: nil, cluster: nil, cluster_ref: nil, labels: {}, k8s_client: nil)
           spec = {
             'provider' => provider,
             'modelName' => model
           }
           spec['endpoint'] = endpoint if endpoint
 
-          build_resource('LanguageModel', name, spec, namespace: cluster, cluster_ref: cluster_ref, labels: labels)
+          build_resource('LanguageModel', name, spec, namespace: cluster, cluster_ref: cluster_ref, labels: labels, k8s_client: k8s_client)
         end
 
         # Build a LanguagePersona resource
-        def language_persona(name, description:, tone:, system_prompt:, cluster: nil, cluster_ref: nil, labels: {})
+        def language_persona(name, description:, tone:, system_prompt:, cluster: nil, cluster_ref: nil, labels: {}, k8s_client: nil)
           build_resource('LanguagePersona', name, {
                            'displayName' => name.split('-').map(&:capitalize).join(' '),
                            'description' => description,
                            'tone' => tone,
                            'systemPrompt' => system_prompt
-                         }, namespace: cluster, cluster_ref: cluster_ref, labels: labels)
+                         }, namespace: cluster, cluster_ref: cluster_ref, labels: labels, k8s_client: k8s_client)
         end
 
         # Build a LanguagePersona resource with full spec control
-        def build_persona(name:, spec:, namespace: nil, cluster_ref: nil, labels: {})
-          build_resource('LanguagePersona', name, spec, namespace: namespace, cluster_ref: cluster_ref, labels: labels)
+        def build_persona(name:, spec:, namespace: nil, cluster_ref: nil, labels: {}, k8s_client: nil)
+          build_resource('LanguagePersona', name, spec, namespace: namespace, cluster_ref: cluster_ref, labels: labels, k8s_client: k8s_client)
         end
 
         # Build a Kubernetes Service resource for a reactive agent
@@ -123,11 +123,14 @@ module LanguageOperator
         # @param namespace [String, nil] The namespace (defaults to 'default')
         # @param cluster_ref [String, nil] The cluster reference for lifecycle management
         # @param labels [Hash] Additional labels to merge with defaults
+        # @param k8s_client [Client, nil] Kubernetes client for org context detection
         # @return [Hash] Complete Kubernetes resource manifest
-        def build_resource(kind, name, spec, namespace: nil, cluster_ref: nil, labels: {})
+        def build_resource(kind, name, spec, namespace: nil, cluster_ref: nil, labels: {}, k8s_client: nil)
           # Add clusterRef to spec if provided for proper lifecycle management
           spec = spec.merge('clusterRef' => cluster_ref) if cluster_ref
-          {
+
+          # Build base resource
+          resource = {
             'apiVersion' => 'langop.io/v1alpha1',
             'kind' => kind,
             'metadata' => {
@@ -137,6 +140,35 @@ module LanguageOperator
             },
             'spec' => spec
           }
+
+          # Add organization context if available
+          add_org_context(resource, k8s_client)
+
+          resource
+        end
+
+        # Add organization context to a resource
+        #
+        # @param resource [Hash] Kubernetes resource manifest
+        # @param k8s_client [Client, nil] Kubernetes client for org context detection
+        # @return [Hash] Resource with organization labels/annotations added
+        def add_org_context(resource, k8s_client = nil)
+          return resource unless k8s_client
+
+          org_id = k8s_client.current_org_id
+          return resource unless org_id
+
+          # Add organization labels
+          resource['metadata']['labels'] ||= {}
+          resource['metadata']['labels']['langop.io/organization-id'] = org_id
+
+          # Add creation annotations
+          resource['metadata']['annotations'] ||= {}
+          # NOTE: We could add user email here if we had dashboard integration
+          # For now, just mark as CLI-created
+          resource['metadata']['annotations']['langop.io/created-by'] = 'langop'
+
+          resource
         end
 
         def default_labels

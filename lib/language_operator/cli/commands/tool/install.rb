@@ -127,7 +127,7 @@ module LanguageOperator
                   puts
                   if tool_config['authRequired']
                     puts 'This tool requires authentication. Configure it with:'
-                    puts pastel.dim("  aictl tool auth #{tool_name}")
+                    puts pastel.dim("  langop tool auth #{tool_name}")
                   else
                     puts "Tool '#{tool_name}' is now available for agents to use"
                   end
@@ -139,7 +139,7 @@ module LanguageOperator
               def auth(tool_name)
                 handle_command_error('configure auth') do
                   tool = get_resource_or_exit(LanguageOperator::Constants::RESOURCE_TOOL, tool_name,
-                                              error_message: "Tool '#{tool_name}' not found. Install it first with: aictl tool install #{tool_name}")
+                                              error_message: "Tool '#{tool_name}' not found. Install it first with: langop tool install #{tool_name}")
 
                   puts "Configure authentication for tool '#{tool_name}'"
                   puts

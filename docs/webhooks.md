@@ -9,7 +9,7 @@ When you describe an agent that responds to external events, Language Operator c
 ### Creating Webhook Agents
 
 ```bash
-aictl agent create github-pr-reviewer
+langop agent create github-pr-reviewer
 # Wizard asks:
 # - What service sends webhooks? (GitHub, Stripe, Slack, custom)
 # - What events should trigger the agent? (pull_request, push, etc.)
@@ -422,13 +422,13 @@ Monitor webhook activity:
 
 ```bash
 # View webhook logs
-aictl agent logs pr-reviewer --webhooks-only
+langop agent logs pr-reviewer --webhooks-only
 
 # Follow webhook activity in real-time
-aictl agent logs pr-reviewer --follow --filter webhook
+langop agent logs pr-reviewer --follow --filter webhook
 
 # View specific webhook processing
-aictl agent webhook-logs pr-reviewer --webhook-id abc123
+langop agent webhook-logs pr-reviewer --webhook-id abc123
 ```
 
 ### Webhook Testing
@@ -437,12 +437,12 @@ Test webhooks during development:
 
 ```bash
 # Test webhook endpoint
-aictl agent test-webhook pr-reviewer \
+langop agent test-webhook pr-reviewer \
   --payload ./test-payload.json \
   --event pull_request.opened
 
 # Simulate webhook with custom data
-aictl agent simulate-webhook pr-reviewer \
+langop agent simulate-webhook pr-reviewer \
   --github-pr 123 \
   --repository company/main-repo
 ```

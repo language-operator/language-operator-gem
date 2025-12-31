@@ -1,8 +1,8 @@
-#compdef aictl
+#compdef langop
 
-# zsh completion for aictl
+# zsh completion for langop
 
-_aictl() {
+_langop() {
     local -a commands
     local curcontext="$curcontext" state line
     typeset -A opt_args
@@ -14,7 +14,7 @@ _aictl() {
         'persona:Manage agent personas'
         'tool:Manage MCP tools'
         'status:Show system status and overview'
-        'version:Show aictl and operator version'
+        'version:Show langop and operator version'
         'new:Generate a new tool or agent project'
         'serve:Start an MCP server for tools'
         'test:Test tool definitions'
@@ -29,34 +29,34 @@ _aictl() {
 
     case $state in
         command)
-            _describe 'aictl command' commands
+            _describe 'langop command' commands
             ;;
         args)
             case $line[1] in
                 cluster)
-                    _aictl_cluster
+                    _langop_cluster
                     ;;
                 use)
-                    _aictl_use
+                    _langop_use
                     ;;
                 agent)
-                    _aictl_agent
+                    _langop_agent
                     ;;
                 persona)
-                    _aictl_persona
+                    _langop_persona
                     ;;
                 tool)
-                    _aictl_tool
+                    _langop_tool
                     ;;
                 new)
-                    _aictl_new
+                    _langop_new
                     ;;
             esac
             ;;
     esac
 }
 
-_aictl_cluster() {
+_langop_cluster() {
     local -a subcommands
     subcommands=(
         'create:Create a new language cluster'
@@ -77,18 +77,18 @@ _aictl_cluster() {
         args)
             case $line[1] in
                 inspect|delete)
-                    _aictl_clusters
+                    _langop_clusters
                     ;;
             esac
             ;;
     esac
 }
 
-_aictl_use() {
-    _aictl_clusters
+_langop_use() {
+    _langop_clusters
 }
 
-_aictl_agent() {
+_langop_agent() {
     local -a subcommands
     subcommands=(
         'create:Create a new autonomous agent'
@@ -114,25 +114,25 @@ _aictl_agent() {
             case $line[1] in
                 create)
                     _arguments \
-                        '--cluster=[Override current cluster context]:cluster:_aictl_clusters' \
+                        '--cluster=[Override current cluster context]:cluster:_langop_clusters' \
                         '--create-cluster=[Create cluster inline]:name:' \
-                        '--persona=[Use specific persona]:persona:_aictl_personas' \
+                        '--persona=[Use specific persona]:persona:_langop_personas' \
                         '--dry-run[Preview without creating]'
                     ;;
                 list)
                     _arguments \
                         '--all-clusters[Show agents from all clusters]' \
-                        '--cluster=[Show agents from specific cluster]:cluster:_aictl_clusters'
+                        '--cluster=[Show agents from specific cluster]:cluster:_langop_clusters'
                     ;;
                 inspect|delete|logs|code|edit|pause|resume)
-                    _aictl_agents
+                    _langop_agents
                     ;;
             esac
             ;;
     esac
 }
 
-_aictl_persona() {
+_langop_persona() {
     local -a subcommands
     subcommands=(
         'list:List available personas'
@@ -154,18 +154,18 @@ _aictl_persona() {
             case $line[1] in
                 create)
                     _arguments \
-                        '--from=[Inherit from existing persona]:persona:_aictl_personas' \
-                        '--cluster=[Override current cluster]:cluster:_aictl_clusters'
+                        '--from=[Inherit from existing persona]:persona:_langop_personas' \
+                        '--cluster=[Override current cluster]:cluster:_langop_clusters'
                     ;;
                 show|edit|delete)
-                    _aictl_personas
+                    _langop_personas
                     ;;
             esac
             ;;
     esac
 }
 
-_aictl_tool() {
+_langop_tool() {
     local -a subcommands
     subcommands=(
         'list:List tools in current cluster'
@@ -186,18 +186,18 @@ _aictl_tool() {
         args)
             case $line[1] in
                 auth|test|delete)
-                    _aictl_tools
+                    _langop_tools
                     ;;
                 list)
                     _arguments \
-                        '--cluster=[Override current cluster]:cluster:_aictl_clusters'
+                        '--cluster=[Override current cluster]:cluster:_langop_clusters'
                     ;;
             esac
             ;;
     esac
 }
 
-_aictl_new() {
+_langop_new() {
     local -a types
     types=('tool:Generate a new tool project' 'agent:Generate a new agent project')
     _describe 'project type' types
@@ -205,28 +205,28 @@ _aictl_new() {
 
 # Helper functions for dynamic completion
 
-_aictl_clusters() {
+_langop_clusters() {
     local -a clusters
-    clusters=(${(f)"$(aictl cluster list 2>/dev/null | tail -n +2 | awk '{print $1}' | grep -v '^─' | grep -v '^NAME')"})
+    clusters=(${(f)"$(langop cluster list 2>/dev/null | tail -n +2 | awk '{print $1}' | grep -v '^─' | grep -v '^NAME')"})
     _describe 'cluster' clusters
 }
 
-_aictl_agents() {
+_langop_agents() {
     local -a agents
-    agents=(${(f)"$(aictl agent list 2>/dev/null | tail -n +2 | awk '{print $1}' | grep -v '^─' | grep -v '^NAME')"})
+    agents=(${(f)"$(langop agent list 2>/dev/null | tail -n +2 | awk '{print $1}' | grep -v '^─' | grep -v '^NAME')"})
     _describe 'agent' agents
 }
 
-_aictl_personas() {
+_langop_personas() {
     local -a personas
-    personas=(${(f)"$(aictl persona list 2>/dev/null | tail -n +2 | awk '{print $1}' | grep -v '^─' | grep -v '^NAME')"})
+    personas=(${(f)"$(langop persona list 2>/dev/null | tail -n +2 | awk '{print $1}' | grep -v '^─' | grep -v '^NAME')"})
     _describe 'persona' personas
 }
 
-_aictl_tools() {
+_langop_tools() {
     local -a tools
-    tools=(${(f)"$(aictl tool list 2>/dev/null | tail -n +2 | awk '{print $1}' | grep -v '^─' | grep -v '^NAME')"})
+    tools=(${(f)"$(langop tool list 2>/dev/null | tail -n +2 | awk '{print $1}' | grep -v '^─' | grep -v '^NAME')"})
     _describe 'tool' tools
 }
 
-_aictl "$@"
+_langop "$@"

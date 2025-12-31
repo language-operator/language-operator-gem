@@ -21,9 +21,9 @@ module LanguageOperator
                 cache data, and remember information across executions.
 
                 Examples:
-                  aictl agent workspace my-agent                           # List all files
-                  aictl agent workspace my-agent --path /workspace/state.json  # View specific file
-                  aictl agent workspace my-agent --clean                   # Clear workspace
+                  langop agent workspace my-agent                           # List all files
+                  langop agent workspace my-agent --path /workspace/state.json  # View specific file
+                  langop agent workspace my-agent --clean                   # Clear workspace
               DESC
               option :cluster, type: :string, desc: 'Override current cluster context'
               option :path, type: :string, desc: 'View specific file contents'
@@ -94,7 +94,7 @@ module LanguageOperator
                   puts "  Namespace: #{debug_info[:namespace]}"
                   puts
                   puts 'Check agent status with:'
-                  puts "  aictl agent inspect #{agent_name}"
+                  puts "  langop agent inspect #{agent_name}"
                   puts
                   puts 'List all pods in namespace:'
                   puts "  kubectl get pods -n #{ctx.namespace} -l #{Constants::KubernetesLabels::COMPONENT}=#{Constants::KubernetesLabels::COMPONENT_AGENT}"
@@ -112,7 +112,7 @@ module LanguageOperator
                   puts "Current pod status: #{pods.first.dig('status', 'phase')}"
                   puts
                   puts 'Check pod logs with:'
-                  puts "  aictl agent logs #{agent_name}"
+                  puts "  langop agent logs #{agent_name}"
                   exit 1
                 end
 
@@ -220,8 +220,8 @@ module LanguageOperator
 
                 puts
                 puts pastel.dim('Commands:')
-                puts pastel.dim("  aictl agent workspace #{agent_name} --path /workspace/<file>  # View file")
-                puts pastel.dim("  aictl agent workspace #{agent_name} --clean                   # Clear workspace")
+                puts pastel.dim("  langop agent workspace #{agent_name} --path /workspace/<file>  # View file")
+                puts pastel.dim("  langop agent workspace #{agent_name} --clean                   # Clear workspace")
                 puts
               end
 
@@ -235,7 +235,7 @@ module LanguageOperator
                   Formatters::ProgressFormatter.error("File not found: #{file_path}")
                   puts
                   puts 'List available files with:'
-                  puts "  aictl agent workspace #{agent_name}"
+                  puts "  langop agent workspace #{agent_name}"
                   exit 1
                 end
 
