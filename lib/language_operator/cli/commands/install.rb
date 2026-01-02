@@ -230,6 +230,9 @@ module LanguageOperator
                 success, output = run_helm_command(cmd)
                 raise "Helm upgrade failed: #{output}" unless success
               end
+
+              # Restart the language-operator deployment to ensure new version is running
+              restart_language_operator_deployment(namespace)
             end
           end
         end
@@ -516,6 +519,24 @@ module LanguageOperator
               end
             rescue StandardError => e
               warn "Failed to delete namespace #{namespace}: #{e.message}" if ENV['DEBUG']
+            end
+          end
+        end
+
+        # Restart the language-operator deployment to ensure new version is running
+        def restart_language_operator_deployment(namespace)
+          Formatters::ProgressFormatter.with_spinner('Restarting language-operator deployment') do
+            begin
+              # Use kubectl rollout restart for the deployment
+              cmd = "kubectl rollout restart deployment/language-operator --namespace #{namespace}"
+              
+              output = `#{cmd} 2>&1`
+              success = $?.success?
+              
+              raise "Failed to restart deployment: #{output}" unless success
+            rescue StandardError => e
+              # Don't fail the entire upgrade if restart fails
+              warn "Warning: Could not restart language-operator deployment: #{e.message}"
             end
           end
         end
