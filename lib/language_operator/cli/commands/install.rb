@@ -212,11 +212,6 @@ module LanguageOperator
 
             namespace = options[:namespace]
 
-            puts 'Upgrading language-operator...'
-            puts "  Namespace: #{namespace}"
-            puts "  Chart: #{CHART_NAME}"
-            puts
-
             # Update Helm repository
             update_helm_repo unless options[:dry_run]
 
@@ -235,8 +230,6 @@ module LanguageOperator
                 success, output = run_helm_command(cmd)
                 raise "Helm upgrade failed: #{output}" unless success
               end
-
-              Formatters::ProgressFormatter.success('Language operator upgraded successfully!')
             end
           end
         end
@@ -279,7 +272,10 @@ module LanguageOperator
               puts
               puts '  - The language-operator Helm release'
               puts '  - All existing clusters, agents, models, tools and personas'
+              puts '  - All organization namespaces and their resources'
               puts '  - Persistent volumes (ClickHouse, PostgreSQL data)'
+              puts '  - Cluster-scoped resources (RBAC, webhooks, CRDs)'
+              puts "  - The operator namespace (#{namespace})"
               puts
               puts "#{pastel.bold.red('WARNING')}: #{pastel.white.bold('This action cannot be undone!')}"
               puts
@@ -289,7 +285,10 @@ module LanguageOperator
             # Step 1: Delete all custom resources
             delete_all_custom_resources
 
-            # Step 2: Uninstall Helm release if it exists
+            # Step 2: Delete organization namespaces
+            delete_organization_namespaces
+
+            # Step 3: Uninstall Helm release if it exists
             if operator_installed?
               cmd = "helm uninstall #{RELEASE_NAME} --namespace #{namespace}"
 
@@ -299,11 +298,17 @@ module LanguageOperator
               end
             end
 
-            # Step 3: Delete PVCs
+            # Step 4: Delete PVCs
             delete_persistent_volumes
 
-            # Step 4: Delete CRDs
+            # Step 5: Clean up cluster-scoped resources
+            delete_cluster_scoped_resources
+
+            # Step 6: Delete CRDs
             delete_language_operator_crds
+
+            # Step 7: Delete the operator namespace
+            delete_operator_namespace(namespace)
           end
         end
 
@@ -376,8 +381,8 @@ module LanguageOperator
 
           cmd = ['helm', action, RELEASE_NAME]
 
-          # Add chart name for install
-          cmd << CHART_NAME if action == 'install'
+          # Add chart name for install and upgrade
+          cmd << CHART_NAME if action == 'install' || action == 'upgrade'
 
           # Add namespace
           cmd << '--namespace' << namespace
@@ -385,8 +390,12 @@ module LanguageOperator
           # Add create-namespace for install
           cmd << '--create-namespace' if action == 'install' && opts[:create_namespace]
 
-          # Add values file
-          cmd << '--values' << opts[:values] if opts[:values]
+          # Add values file or reuse existing values for upgrade
+          if opts[:values]
+            cmd << '--values' << opts[:values]
+          elsif action == 'upgrade'
+            cmd << '--reuse-values'
+          end
 
           # Add version
           cmd << '--version' << opts[:version] if opts[:version]
@@ -423,25 +432,31 @@ module LanguageOperator
           ]
 
           resource_types.each do |resource_type|
-            Formatters::ProgressFormatter.with_spinner("Deleting all #{resource_type} resources") do
-              # Get resources from all namespaces
-              resources = k8s.list_resources(resource_type, namespace: nil)
+            begin
+              Formatters::ProgressFormatter.with_spinner("Deleting all #{resource_type} resources") do
+                # Get resources from all namespaces
+                resources = k8s.list_resources(resource_type, namespace: nil)
 
-              resources.each do |resource|
-                name = resource.dig('metadata', 'name')
-                namespace = resource.dig('metadata', 'namespace')
+                resources.each do |resource|
+                  name = resource.dig('metadata', 'name')
+                  namespace = resource.dig('metadata', 'namespace')
 
-                begin
-                  k8s.delete_resource(resource_type, name, namespace)
-                rescue StandardError => e
-                  # Continue deleting other resources even if one fails
-                  warn "Failed to delete #{resource_type} #{name}: #{e.message}" if ENV['DEBUG']
+                  begin
+                    k8s.delete_resource(resource_type, name, namespace)
+                  rescue StandardError => e
+                    # Continue deleting other resources even if one fails
+                    warn "Failed to delete #{resource_type} #{name}: #{e.message}" if ENV['DEBUG']
+                  end
                 end
               end
+            rescue StandardError => e
+              # Skip if API group doesn't exist (CRDs already deleted)
+              if e.message.include?('404') || e.message.include?('Not Found')
+                puts "  - #{resource_type} API not available (CRDs likely already deleted)" if ENV['DEBUG']
+              else
+                Formatters::ProgressFormatter.warn("Failed to delete #{resource_type} resources: #{e.message}")
+              end
             end
-          rescue StandardError => e
-            # Continue with other resource types if one fails
-            Formatters::ProgressFormatter.warn("Failed to delete #{resource_type} resources: #{e.message}")
           end
         end
 
@@ -452,21 +467,55 @@ module LanguageOperator
 
           k8s = Kubernetes::Client.new
 
-          crd_names = [
-            'languageagents.language-operator.dev',
-            'languagetools.language-operator.dev',
-            'languagemodels.language-operator.dev',
-            'languagepersonas.language-operator.dev',
-            'languageclusters.language-operator.dev',
-            'languageagentversions.language-operator.dev'
-          ]
-
           Formatters::ProgressFormatter.with_spinner('Deleting language-operator CRDs') do
-            crd_names.each do |crd_name|
-              k8s.delete_resource('CustomResourceDefinition', crd_name)
+            begin
+              # Find all CRDs with langop.io domain (CRDs are in apiextensions.k8s.io/v1)
+              all_crds = k8s.list_resources('CustomResourceDefinition', namespace: nil, api_version: 'apiextensions.k8s.io/v1')
+              langop_crds = all_crds.select do |crd|
+                name = crd.dig('metadata', 'name')
+                name&.end_with?('.langop.io')
+              end
+
+              puts "Found #{langop_crds.length} langop.io CRDs to delete" if ENV['DEBUG']
+
+              langop_crds.each do |crd|
+                crd_name = crd.dig('metadata', 'name')
+                puts "Deleting CRD: #{crd_name}" if ENV['DEBUG']
+                begin
+                  k8s.delete_resource('CustomResourceDefinition', crd_name, nil, 'apiextensions.k8s.io/v1')
+                  puts "Successfully deleted CRD: #{crd_name}" if ENV['DEBUG']
+                rescue StandardError => e
+                  # Continue deleting other CRDs even if one fails
+                  puts "Failed to delete CRD #{crd_name}: #{e.message}"
+                end
+              end
+
+              if langop_crds.empty?
+                puts "No langop.io CRDs found to delete" if ENV['DEBUG']
+              end
+
             rescue StandardError => e
-              # Continue deleting other CRDs even if one fails
-              warn "Failed to delete CRD #{crd_name}: #{e.message}" if ENV['DEBUG']
+              puts "Failed to list/delete langop.io CRDs: #{e.message}"
+            end
+          end
+        end
+
+        # Delete the operator namespace
+        def delete_operator_namespace(namespace)
+          require_relative '../../kubernetes/client'
+
+          k8s = Kubernetes::Client.new
+
+          Formatters::ProgressFormatter.with_spinner("Deleting operator namespace: #{namespace}") do
+            begin
+              # Check if namespace exists before trying to delete
+              if k8s.namespace_exists?(namespace)
+                k8s.delete_resource('Namespace', namespace)
+              else
+                puts "Namespace #{namespace} doesn't exist, skipping" if ENV['DEBUG']
+              end
+            rescue StandardError => e
+              warn "Failed to delete namespace #{namespace}: #{e.message}" if ENV['DEBUG']
             end
           end
         end
@@ -668,6 +717,9 @@ module LanguageOperator
                   'email' => config[:admin_email],
                   'passwordHash' => password_hash
                 }
+              },
+              'features' => {
+                'signupsDisabled' => true
               }
             },
             'networkIsolation' => {
@@ -696,6 +748,36 @@ module LanguageOperator
           values_file.path
         end
 
+        # Delete all organization namespaces
+        def delete_organization_namespaces
+          require_relative '../../kubernetes/client'
+
+          k8s = Kubernetes::Client.new
+
+          Formatters::ProgressFormatter.with_spinner('Deleting organization namespaces') do
+            begin
+              # Find all namespaces with organization label
+              org_namespaces = k8s.list_namespaces(
+                label_selector: 'langop.io/type=organization'
+              )
+
+              org_namespaces.each do |namespace|
+                name = namespace.dig('metadata', 'name')
+                org_id = namespace.dig('metadata', 'labels', 'langop.io/organization-id')
+
+                begin
+                  k8s.delete_resource('Namespace', name)
+                rescue StandardError => e
+                  # Continue deleting other namespaces even if one fails
+                  warn "Failed to delete organization namespace #{name} (#{org_id}): #{e.message}" if ENV['DEBUG']
+                end
+              end
+            rescue StandardError => e
+              warn "Failed to list/delete organization namespaces: #{e.message}" if ENV['DEBUG']
+            end
+          end
+        end
+
         # Delete all language-operator persistent volumes
         def delete_persistent_volumes
           require_relative '../../kubernetes/client'
@@ -722,6 +804,222 @@ module LanguageOperator
             rescue StandardError => e
               warn "Failed to list/delete PVCs: #{e.message}" if ENV['DEBUG']
             end
+          end
+        end
+
+        # Delete cluster-scoped resources that Helm doesn't automatically remove
+        def delete_cluster_scoped_resources
+          require_relative '../../kubernetes/client'
+
+          k8s = Kubernetes::Client.new
+
+          Formatters::ProgressFormatter.with_spinner('Cleaning up cluster-scoped resources') do
+            # 1. Delete ClusterRoles
+            delete_cluster_roles(k8s)
+            
+            # 2. Delete ClusterRoleBindings  
+            delete_cluster_role_bindings(k8s)
+            
+            # 3. Delete webhook configurations
+            delete_webhook_configurations(k8s)
+            
+            # 4. Remove finalizers from stuck resources
+            remove_stuck_finalizers(k8s)
+          end
+        end
+
+        # Delete language-operator ClusterRoles
+        def delete_cluster_roles(k8s)
+          begin
+            # Find ClusterRoles with language-operator labels
+            cluster_roles = k8s.list_resources('ClusterRole', 
+              namespace: nil, 
+              api_version: 'rbac.authorization.k8s.io/v1',
+              label_selector: 'app.kubernetes.io/name=language-operator'
+            )
+            
+            cluster_roles.each do |cr|
+              name = cr.dig('metadata', 'name')
+              begin
+                k8s.delete_resource('ClusterRole', name, nil, 'rbac.authorization.k8s.io/v1')
+              rescue StandardError => e
+                warn "Failed to delete ClusterRole #{name}: #{e.message}" if ENV['DEBUG']
+              end
+            end
+          rescue StandardError => e
+            warn "Failed to list/delete ClusterRoles: #{e.message}" if ENV['DEBUG']
+          end
+        end
+
+        # Delete language-operator ClusterRoleBindings
+        def delete_cluster_role_bindings(k8s)
+          begin
+            # Find ClusterRoleBindings with language-operator labels
+            crbs = k8s.list_resources('ClusterRoleBinding', 
+              namespace: nil, 
+              api_version: 'rbac.authorization.k8s.io/v1',
+              label_selector: 'app.kubernetes.io/name=language-operator'
+            )
+            
+            crbs.each do |crb|
+              name = crb.dig('metadata', 'name')
+              begin
+                k8s.delete_resource('ClusterRoleBinding', name, nil, 'rbac.authorization.k8s.io/v1')
+              rescue StandardError => e
+                warn "Failed to delete ClusterRoleBinding #{name}: #{e.message}" if ENV['DEBUG']
+              end
+            end
+            
+            # Get all ClusterRoleBindings to find agent-specific ones and ServiceAccount references
+            all_crbs = k8s.list_resources('ClusterRoleBinding', namespace: nil, api_version: 'rbac.authorization.k8s.io/v1')
+            all_crbs.each do |crb|
+              name = crb.dig('metadata', 'name')
+              should_delete = false
+              
+              # Check if this is an agent-specific ClusterRoleBinding (pattern: language-agent-*)
+              if name&.start_with?('language-agent-')
+                should_delete = true
+                puts "Found agent-specific ClusterRoleBinding: #{name}" if ENV['DEBUG']
+              end
+              
+              # Also check if CRB references language-operator ServiceAccounts
+              unless should_delete
+                subjects = crb.dig('subjects') || []
+                has_langop_subject = subjects.any? do |subject|
+                  subject['name']&.include?('language-operator')
+                end
+                
+                if has_langop_subject
+                  should_delete = true
+                  puts "Found ClusterRoleBinding referencing language-operator ServiceAccount: #{name}" if ENV['DEBUG']
+                end
+              end
+              
+              # Also check if CRB references non-existent ClusterRoles that we know about
+              unless should_delete
+                role_ref = crb.dig('roleRef')
+                if role_ref && role_ref['kind'] == 'ClusterRole' && role_ref['name'] == 'language-operator'
+                  should_delete = true
+                  puts "Found ClusterRoleBinding referencing deleted ClusterRole 'language-operator': #{name}" if ENV['DEBUG']
+                end
+              end
+              
+              # Delete if we found a reason to
+              if should_delete
+                begin
+                  k8s.delete_resource('ClusterRoleBinding', name, nil, 'rbac.authorization.k8s.io/v1')
+                  puts "Successfully deleted ClusterRoleBinding: #{name}" if ENV['DEBUG']
+                rescue StandardError => e
+                  warn "Failed to delete ClusterRoleBinding #{name}: #{e.message}" if ENV['DEBUG']
+                end
+              end
+            end
+          rescue StandardError => e
+            warn "Failed to list/delete ClusterRoleBindings: #{e.message}" if ENV['DEBUG']
+          end
+        end
+
+        # Delete webhook configurations
+        def delete_webhook_configurations(k8s)
+          # Delete ValidatingWebhookConfigurations
+          begin
+            vwcs = k8s.list_resources('ValidatingWebhookConfiguration', 
+              namespace: nil, 
+              label_selector: 'app.kubernetes.io/name=language-operator'
+            )
+            
+            vwcs.each do |vwc|
+              name = vwc.dig('metadata', 'name')
+              begin
+                k8s.delete_resource('ValidatingWebhookConfiguration', name)
+              rescue StandardError => e
+                warn "Failed to delete ValidatingWebhookConfiguration #{name}: #{e.message}" if ENV['DEBUG']
+              end
+            end
+          rescue StandardError => e
+            warn "Failed to list/delete ValidatingWebhookConfigurations: #{e.message}" if ENV['DEBUG']
+          end
+
+          # Delete MutatingWebhookConfigurations
+          begin
+            mwcs = k8s.list_resources('MutatingWebhookConfiguration', 
+              namespace: nil, 
+              label_selector: 'app.kubernetes.io/name=language-operator'
+            )
+            
+            mwcs.each do |mwc|
+              name = mwc.dig('metadata', 'name')
+              begin
+                k8s.delete_resource('MutatingWebhookConfiguration', name)
+              rescue StandardError => e
+                warn "Failed to delete MutatingWebhookConfiguration #{name}: #{e.message}" if ENV['DEBUG']
+              end
+            end
+          rescue StandardError => e
+            warn "Failed to list/delete MutatingWebhookConfigurations: #{e.message}" if ENV['DEBUG']
+          end
+        end
+
+        # Remove finalizers from stuck resources
+        def remove_stuck_finalizers(k8s)
+          begin
+            # Remove finalizers from LanguageOperator CRDs if they're stuck
+            crd_names = [
+              'languageagents.langop.io',
+              'languagetools.langop.io', 
+              'languagemodels.langop.io',
+              'languagepersonas.langop.io',
+              'languageclusters.langop.io',
+              'languageagentversions.langop.io'
+            ]
+
+            crd_names.each do |crd_name|
+              begin
+                crd = k8s.get_resource('CustomResourceDefinition', crd_name, nil, 'apiextensions.k8s.io/v1')
+                
+                # Check if CRD has finalizers
+                finalizers = crd.dig('metadata', 'finalizers')
+                if finalizers && !finalizers.empty?
+                  # Remove finalizers to allow deletion
+                  patch = {
+                    'metadata' => {
+                      'finalizers' => []
+                    }
+                  }
+                  k8s.patch_resource('CustomResourceDefinition', crd_name, patch, namespace: nil, api_version: 'apiextensions.k8s.io/v1')
+                end
+              rescue K8s::Error::NotFound
+                # CRD doesn't exist, skip
+              rescue StandardError => e
+                warn "Failed to remove finalizers from CRD #{crd_name}: #{e.message}" if ENV['DEBUG']
+              end
+            end
+
+            # Remove finalizers from stuck custom resources
+            resource_types = %w[LanguageAgent LanguageTool LanguageModel LanguagePersona LanguageCluster LanguageAgentVersion]
+            resource_types.each do |resource_type|
+              begin
+                resources = k8s.list_resources(resource_type, namespace: nil)
+                resources.each do |resource|
+                  finalizers = resource.dig('metadata', 'finalizers')
+                  if finalizers && !finalizers.empty?
+                    name = resource.dig('metadata', 'name')
+                    namespace = resource.dig('metadata', 'namespace')
+                    
+                    patch = {
+                      'metadata' => {
+                        'finalizers' => []
+                      }
+                    }
+                    k8s.patch_resource(resource_type, name, patch, namespace: namespace)
+                  end
+                end
+              rescue StandardError => e
+                warn "Failed to remove finalizers from #{resource_type} resources: #{e.message}" if ENV['DEBUG']
+              end
+            end
+          rescue StandardError => e
+            warn "Failed to remove stuck finalizers: #{e.message}" if ENV['DEBUG']
           end
         end
 

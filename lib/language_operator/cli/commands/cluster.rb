@@ -13,7 +13,7 @@ module LanguageOperator
         include Helpers::UxHelper
 
         desc 'create NAME', 'Create a new language cluster'
-        option :organization_id, type: :string, required: true, desc: 'Organization ID for the cluster'
+        option :organization_id, type: :string, desc: 'Organization ID for the cluster (auto-detected if only one exists)'
         option :kubeconfig, type: :string, desc: 'Path to kubeconfig file'
         option :context, type: :string, desc: 'Kubernetes context to use'
         option :switch, type: :boolean, default: true, desc: 'Switch to new cluster context'
@@ -28,6 +28,12 @@ module LanguageOperator
             # Create Kubernetes client to find organization namespace
             k8s = Formatters::ProgressFormatter.with_spinner('Connecting to Kubernetes cluster') do
               Kubernetes::Client.new(kubeconfig: kubeconfig, context: context)
+            end
+
+            # Auto-detect organization if not provided
+            unless org_id
+              org_id = detect_organization_id(k8s)
+              exit 1 unless org_id
             end
 
             # Find the organization namespace
@@ -55,10 +61,18 @@ module LanguageOperator
               return
             end
 
-            # Check if cluster already exists
-            if Config::ClusterConfig.cluster_exists?(name)
-              Formatters::ProgressFormatter.error("Cluster '#{name}' already exists")
-              exit 1
+            # Check if cluster already exists in Kubernetes
+            begin
+              existing_cluster = k8s.get_resource('LanguageCluster', name, namespace)
+              if existing_cluster
+                Formatters::ProgressFormatter.error("Cluster '#{name}' already exists in namespace '#{namespace}'")
+                exit 1
+              end
+            rescue StandardError => e
+              # If we get a 404 or API error, the cluster doesn't exist - that's fine
+              unless e.message.include?('404') || e.message.include?('Not Found')
+                warn "Warning: Could not check for existing cluster: #{e.message}" if ENV['DEBUG']
+              end
             end
 
             # Check if operator is installed
@@ -80,7 +94,8 @@ module LanguageOperator
 
             # Create LanguageCluster resource
             Formatters::ProgressFormatter.with_spinner('Creating LanguageCluster resource') do
-              resource = Kubernetes::ResourceBuilder.language_cluster(name, namespace: namespace, domain: options[:domain], k8s_client: k8s)
+              labels = { 'langop.io/organization-id' => org_id }
+              resource = Kubernetes::ResourceBuilder.language_cluster(name, namespace: namespace, domain: options[:domain], labels: labels, k8s_client: k8s)
               k8s.apply_resource(resource)
               resource
             end
@@ -107,6 +122,7 @@ module LanguageOperator
               namespace: namespace,
               context: actual_context,
               domain: options[:domain],
+              org_id: org_id,
               status: 'Ready',
               created: Time.now.strftime('%Y-%m-%dT%H:%M:%SZ')
             )
@@ -360,6 +376,34 @@ module LanguageOperator
         end
 
         private
+
+        # Auto-detect organization ID when not provided
+        # @param k8s_client [Kubernetes::Client] Kubernetes client  
+        # @return [String, nil] Organization ID or nil if detection failed
+        def detect_organization_id(k8s_client)
+          # List all organization namespaces
+          org_namespaces = k8s_client.list_namespaces(
+            label_selector: 'langop.io/type=organization'
+          )
+
+          case org_namespaces.length
+          when 0
+            Formatters::ProgressFormatter.error('No organizations found in cluster')
+            puts "\nRun 'langop organization list' to see available organizations."
+            nil
+          when 1
+            org_id = org_namespaces.first.dig('metadata', 'labels', 'langop.io/organization-id')
+            org_id
+          else
+            Formatters::ProgressFormatter.error('Multiple organizations found')
+            puts "\nPlease specify which organization to use:"
+            puts "  langop cluster create #{ARGV.last} --organization-id <ORG_ID>"
+            puts
+            puts "Available organizations:"
+            list_org_namespaces(k8s_client)
+            nil
+          end
+        end
 
         # Find the namespace for a given organization ID
         #

@@ -164,6 +164,22 @@ module LanguageOperator
             puts '* = current cluster'
           end
 
+          def organizations(organizations)
+            return ProgressFormatter.info('No organizations found') if organizations.empty?
+
+            headers = ['NAMESPACE', 'ORGANIZATION ID', 'PLAN', 'CREATED']
+            rows = organizations.map do |org|
+              [
+                org[:namespace],
+                org[:organization_id],
+                org[:plan],
+                org[:created]
+              ]
+            end
+
+            puts table(headers, rows)
+          end
+
           private
 
           def truncate(text, length)

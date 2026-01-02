@@ -224,7 +224,9 @@ module LanguageOperator
               provider: provider_info[:provider_key],
               model: model_id,
               endpoint: provider_info[:endpoint],
-              cluster: ctx.namespace
+              cluster: ctx.namespace,
+              cluster_ref: ctx.name,
+              k8s_client: ctx.client
             )
 
             # Add API key reference if secret was created

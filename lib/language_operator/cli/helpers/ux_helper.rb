@@ -433,7 +433,7 @@ module LanguageOperator
         # @param created [String, nil] Creation timestamp (optional)
         # @param domain [String, nil] Cluster domain (optional)
         # @return [void] Displays formatted cluster information
-        def format_cluster_details(name:, namespace:, context:, status: nil, created: nil, domain: nil)
+        def format_cluster_details(name:, namespace:, context:, status: nil, created: nil, domain: nil, org_id: nil)
           format_resource_details(
             type: 'Cluster',
             name: name,
@@ -442,6 +442,7 @@ module LanguageOperator
               'Context' => context
             },
             optional_fields: {
+              'Org ID' => org_id,
               'Domain' => domain,
               'Status' => status,
               'Created' => created

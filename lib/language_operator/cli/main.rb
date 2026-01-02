@@ -10,10 +10,10 @@ require_relative 'commands/status'
 require_relative 'commands/persona'
 require_relative 'commands/tool/base'
 require_relative 'commands/model/base'
-require_relative 'commands/quickstart'
 require_relative 'commands/install'
 require_relative 'commands/system/base'
 require_relative 'commands/ui'
+require_relative 'commands/organization'
 require_relative 'formatters/progress_formatter'
 require_relative 'helpers/ux_helper'
 require_relative '../config/cluster_config'
@@ -72,6 +72,9 @@ module LanguageOperator
       desc 'cluster SUBCOMMAND ...ARGS', 'Manage clusters'
       subcommand 'cluster', Commands::Cluster
 
+      desc 'organization SUBCOMMAND ...ARGS', 'Manage organizations'
+      subcommand 'organization', Commands::Organization
+
       desc 'use CLUSTER', 'Switch to a different cluster'
       def use(cluster_name)
         Commands::Use.new.switch(cluster_name)
@@ -91,11 +94,6 @@ module LanguageOperator
 
       desc 'system SUBCOMMAND ...ARGS', 'System utilities'
       subcommand 'system', Commands::System::Base
-
-      desc 'quickstart', 'Wizard for first-time users'
-      def quickstart
-        Commands::Quickstart.new.invoke(:start)
-      end
 
       desc 'ui', 'Open the Language Operator dashboard in your browser'
       option :port, type: :numeric, default: Commands::Ui::DEFAULT_PORT, desc: "Local port to forward to (default: #{Commands::Ui::DEFAULT_PORT})"
