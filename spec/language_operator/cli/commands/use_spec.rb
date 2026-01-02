@@ -94,6 +94,11 @@ RSpec.describe LanguageOperator::CLI::Commands::Use do
         allow(LanguageOperator::Config::ClusterConfig).to receive(:cluster_exists?).and_return(false)
         allow(LanguageOperator::Config::ClusterConfig).to receive(:list_clusters).and_return(available_clusters)
         allow(command).to receive(:exit)
+        
+        # Mock Kubernetes client for find_cluster_in_kubernetes method
+        mock_find_k8s_client = double('K8s Client for find')
+        allow(LanguageOperator::Kubernetes::Client).to receive(:new).and_return(mock_find_k8s_client)
+        allow(mock_find_k8s_client).to receive(:list_resources).with('LanguageCluster', namespace: nil).and_return([])
       end
 
       it 'shows error and lists available clusters' do
