@@ -53,20 +53,20 @@ RSpec.describe LanguageOperator::CLI::Formatters::TableFormatter do
         described_class.clusters(sample_clusters)
 
         expect(@captured_headers).to include('DOMAIN')
-        expect(@captured_headers).to eq(['', 'NAME', 'NAMESPACE', 'STATUS', 'DOMAIN'])
+        expect(@captured_headers).to eq(['', 'NAME', 'NAMESPACE', 'ORGANIZATION', 'STATUS', 'DOMAIN'])
       end
 
       it 'displays domain values correctly' do
         described_class.clusters(sample_clusters)
 
         # Check first row has domain
-        expect(@captured_rows[0][4]).to eq('agents.example.com')
+        expect(@captured_rows[0][5]).to eq('agents.example.com')
 
         # Check second row has empty domain (nil becomes empty string)
-        expect(@captured_rows[1][4]).to eq('')
+        expect(@captured_rows[1][5]).to eq('')
 
         # Check error row shows error indicator
-        expect(@captured_rows[2][4]).to eq('?')
+        expect(@captured_rows[2][5]).to eq('?')
       end
 
       it 'handles current cluster formatting with domain' do
@@ -75,7 +75,7 @@ RSpec.describe LanguageOperator::CLI::Formatters::TableFormatter do
         # First row should be current cluster (formatted with yellow/bold)
         first_row = @captured_rows[0]
         expect(first_row[1]).to be_a(String) # formatted name
-        expect(first_row[4]).to eq('agents.example.com') # domain preserved
+        expect(first_row[5]).to eq('agents.example.com') # domain preserved
       end
     end
 
@@ -98,7 +98,7 @@ RSpec.describe LanguageOperator::CLI::Formatters::TableFormatter do
         }]
 
         described_class.clusters(clusters_with_empty_domain)
-        expect(@captured_rows[0][4]).to eq('')
+        expect(@captured_rows[0][5]).to eq('')
       end
 
       it 'handles dash indicator domain' do
@@ -110,7 +110,7 @@ RSpec.describe LanguageOperator::CLI::Formatters::TableFormatter do
         }]
 
         described_class.clusters(clusters_with_dash)
-        expect(@captured_rows[0][4]).to eq('-')
+        expect(@captured_rows[0][5]).to eq('-')
       end
     end
   end
