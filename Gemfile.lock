@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    language-operator (0.1.82)
+    language-operator (0.1.83)
       bcrypt (~> 3.1)
       faraday (~> 2.0)
       json-schema (~> 5.0)
