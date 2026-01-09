@@ -212,8 +212,8 @@ module LanguageOperator
 
             namespace = options[:namespace]
 
-            # Update Helm repository
-            update_helm_repo unless options[:dry_run]
+            # Add/Update Helm repository  
+            add_helm_repo unless options[:dry_run]
 
             # Build helm upgrade command
             cmd = build_helm_command('upgrade', namespace)
