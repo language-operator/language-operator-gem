@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative '../command_loader'
+require_relative '../helpers/health_checker'
 
 module LanguageOperator
   module CLI
@@ -33,14 +34,39 @@ module LanguageOperator
                 end
               end
 
-              # Format cluster info using UxHelper
+              # Early exit if operator not installed
+              unless k8s.operator_installed?
+                logo(title: 'cluster status')
+                puts
+                puts 'Install the operator with:'
+                puts '  langop install'
+                puts
+                return
+              end
+
+              # Run health checks first
               logo(title: 'cluster status')
+              begin
+                # Use 'language-operator' namespace for system components, not the cluster namespace
+                health_checker = Helpers::HealthChecker.new(k8s, 'language-operator', current_cluster, cluster_config[:namespace])
+                health_results = health_checker.run_all_checks
+
+                # Display any health check failures
+                display_health_summary(health_results)
+              rescue StandardError => e
+                Formatters::ProgressFormatter.error("Health check failed: #{e.message}")
+                puts e.backtrace.first(3).join("\n") if ENV['DEBUG']
+              end
+
+              # Then show cluster details
+              puts
 
               if cluster_resource
                 # Use actual cluster resource data
                 status = cluster_resource.dig('status', 'phase') || 'Unknown'
                 domain = cluster_resource.dig('spec', 'domain')
                 created = cluster_resource.dig('metadata', 'creationTimestamp')
+                org_id = cluster_resource.dig('metadata', 'labels', 'langop.io/organization-id')
 
                 format_cluster_details(
                   name: current_cluster,
@@ -48,7 +74,8 @@ module LanguageOperator
                   context: cluster_config[:context],
                   status: status,
                   domain: domain,
-                  created: created
+                  created: created,
+                  org_id: org_id
                 )
               else
                 # Fallback to local config and operator status
@@ -58,15 +85,6 @@ module LanguageOperator
                   context: cluster_config[:context],
                   status: k8s.operator_installed? ? (k8s.operator_version || 'installed') : 'operator not installed'
                 )
-              end
-
-              # Early exit if operator not installed
-              unless k8s.operator_installed?
-                puts
-                puts 'Install the operator with:'
-                puts '  langop install'
-                puts
-                return
               end
 
             else
@@ -105,6 +123,58 @@ module LanguageOperator
             stats[status] += 1
           end
           stats
+        end
+
+        def display_health_summary(results)
+          # Show any health issues
+          issues = []
+
+          results.each do |component, result|
+            next if result[:healthy]
+
+            case component
+            when :cluster
+              if result[:error]
+                issues << "Cluster: #{result[:error]}"
+              else
+                issues << "Cluster: unexpected issue"
+              end
+            when :dashboard
+              if result[:error]
+                issues << "Dashboard: #{result[:error]}"
+              else
+                issues << "Dashboard: #{result[:ready_replicas]}/#{result[:desired_replicas]} pods ready"
+              end
+            when :operator
+              if result[:error]
+                issues << "Operator: #{result[:error]}"
+              else
+                issues << "Operator: #{result[:ready_replicas]}/#{result[:desired_replicas]} pods ready"
+              end
+            when :clickhouse
+              if result[:error]
+                issues << "ClickHouse: #{result[:error]}"
+              else
+                auth_status = result[:auth_works] ? 'auth OK' : 'auth failed'
+                issues << "ClickHouse: connection failed (#{auth_status})"
+              end
+            when :postgres
+              if result[:error]
+                issues << "PostgreSQL: #{result[:error]}"
+              else
+                auth_status = result[:auth_works] ? 'auth OK' : 'auth failed'
+                issues << "PostgreSQL: connection failed (#{auth_status})"
+              end
+            end
+          end
+
+          if issues.any?
+            puts
+            Formatters::ProgressFormatter.warn('Health check issues detected:')
+            issues.each do |issue|
+              puts "  • #{issue}"
+            end
+          end
         end
       end
     end

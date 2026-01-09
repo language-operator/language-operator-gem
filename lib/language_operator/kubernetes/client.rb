@@ -176,9 +176,16 @@ module LanguageOperator
       # Get operator version
       def operator_version
         deployment = @client.api('apps/v1')
-                            .resource('deployments', namespace: 'kube-system')
+                            .resource('deployments', namespace: 'language-operator')
                             .get(Constants::KubernetesLabels::PROJECT_NAME)
-        deployment.dig('metadata', 'labels', Constants::KubernetesLabels::VERSION) || 'unknown'
+        
+        # Try to get version from Helm chart label first, then fallback to app version
+        version = deployment.dig('metadata', 'labels', 'helm.sh/chart')&.split('-')&.last ||
+                  deployment.dig('metadata', 'labels', Constants::KubernetesLabels::VERSION)
+        
+        return version if version && version != 'latest'
+        
+        'unknown'
       rescue K8s::Error::NotFound
         nil
       end

@@ -438,14 +438,14 @@ module LanguageOperator
             type: 'Cluster',
             name: name,
             common_fields: {
-              'Namespace' => namespace,
-              'Context' => context
+              'Namespace' => namespace
             },
             optional_fields: {
               'Org ID' => org_id,
               'Domain' => domain,
               'Status' => status,
-              'Created' => created
+              'Created' => created,
+              'Context' => context
             }
           )
         end

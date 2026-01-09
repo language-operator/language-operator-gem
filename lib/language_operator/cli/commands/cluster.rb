@@ -210,46 +210,6 @@ module LanguageOperator
           end
         end
 
-        desc 'current', 'Show current cluster context'
-        def current
-          handle_command_error('show current cluster') do
-            cluster_name = Config::ClusterConfig.current_cluster
-
-            unless cluster_name
-              Formatters::ProgressFormatter.info('No cluster selected')
-              puts "\nSelect a cluster with:"
-              puts '  langop use <cluster>'
-              return
-            end
-
-            cluster = Config::ClusterConfig.get_cluster(cluster_name)
-
-            unless cluster
-              Formatters::ProgressFormatter.error("Cluster '#{cluster_name}' not found in config")
-              exit 1
-            end
-
-            puts 'Current Cluster:'
-            puts "  Name:      #{cluster[:name]}"
-            puts "  Namespace: #{cluster[:namespace]}"
-            puts "  Context:   #{cluster[:context] || 'default'}"
-            puts "  Created:   #{cluster[:created]}"
-
-            # Check cluster health
-            begin
-              k8s = Helpers::ClusterValidator.kubernetes_client(cluster_name)
-
-              if k8s.operator_installed?
-                version = k8s.operator_version
-                Formatters::ProgressFormatter.success("Operator: #{version || 'installed'}")
-              else
-                Formatters::ProgressFormatter.warn('Operator: not found')
-              end
-            rescue StandardError => e
-              Formatters::ProgressFormatter.error("Connection: #{e.message}")
-            end
-          end
-        end
 
         desc 'delete NAME', 'Delete a cluster'
         option :force, type: :boolean, default: false, desc: 'Skip confirmation'
