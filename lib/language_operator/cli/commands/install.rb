@@ -233,6 +233,9 @@ module LanguageOperator
 
               # Restart the language-operator deployment to ensure new version is running
               restart_language_operator_deployment(namespace)
+
+              # Also restart the dashboard deployment
+              restart_dashboard_deployment(namespace)
             end
           end
         end
@@ -524,7 +527,7 @@ module LanguageOperator
 
         # Restart the language-operator deployment to ensure new version is running
         def restart_language_operator_deployment(namespace)
-          Formatters::ProgressFormatter.with_spinner('Restarting language-operator deployment') do
+          Formatters::ProgressFormatter.with_spinner('Restarting operator') do
             # Use kubectl rollout restart for the deployment
             cmd = "kubectl rollout restart deployment/language-operator --namespace #{namespace}"
 
@@ -535,6 +538,22 @@ module LanguageOperator
           rescue StandardError => e
             # Don't fail the entire upgrade if restart fails
             warn "Warning: Could not restart language-operator deployment: #{e.message}"
+          end
+        end
+
+        # Restart the dashboard deployment to ensure new version is running
+        def restart_dashboard_deployment(namespace)
+          Formatters::ProgressFormatter.with_spinner('Restarting dashboard') do
+            # Use kubectl rollout restart for the deployment
+            cmd = "kubectl rollout restart deployment/language-operator-dashboard --namespace #{namespace}"
+
+            output = `#{cmd} 2>&1`
+            success = $?.success?
+
+            raise "Failed to restart dashboard deployment: #{output}" unless success
+          rescue StandardError => e
+            # Don't fail the entire upgrade if restart fails
+            warn "Warning: Could not restart dashboard deployment: #{e.message}"
           end
         end
 
